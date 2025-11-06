@@ -1,0 +1,46 @@
+# generar un módulo de medio sumador de verilog con python
+
+# código verilog
+verilog_code = """
+module half_adder(a, b, c, sum, carry);
+    input a, b;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# nombre del módulo verilog
+module_name = "half_adder"
+
+# puertos de entrada y salida del módulo verilog
+input_ports = ["a", "b"]
+output_ports = ["c", "sum", "carry"]
+
+# parámetros del módulo verilog
+parameters = ["WIDTH"]
+
+# valor de los parámetros del módulo verilog
+parameter_values = ["8"]
+
+# cuerpo del módulo verilog
+module_body = """
+    input a, b, clk, reset;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# instanciación de módulo verilog
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .c(c),
+    .sum(sum),
+    .carry(carry)
+);
+"""

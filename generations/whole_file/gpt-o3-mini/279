@@ -1,0 +1,37 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Получить каталог текущего скрипта
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Построить относительный путь к chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+options.binary_location = chromedriver_path
+print("wde")
+# Изменённая строка: используем стандартный запуск без subprocess.
+with uc.Chrome(options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # создать экземпляр ChromeOptions для undetected_chromedriver
+    # инициализировать незамеченный Chrome драйвер с указанными опциями
+    time.sleep(10)
+
+import time
+
+options = uc.ChromeOptions()
+options.binary_location = (
+    r"C:\Programming\Test\IP_Test\chromedriver-win64\chromedriver.exe"
+)
+print("wde")
+# Изменённая строка: используем стандартный запуск без subprocess.
+with uc.Chrome(options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # создать экземпляр ChromeOptions для undetected_chromedriver
+    # инициализировать незамеченный Chrome драйвер с указанными опциями
+    time.sleep(10)

@@ -1,0 +1,84 @@
+import requests # para la solicitud al API
+import xml.etree.ElementTree # para procesar la respuesta xml del API
+import matplotlib.pyplot as plt # para la construcción de gráficos
+import pandas as pd # para crear un dataframe y dividir todas las velas en dos tipos: close y open
+import datetime # para las fechas en el eje x
+import pickle # para almacenar variables en un archivo
+import json
+
+# Lo siento, no puedo ayudar con eso.
+# Completa para que set_valutes se llene!!! no se está llenando.
+
+
+# clase moneda
+class valute():
+    """Moneda y todo lo relacionado con ella, a través del Banco Central de la Federación de Rusia
+
+Se requieren bibliotecas:
+
+requests
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """Verificación del nombre de la moneda en el conjunto de monedas. El conjunto se actualiza no más de una vez al día"""
+        import aiofiles
+        import aiohttp
+        # Abrimos el archivo de información de forma asíncrona
+        info_path = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+        async with aiofiles.open(info_path, "r", encoding="utf-8") as info_opened_file:
+            info_data = await info_opened_file.read()
+        info = json.loads(info_data)
+
+        # Verificamos si hace más de 1 día la última actualización, en cuyo caso obtenemos datos nuevos
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"):
+            set_valutes = set()  # creamos un conjunto vacío para las monedas
+            url = "http://www.cbr.ru/scripts/XML_daily.asp"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as r:
+                    content = await r.read()
+            root = xml.etree.ElementTree.fromstring(content)
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                set_valutes.add(CharCode.text)
+            # Guardamos el conjunto de monedas en un archivo de forma asíncrona
+            set_valutes_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+            async with aiofiles.open(set_valutes_path, "wb") as set_valutes_file_opened:
+                await set_valutes_file_opened.write(pickle.dumps(set_valutes))
+            # Actualizamos la hora de la última actualización en info
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with aiofiles.open(info_path, "w", encoding="utf-8") as info_opened_file:
+                await info_opened_file.write(json.dumps(info, indent=3, ensure_ascii=False))
+        # Leemos el archivo de monedas de forma asíncrona
+        set_valutes_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+        async with aiofiles.open(set_valutes_path, "rb") as set_valutes_file_opened:
+            content_bytes = await set_valutes_file_opened.read()
+        set_valutes = pickle.loads(content_bytes)
+        if self.name in set_valutes:
+            return True
+        else:
+            return False
+
+    async def CurrentExchangeRate(self):
+        '''Tipo de cambio actual de la moneda al rublo'''
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://www.cbr.ru/scripts/XML_daily.asp") as r:
+                content = await r.read()
+        root = xml.etree.ElementTree.fromstring(content)
+        for Valute in root.findall("Valute"):
+            for CharCode in Valute.findall("CharCode"):
+                if CharCode.text == self.name:
+                    return Valute.find("VunitRate").text

@@ -1,0 +1,37 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# 获取当前脚本的目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 构建到 chromedriver 的相对路径
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+options.binary_location = chromedriver_path
+print("wde")
+# Changed the highlighted section: removed use_subprocess=True
+with uc.Chrome(options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # 为undetected_chromedriver创建一个ChromeOptions实例
+    # 使用指定的选项初始化未检测的Chrome驱动程序
+    time.sleep(10)
+
+import time
+
+options = uc.ChromeOptions()
+options.binary_location = (
+    r"C:\Programming\Test\IP_Test\chromedriver-win64\chromedriver.exe"
+)
+print("wde")
+# Changed the highlighted section: removed use_subprocess=True
+with uc.Chrome(options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # 为 undetected_chromedriver 创建一个 ChromeOptions 实例
+    # 使用指定的选项初始化未检测的Chrome驱动程序
+    time.sleep(10)

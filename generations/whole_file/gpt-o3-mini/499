@@ -1,0 +1,77 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+def cluster_data(features_transformed, clusters_spec, n_clusters=2, clustering_method='kmeans'):
+    """Realiza la agrupación de datos para conjuntos de columnas especificados.
+
+Args:
+    features_transformed (pandas.DataFrame): DataFrame transformado con parámetros.
+    clusters_spec (dict): Diccionario donde cada clave es el nombre de la nueva columna de clústeres
+                          y cada valor es una tupla con los nombres de las columnas sobre las que se
+                          realizará la clusterización.
+    n_clusters (int): Número de clústeres.
+    clustering_method (str): Método de agrupación ('kmeans').
+
+Returns:
+    pandas.DataFrame: DataFrame con las columnas de etiquetas de clústeres añadidas."""
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+    
+    if clustering_method == 'kmeans':
+        # Realizamos la clusterización de forma independiente para cada conjunto de columnas especificado
+        for new_cluster_col, cols in clusters_spec.items():
+            # Verificamos que todas las columnas existan en el DataFrame
+            if not all(col in features_for_clustering.columns for col in cols):
+                print(f"Algunas columnas de {cols} no existen en el DataFrame.")
+                continue
+
+            subset = features_for_clustering[list(cols)].copy()
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(subset)
+            
+            # Evaluación de la calidad de la agrupación utilizando el coeficiente de silueta
+            if len(np.unique(cluster_labels)) > 1:  # Verificar que no todos los puntos estén en un único clúster
+                silhouette_avg = silhouette_score(subset, cluster_labels)
+                print(f"Коэффициент силуэта para {n_clusters} кластеров en '{new_cluster_col}': {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта para {n_clusters} кластера en '{new_cluster_col}' (todos los puntos en un único clúстер).")
+            
+            features_transformed[new_cluster_col] = cluster_labels
+            print(f"Кластеризация realizada en columnas {cols}. Etiquetas guardadas en '{new_cluster_col}'.")
+    else:
+        print("Неподдерживаемый метод кластеризации.")
+        return None
+
+    return features_transformed
+
+# Ejecución de la clusterización (después de la etapa 5 y antes de la etapa 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Especificamos los conjuntos de columnas para la clusterización. 
+    # Por ejemplo: 'Cluster1' se realizará sobre ('columna1', 'columna2') y 'Cluster2' sobre ('columna3',).
+    clusters_spec = {
+        'Cluster1': ('columna1', 'columna2'),
+        'Cluster2': ('columna3',)
+    }
+    n_clusters = 3  # Cantidad de clústeres (seleccione el valor óptimo)
+    features_transformed = cluster_data(features_transformed, clusters_spec, n_clusters)
+    
+    # Visualización de los clúстерes utilizando el primer conjunto de columnas especificado
+    first_cluster_key = list(clusters_spec.keys())[0]
+    numerical_features = features_transformed.select_dtypes(include=np.number)
+    if numerical_features.shape[1] >= 2:
+        plt.figure(figsize=(8, 6))
+        plt.scatter(numerical_features.iloc[:, 0],
+                    numerical_features.iloc[:, 1],
+                    c=features_transformed[first_cluster_key], cmap='viridis')
+        plt.xlabel(numerical_features.columns[0])
+        plt.ylabel(numerical_features.columns[1])
+        plt.title('Результаты кластеризации')
+        plt.colorbar(label='Номер кластера')
+        plt.show()
+    else:
+        print("Недостаточно числовых признаков para визуализации de clusters en el plano.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

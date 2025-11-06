@@ -1,0 +1,30 @@
+def is_sum_of_four_squares(n):
+    if n < 0:
+        return False
+    # Используем диапазон, начинающийся с 1, чтобы исключить нулевые квадраты.
+    max_square = int(n**0.5) + 1
+    for a in range(1, max_square):
+        for b in range(1, max_square):
+            for c in range(1, max_square):
+                for d in range(1, max_square):
+                    if a**2 + b**2 + c**2 + d**2 == n:
+                        return a, b, c, d
+    return None
+
+def find_four_squares_sums(limit):
+    """Находит числа до заданного предела, которые могут быть выражены как сумма четырех ненулевых квадратов."""
+    results = []
+    for n in range(1, limit + 1):
+        result = is_sum_of_four_squares(n)
+        if result:
+            results.append(n)
+    return results
+
+# Пример использования:
+limit = int(input("Digite o limite superior: "))
+sums_found = find_four_squares_sums(limit)
+print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+for num in sums_found:
+    result = is_sum_of_four_squares(num)
+    a, b, c, d = result
+    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

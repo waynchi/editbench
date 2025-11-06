@@ -1,0 +1,99 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('app.log', encoding='utf-8')
+        ]
+    )
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Działa jako skompilowany plik wykonywalny
+            resource_path = os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # Uruchamianie jako skrypt
+            resource_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+        if not os.path.exists(resource_path):
+            raise FileNotFoundError(f"Resource directory does not exist: {resource_path}")
+        return resource_path
+    except Exception as e:
+        logging.error(f"Error obtaining resource path: {e}")
+        raise
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+    resource_dir = get_resource_path()
+    
+    # Sprawdź, czy każdy wymagany plik istnieje
+    missing_files = []
+    for file in required_files:
+        if not os.path.exists(os.path.join(resource_dir, file)):
+            missing_files.append(file)
+    
+    # Jeśli brakuje jakichkolwiek wymaganych plików, zwróć False
+    if missing_files:
+        logging.error(f"Missing resource files: {', '.join(missing_files)}")
+        return False
+    return True
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Skonfiguruj logowanie
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Sprawdź zasoby
+        if not check_resources():
+            logging.error("Required resource files are missing. Application cannot start.")
+            sys.exit(1)
+
+        # Zainicjuj główne okno z obsługą przeciągania i upuszczania
+        root = tkinterdnd2.TkinterDnD.Tk()
+        
+        # Importuj tutaj, aby uniknąć cyklicznych importów
+        from gui.main_window import AudioTranscriberApp
+        
+        # Utwórz instancję aplikacji
+        app = AudioTranscriberApp(root)
+        
+        # Uruchom główną pętlę zdarzeń
+        root.mainloop()
+        
+    except Exception as e:
+        logging.error(f"Application error: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,41 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """Взаимодействие с локальной LLM с использованием Ollama API.
+
+    :param prompt: Входной запрос для LLM.
+    :param base_url: Базовый URL Ollama API.
+    :return: Ответ от LLM."""
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # Замените на имя вашей модели
+        "prompt": prompt,
+        "max_tokens": 2048  # Корректируйте по мере необходимости
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+        # Исправление ошибки "Лишние данные: строка 2 столбец 1 (символ 101)"
+        # Иногда API возвращает несколько JSON-объектов, поэтому пытаемся выделить только первый.
+        data = response.text.strip()
+        end_index = data.find('}') + 1
+        if end_index > 0:
+            valid_json = data[:end_index]
+        else:
+            valid_json = data
+        parsed = json.loads(valid_json)
+        return parsed.get('response', '')
+    except requests.exceptions.RequestException as e:
+        return None
+
+# Пример использования
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")

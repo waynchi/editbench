@@ -1,0 +1,239 @@
+import os
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+import sys
+import argparse
+
+import time
+
+current_directory = os.getcwd()
+module_path = os.path.abspath(os.path.join(current_directory, "src/"))
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
+from utils import *
+
+from dotenv import load_dotenv
+
+load_dotenv()
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+from utils import load_model
+from merge_funcs import *
+from my_eval import (
+    eval_df_ModAdd,
+    eval_df_FineWeb,
+    generate_samples_modadd_fineweb,
+    concat_task_csv_files,
+)
+import nltk
+
+
+def main(
+    models_path,
+    save_dir,
+    model_size,
+    block_list,
+    evaluate_option,
+    n_samples_modadd=10000,
+    batch_size_modadd=400,
+    n_sampled_fineweb=10000,
+    batch_size_fineweb=32,
+    save_dir_graft="GRAFT",
+    save_dir_fine_tune="Fine_tune",
+    verbose=True,
+    vanilla_model_name=None,
+    host_model_name=None,
+    model_names=["Tuned Model", "Transformed Model", "Vanilla Model", "Final Model"],
+):
+    if vanilla_model_name is None:
+        vanilla_model_name = f"EleutherAI/pythia-{model_size}M"
+    if host_model_name is None:
+        host_model_name = f"EleutherAI/pythia-{model_size}M-deduped"
+
+    # Проверить, существует ли уже каталог
+    if not os.path.exists(os.path.join(models_path, save_dir)):
+        os.makedirs(os.path.join(models_path, save_dir))
+
+    tokenizer = AutoTokenizer.from_pretrained(vanilla_model_name)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
+
+    blocks_str = "_".join([str(x) for x in block_list])
+
+    if verbose:
+        print("Loading models...")
+
+    for name in model_names:
+        if verbose:
+            print(f"Generating samples for {name}")
+
+        model_dir = save_dir_fine_tune if "Tuned Model" in name else save_dir_graft
+        model_path = os.path.join(models_path, model_dir)
+
+        model = load_model(
+            model_type=name,
+            model_path=model_path,
+            blocks_str=blocks_str,
+            vanilla_model_name=vanilla_model_name,
+            host_model_name=host_model_name,
+        )
+        model.generation_config.pad_token_id = tokenizer.pad_token_id
+
+        sanitized_name = name.replace(" ", "_")
+        footer = f"{blocks_str}_{sanitized_name}"
+
+        output_df_modadd, output_df_fineweb = generate_samples_modadd_fineweb(
+            models=[(model, sanitized_name)],
+            tokenizer=tokenizer,
+            footer=footer,
+            model_path=models_path,
+            save_dir=os.path.join(save_dir, sanitized_name),
+            data_path=DATA_SAVE_PATH,
+            n_samples_modadd=n_samples_modadd,
+            batch_size_modadd=batch_size_modadd,
+            max_samples_fineweb=n_sampled_fineweb,
+            batch_size_fineweb=batch_size_fineweb,
+            max_tokens_generated=30,
+            mod=4,
+        )
+
+    # #########ОЦЕНКА#########
+
+    footer = f"{blocks_str}"
+
+    if evaluate_option in ["modular_addition", "both"]:
+        if verbose:
+            print("Evaluating Modular Addition results...")
+        all_model_generated_samples = concat_task_csv_files(
+            os.path.join(models_path, save_dir),
+            task="Modular_addition",
+            blocks_str=blocks_str,
+        )
+        results_modadd = eval_df_ModAdd(
+            all_model_generated_samples, return_mean_std=True
+        )
+        results_path = os.path.join(
+            models_path, save_dir, f"Modular_addition_results_{footer}.csv"
+        )
+        results_modadd.to_csv(results_path)
+        if verbose:
+            print("Modular Addition evaluation completed.")
+
+    if evaluate_option in ["fineweb", "both"]:
+        if verbose:
+            print("Evaluating FineWeb results...")
+        all_model_generated_samples_fineweb = concat_task_csv_files(
+            os.path.join(models_path, save_dir),
+            task="FineWeb",
+            blocks_str=blocks_str,
+        )
+        nltk.download("punkt")
+
+        results_fineweb = eval_df_FineWeb(
+            all_model_generated_samples_fineweb, return_mean_std=True
+        )
+        results_path_fineweb = os.path.join(
+            models_path, save_dir, f"FineWeb_results_{footer}.csv"
+        )
+        results_fineweb.to_csv(results_path_fineweb)
+        if verbose:
+            print("FineWeb evaluation completed.")
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="Script to manage model merging and grafting."
+    )
+    parser.add_argument(
+        "--models_path", type=str, default=MODEL_PATH, help="Model_path"
+    )
+    parser.add_argument(
+        "--model_names",
+        type=lambda s: s.split(','),
+        default="Tuned Model,Transformed Model,Vanilla Model,Final Model",
+        help="Comma separated list of model names",
+    )
+    parser.add_argument(
+        "--save_dir",
+        type=str,
+        default="samples_generated",
+        help="Directory to save results generated by each model.",
+    )
+    parser.add_argument(
+        "--save_dir_graft",
+        type=str,
+        default="GRAFT",
+        help="Directory to save grafted models.",
+    )
+    parser.add_argument(
+        "--save_dir_fine_tune",
+        type=str,
+        default="Fine_tune",
+        help="Directory to save finetuned models.",
+    )
+    parser.add_argument(
+        "--max_samples_modadd",
+        type=int,
+        default=1024,
+        help="Maximum samples per grafting.",
+    )
+    parser.add_argument(
+        "--max_samples_fineweb",
+        type=int,
+        default=50,
+        help="Maximum samples per grafting.",
+    )
+    parser.add_argument(
+        "--batch_size_modadd", type=int, default=30, help="Batch size for grafting."
+    )
+    parser.add_argument(
+        "--batch_size_fineweb", type=int, default="70", help="Size of the Pythia model."
+    )
+    parser.add_argument(
+        "--model_size", type=int, default="70", help="Size of the Pythia model."
+    )
+    parser.add_argument(
+        "--block_list",
+        type=lambda value: [int(x) for x in value.split(",")],
+        default=[3],
+        help="Number of layers",
+    )
+    parser.add_argument(
+        "--evaluate",
+        type=str,
+        choices=["modular_addition", "fineweb", "both"],
+        default="both",
+        help="Specify which evaluation to perform: 'modular_addition', 'fineweb', or 'both'.",
+    )
+    parser.add_argument(
+        "--host_model_name",
+        type=str,
+        default=f"EleutherAI/pythia-70M-deduped",
+        help="host_model_name",
+    )
+    parser.add_argument(
+        "--vanilla_model_name",
+        type=str,
+        default=f"EleutherAI/pythia-70M",
+        help="vanilla_model_name",
+    )
+    args = parser.parse_args()
+
+    main(
+        models_path=args.models_path,
+        save_dir=args.save_dir,
+        save_dir_graft=args.save_dir_graft,
+        save_dir_fine_tune=args.save_dir_fine_tune,
+        n_samples_modadd=args.max_samples_modadd,
+        batch_size_modadd=args.batch_size_modadd,
+        n_sampled_fineweb=args.max_samples_fineweb,
+        batch_size_fineweb=args.batch_size_fineweb,
+        model_size=args.model_size,
+        block_list=args.block_list,
+        evaluate_option=args.evaluate,
+        host_model_name=args.host_model_name,
+        vanilla_model_name=args.vanilla_model_name,
+        model_names=args.model_names,
+    )

@@ -1,0 +1,38 @@
+import random
+
+def roll_dice(num_rolls):
+    """Lanza un dado de seis caras un número especificado de veces y devuelve los porcentajes de cada resultado.
+
+    Args:
+        num_rolls: El número de veces que se lanzará el dado.
+
+    Returns:
+        Un diccionario donde las claves son los números del 1 al 6 (que representan las caras del dado) y los valores son el porcentaje de veces que cada cara apareció, calculado sobre el total de lanzamientos. Devuelve un diccionario vacío si num_rolls no es un entero positivo.
+
+    Raises:
+        TypeError: si num_rolls no es un entero.
+        ValueError: si num_rolls no es positivo."""
+    if not isinstance(num_rolls, int):
+        raise TypeError("Number of rolls must be an integer.")
+    if num_rolls <= 0:
+        raise ValueError("Number of rolls must be positive.")
+
+    frequencies = {i: 0 for i in range(1, 7)}  # Inicializar frecuencias para cada cara (1-6)
+    for _ in range(num_rolls):
+        roll = random.randint(1, 6)  # Simular una tirada de dado
+        frequencies[roll] += 1
+
+    # Convertir las frecuencias a porcentajes
+    percentages = {face: (count / num_rolls) * 100 for face, count in frequencies.items()}
+    return percentages
+
+if __name__ == "__main__":
+    num_rolls = 10000
+    try:
+        results = roll_dice(num_rolls)
+        print(f"Porcentajes de resultados tras {num_rolls} lanzamientos:")
+        for face, percentage in results.items():
+            print(f"Cara {face}: {percentage:.2f}%")
+
+    except (TypeError, ValueError) as e:
+        print(f"Error: {e}")

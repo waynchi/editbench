@@ -1,0 +1,76 @@
+import * as THREE from "three";
+
+const world = Globe()
+  .globeImageUrl("img/world.topo.200412.3x21600x10800.png")
+  .bumpImageUrl("img/earth-topology.png")
+  .backgroundImageUrl("img/night-sky.png")(document.getElementById("globeViz"));
+
+// custom globe material
+const globeMaterial = world.globeMaterial();
+new THREE.TextureLoader().load("img/earth-water.png", (texture) => {
+  globeMaterial.specularMap = texture;
+  globeMaterial.specular = new THREE.Color("grey");
+  globeMaterial.shininess = 10;
+});
+
+const directionalLight = world
+  .lights()
+  .find((light) => light.type === "DirectionalLight");
+if (directionalLight) {
+  let angle = 0;
+  const radius = 360;
+
+  function animateLight() {
+    angle += (2 * Math.PI) / 6000; // Full circle in 60 seconds
+    directionalLight.position.set(
+      radius * Math.cos(angle),
+      10,
+      radius * Math.sin(angle)
+    );
+    requestAnimationFrame(animateLight);
+  }
+
+  animateLight();
+}
+
+
+
+// this
+const colorScale = d3.scaleSequentialSqrt(d3.interpolateYlOrRd);
+
+// GDP per capita (avoiding countries with small pop)
+const getVal = (feat) =>
+  feat.properties.GDP_MD_EST / Math.max(1e5, feat.properties.POP_EST);
+
+fetch("../datasets/ne_110m_admin_0_countries.geojson")
+  .then((res) => res.json())
+  .then((countries) => {
+    const maxVal = Math.max(...countries.features.map(getVal));
+    colorScale.domain([0, maxVal]);
+
+    // Add country polygons to the existing globe
+    world
+      .lineHoverPrecision(0)
+      .polygonsData(
+        countries.features.filter((d) => d.properties.ISO_A2 !== "AQ")
+      )
+      .polygonAltitude(0.06)
+      .polygonCapColor((feat) => colorScale(getVal(feat)))
+      .polygonSideColor(() => "rgba(0, 100, 0, 0.15)")
+      .polygonStrokeColor(() => "#111")
+      .polygonLabel(
+        ({ properties: d }) => `
+      <b>${d.ADMIN} (${d.ISO_A2}):</b> <br />
+      GDP: <i>${d.GDP_MD_EST}</i> M$<br/>
+      Population: <i>${d.POP_EST}</i>
+    `
+      )
+      .onPolygonHover((hoverD) =>
+        world
+          .polygonAltitude((d) => (d === hoverD ? 0.12 : 0.06))
+          .polygonCapColor((d) =>
+            d === hoverD ? "steelblue" : colorScale(getVal(d))
+          )
+      )
+      .polygonsTransitionDuration(300);
+  });

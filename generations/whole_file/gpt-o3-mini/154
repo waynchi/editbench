@@ -1,0 +1,36 @@
+import random
+import sys
+
+def find_words_by_length(n, dictionary_path="/usr/share/dict/words"):
+    try:
+        with open(dictionary_path, "r") as f:
+            words = [word.strip() for word in f if word.strip().isalpha()]
+    except IOError:
+        print("Dictionary file not found.")
+        sys.exit(1)
+    filtered_words = [word for word in words if len(word) == n]
+    return filtered_words
+
+def main():
+    try:
+        n = int(input("Enter the desired word length (N): "))
+    except ValueError:
+        print("Invalid input; please enter an integer.")
+        return
+
+    words_of_length = find_words_by_length(n)
+    if not words_of_length:
+        print(f"No words found with {n} characters.")
+    elif len(words_of_length) < 10:
+        print(f"Only {len(words_of_length)} words found with {n} characters:")
+        for word in words_of_length:
+            print(word)
+    else:
+        print("10 words with", n, "characters:")
+        # Randomly select 10 words from the list
+        selected_words = random.sample(words_of_length, 10)
+        for word in selected_words:
+            print(word)
+
+if __name__ == "__main__":
+    main()

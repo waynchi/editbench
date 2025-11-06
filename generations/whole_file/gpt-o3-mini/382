@@ -1,0 +1,242 @@
+import sqlite3
+import datetime
+import logging
+import plotly.express as px
+import pandas as pd
+
+def connect_to_db():
+    conn = None
+    try:
+        conn = sqlite3.connect('dns_monitor.db')
+        logging.info("Successfully connected to the database.")
+        return conn
+    except sqlite3.Error as e:
+        logging.error(f"Failed to connect to database: {e}")
+        raise ValueError(f"Failed to connect to database: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error connecting to database: {e}")
+        raise ValueError(f"Unexpected error connecting to database: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+
+def create_tables(conn):
+    try:
+        if conn is None:
+            logging.error("Database connection is None")
+            raise ValueError("Database connection is None")
+        cursor = conn.cursor()
+
+        table_definitions = [
+            """
+            CREATE TABLE IF NOT EXISTS root_servers (
+                id INTEGER PRIMARY KEY,
+                server_name TEXT,
+                ip_address TEXT
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS dns_tests (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP,
+                server_id INTEGER,
+                query_type TEXT,
+                response_time REAL,
+                success BOOLEAN,
+                error_message TEXT,
+                FOREIGN KEY (server_id) REFERENCES root_servers (id)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP,
+                event_type TEXT,
+                severity TEXT,
+                message TEXT,
+                source TEXT
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS service_status (
+                id INTEGER PRIMARY KEY,
+                service_name TEXT,
+                status TEXT,
+                last_checked TIMESTAMP,
+                uptime REAL,
+                error_count INTEGER
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS dns_queries (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP,
+                query TEXT,
+                response_time REAL
+            )
+            """
+        ]
+
+        for table_definition in table_definitions:
+            try:
+                cursor.execute(table_definition)
+                logging.info(f"Table created or already exists: {table_definition.split()[5]}")
+            except sqlite3.Error as e:
+                logging.error(f"Error creating table: {e}")
+                raise ValueError(f"Error creating table: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+            except Exception as e:
+                logging.exception(f"Unexpected error creating table: {e}")
+                raise ValueError(f"Unexpected error creating table: {e}")  # Ponowne zgłoszenie wyjątku z bardziej szczegółowym komunikatem o błędzie
+
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error creating tables: {e}")
+        raise ValueError(f"Error creating tables: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error creating tables: {e}")
+        raise ValueError(f"Unexpected error creating tables: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+
+def check_database_tables(conn):
+    try:
+        if conn is None:
+            logging.error("Database connection is None")
+            raise ValueError("Database connection is None")
+        cursor = conn.cursor()
+
+        table_names = ["root_servers", "dns_tests", "events", "service_status", "dns_queries"]
+        for table_name in table_names:
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
+            if cursor.fetchone() is None:
+                logging.error(f"Table {table_name} does not exist")
+                raise ValueError(f"Table {table_name} does not exist")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+            else:
+                logging.info(f"Table {table_name} exists.")
+
+    except sqlite3.Error as e:
+        logging.error(f"Error checking database tables: {e}")
+        raise ValueError(f"Error checking database tables: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error checking database tables: {e}")
+        raise ValueError(f"Unexpected error checking database tables: {e}")  # Ponowne zgłoszenie wyjątku z bardziej szczegółowym komunikatem o błędzie
+
+def retrieve_data(conn):
+    try:
+        if conn is None:
+            logging.error("Database connection is None")
+            raise ValueError("Database connection is None")
+        cursor = conn.cursor()
+
+        response_times = get_response_times(cursor)
+        event_log_data = get_event_log_data(cursor)
+        service_status_data = get_service_status_data(cursor)
+
+        return response_times, event_log_data, service_status_data
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving data: {e}")
+        raise ValueError(f"Error retrieving data: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving data: {e}")
+        raise ValueError(f"Unexpected error retrieving data: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+
+def get_response_times(cursor):
+    try:
+        if cursor is None:
+            logging.error("Cursor is None")
+            raise ValueError("Cursor is None")
+        cursor.execute("SELECT timestamp, response_time FROM dns_tests ORDER BY timestamp DESC LIMIT 100")
+        response_times = cursor.fetchall()
+        logging.info(f"Retrieved {len(response_times)} response times.")
+        return response_times
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving response times: {e}")
+        raise ValueError(f"Error retrieving response times: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving response times: {e}")
+        raise ValueError(f"Unexpected error retrieving response times: {e}")  # Ponowne zgłoszenie wyjątku z bardziej szczegółowym komunikatem o błędzie
+
+def get_event_log_data(cursor):
+    try:
+        if cursor is None:
+            logging.error("Cursor is None")
+            raise ValueError("Cursor is None")
+        cursor.execute("SELECT timestamp, event_type, severity, message, source FROM events ORDER BY timestamp DESC LIMIT 100")
+        event_log_data = cursor.fetchall()
+        logging.info(f"Retrieved {len(event_log_data)} event log entries.")
+        return event_log_data
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving event log data: {e}")
+        raise ValueError(f"Error retrieving event log data: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving event log data: {e}")
+        raise ValueError(f"Unexpected error retrieving event log data: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+
+def get_service_status_data(cursor):
+    try:
+        if cursor is None:
+            logging.error("Cursor is None")
+            raise ValueError("Cursor is None")
+        cursor.execute("SELECT service_name, status, last_checked, uptime, error_count FROM service_status ORDER BY service_name")
+        service_status_data = cursor.fetchall()
+        logging.info(f"Retrieved {len(service_status_data)} service status entries.")
+        return service_status_data
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving service status data: {e}")
+        raise ValueError(f"Error retrieving service status data: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving service status data: {e}")
+        raise ValueError(f"Unexpected error retrieving service status data: {e}")  # Ponownie zgłoś wyjątek z bardziej szczegółowym komunikatem o błędzie
+
+def create_visualizations(response_times, event_log_data, service_status_data):
+    if response_times is None or not isinstance(response_times, list):
+        logging.error("Invalid response_times data")
+        return "Invalid response_times data"
+    if event_log_data is None or not isinstance(event_log_data, list):
+        logging.error("Invalid event_log_data data")
+        return "Invalid event_log_data data"
+    if service_status_data is None or not isinstance(service_status_data, list):
+        logging.error("Invalid service_status_data data")
+        return "Invalid service_status_data data"
+
+    if not response_times:
+        logging.warning("No response times data to visualize")
+        response_time_df = pd.DataFrame(columns=['timestamp', 'response_time'])
+    else:
+        response_time_df = pd.DataFrame(response_times, columns=['timestamp', 'response_time'])
+
+    if not event_log_data:
+        logging.warning("No event log data to visualize")
+        event_log_df = pd.DataFrame(columns=['timestamp', 'event_type', 'severity', 'message', 'source'])
+    else:
+        event_log_df = pd.DataFrame(event_log_data, columns=['timestamp', 'event_type', 'severity', 'message', 'source'])
+
+    if not service_status_data:
+        logging.warning("No service status data to visualize")
+        service_status_df = pd.DataFrame(columns=['service_name', 'status', 'last_checked', 'uptime', 'error_count'])
+    else:
+        service_status_df = pd.DataFrame(service_status_data, columns=['service_name', 'status', 'last_checked', 'uptime', 'error_count'])
+
+    # Complete the visualization function by creating plots for the available data
+
+    # Plot for DNS test response times
+    fig_response = px.line(response_time_df, x='timestamp', y='response_time',
+                           title='DNS Test - Response Times Over Time',
+                           labels={'timestamp': 'Timestamp', 'response_time': 'Response Time (ms)'})
+    
+    # Plot for event log data (if available)
+    if not event_log_df.empty:
+        fig_events = px.scatter(event_log_df, x='timestamp', y='severity',
+                                color='event_type',
+                                title='Recent Event Log Entries',
+                                labels={'timestamp': 'Timestamp', 'severity': 'Severity', 'event_type': 'Event Type'})
+    else:
+        fig_events = None
+        logging.warning("No event log data available for visualization")
+    
+    # Plot for service status data (if available)
+    if not service_status_df.empty:
+        fig_service = px.bar(service_status_df, x='service_name', y='uptime',
+                             title='Service Uptime',
+                             labels={'service_name': 'Service Name', 'uptime': 'Uptime'})
+    else:
+        fig_service = None
+        logging.warning("No service status data available for visualization")
+    
+    # Return the figures as a tuple so that they can be displayed separately
+    return fig_response, fig_events, fig_service

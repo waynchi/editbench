@@ -1,0 +1,117 @@
+import requests
+import json
+import os
+from huggingface_hub import InferenceClient
+from datetime import datetime
+from PIL import Image
+
+class ImageGenerator:
+    def __init__(self, openrouter_key, hf_token, output_folder):
+        self.openrouter_key = openrouter_key
+        self.hf_token = hf_token
+        self.output_folder = output_folder
+        
+        # Create output folder if it doesn't exist
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+    def generate_prompt(self, base_prompt, model="openai/gpt-3.5-turbo"):
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.openrouter_key}",
+                "X-Title": "ImagePromptGenerator",
+            },
+            data=json.dumps({
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": base_prompt
+                    }
+                ],
+                "temperature": 0.9,  # Higher temperature for more creativity
+                "max_tokens": 150,
+                "top_p": 0.9,
+                "frequency_penalty": 0.5,
+                "presence_penalty": 0.5
+            })
+        )
+        
+        return response.json()['choices'][0]['message']['content']
+
+    def create_image(self, prompt, hf_model="black-forest-labs/FLUX.1-schnell"):
+        import time
+        client = InferenceClient(hf_model, token=self.hf_token)
+        
+        while True:
+            try:
+                image = client.text_to_image(prompt)
+                return image
+            except Exception as e:
+                print(f"Error creating image: {e}. Waiting 61 seconds before retrying...")
+                time.sleep(61)
+
+    def save_image(self, image, prompt):
+        # Create timestamp for unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create sanitized filename from the first 30 chars of prompt
+        sanitized_prompt = "".join(x for x in prompt[:30] if x.isalnum() or x in (' ','-','_')).strip()
+        filename = f"{timestamp}_{sanitized_prompt}.png"
+        
+        # Save image
+        filepath = os.path.join(self.output_folder, filename)
+        image.save(filepath)
+        
+        return filepath
+
+    def generate_batch(self, base_prompt, n_images=1, openrouter_model="openai/gpt-3.5-turbo", hf_model="black-forest-labs/FLUX.1-schnell"):
+        generated_files = []
+        
+        for i in range(n_images):
+            try:
+                # Generate enhanced prompt
+                enhanced_prompt = self.generate_prompt(base_prompt, model=openrouter_model)
+                print(f"Generated prompt {i+1}: {enhanced_prompt}")
+                
+                # Create image
+                image = self.create_image(enhanced_prompt, hf_model=hf_model)
+                
+                # Save image
+                filepath = self.save_image(image, enhanced_prompt)
+                generated_files.append(filepath)
+                
+                print(f"Successfully generated and saved image {i+1} to: {filepath}")
+                
+            except Exception as e:
+                print(f"Error generating image {i+1}: {str(e)}")
+                
+        return generated_files
+
+# Usage example
+if __name__ == "__main__":
+    # Configuration
+    OPENROUTER_API_KEY = "MASK_1"
+    HF_TOKEN = "MASK_2"
+    OUTPUT_FOLDER = "kuvat/4"
+    
+    # Initialize generator
+    generator = ImageGenerator(OPENROUTER_API_KEY, HF_TOKEN, OUTPUT_FOLDER)
+    
+    # Generate images
+    base_prompt = "Make a unique and creative image prompt for a poster about \"BPR WIARD\" and billiards/pool. Do not say anything except for the prompt."
+    n_images = 3
+    openrouter_model = "qwen/qwen-2.5-72b-instruct"  # or any other available model
+    hf_model = "black-forest-labs/FLUX.1-schnell"
+    
+    generated_files = generator.generate_batch(
+        base_prompt=base_prompt,
+        n_images=n_images,
+        openrouter_model=openrouter_model,
+        hf_model=hf_model
+    )
+    
+    print("\nGenerated files:")
+    for file in generated_files:
+        print(file)

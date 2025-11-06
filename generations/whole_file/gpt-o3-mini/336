@@ -1,0 +1,22 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+# ------------------------ Unchanged Section ------------------------
+# (Any code that was here before remains unchanged)
+# --------------------------------------------------------------------
+
+# ------------------------ Highlighted Section (Modified) ------------------------
+@app.route('/')
+def index():
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f"Bieżąca data i godzina: {current_datetime}"
+# --------------------------------------------------------------------
+
+# ------------------------ Unchanged Section ------------------------
+# (Any code that was here before remains unchanged)
+# --------------------------------------------------------------------
+
+if __name__ == '__main__':
+    app.run(debug=True)

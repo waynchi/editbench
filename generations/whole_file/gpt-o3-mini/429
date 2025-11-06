@@ -1,0 +1,268 @@
+import xml.etree.ElementTree # do przetwarzania odpowiedzi XML z API
+import matplotlib.pyplot as plt # do tworzenia wykresów
+import pandas as pd # do tworzenia dataframe i podziału wszystkich świec na dwa typy: close i open
+import datetime # dla dat na osi x
+import pickle # do przechowywania zmiennych w pliku
+import json # do pracy z bazą danych
+import aiofiles # asynchroniczna praca z plikami
+import aiohttp # asynchroniczne żądania HTTP
+from typing import List
+from matplotlib.axes import Axes # dla wygody wyświetlania
+import requests  # dodane do synchronicznych zapytań http
+
+# Ustawimy standardowy słownik technicznej analizy. Będziemy go używać do analizy zapytań callback w routerze budowania wykresu (ponieważ tam niewygodnie jest pobierać tick_inp)
+standart_tech_dict = {"value" : {"use" : False, "has_periods" : False, "need_graph_space" : True}, 
+                          "sma" : {"use" : False, "has_periods" : True, "periods" : [], "need_graph_space" : False},
+                          "ema" : {"use" : False, "has_periods" : True, "periods" : [],"need_graph_space" : False}
+                        }
+
+# nie ma problemów z narzędziami analizy technicznej i pustymi dniami (bez handlu), ponieważ dni bez handlu w dataframe nie są zerami, a po prostu nie istnieją. Dlatego nie psują wartości wskaźników
+# klasa ticker, metody wykres i bieżąca cena
+class ticker():
+    """Tiker akcji i wszystko z nim związane, przez MoexApi"""
+    def __init__(self, name: str):
+        """self.name - nazwa tikera self.tech_dict - słownik analizy technicznej"""
+        self.name = name 
+        """Имя тикера, то есть сам по себе тикер"""
+        # w zasadzie tutaj można zmieniać domyślne ustawienia wspólne dla wszystkich użytkowników. Potencjalnie trzeba przez to zrealizować niestandardowe narzędzia analizy technicznej
+        self.tech_dict = standart_tech_dict
+        """Словарь реализованных опций теханализа. Имеет вид \n
+        {"sma": {"use": True, "periods": [20, 50], "need_graph_space": False}, "rsi": {"use": True, "periods": [10], "need_graph_space": True}} \n
+        Где use отвечает за использование, period - список периодов, по которым будут считаться значения, need_graph_space за то, требует ли осциллятор доп места на графике \n
+        Изначально все use имеют значение False, а списки периодов пусты \n \n
+        При реализации нового инструмента теханализа достаточно дописать его в self.tech_dict \n
+        При этом функцию, соответствующую этому инструменту важно назвать также, как и сам инструмент в словаре. А её аргументы - self и ax (редактируемый/заполняемый график) \n
+        Доп графики инструментов теханализа, которые их требуют, будут отображаться в таком же порядке, в котором инструменты располагаются в словаре. Также в этом порядке будут высвечиваться кнопки в боте и уже выбранные инструменты теханализа"""
+    async def correct_name(self):
+        """Sprawdzenie, czy nazwa tickera znajduje się w zbiorze tickerów. Zbiór jest aktualizowany nie częściej niż raz dziennie."""
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_opened_file:
+            info = json.loads(await info_opened_file.read())
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f"): # sprawdzamy warunek, że data nadpisania listy tickerów to co najmniej 1 dzień temu
+            # jeśli różni się o więcej niż 1 dzień, to przepisujemy listę (zbiór) tickerów:
+            set_tickers = set() # tworzymy pusty zbiór, do którego będziemy dodawać tickery
+            s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            # Zmieniono z asynchronicznego na synchroniczne pobieranie danych
+            response = requests.get(s)
+            root = xml.etree.ElementTree.fromstring(response.text)
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID")) # wlewamy tickery do naszego zbioru
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb") as set_tickers_file_opened: # otwieramy plik do binarnego zapisu zbioru tickerów do niego
+                await set_tickers_file_opened.write(pickle.dumps(set_tickers)) # wrzucamy utworzone zbior do pliku. Jeśli coś, za każdym razem będzie nadpisywane (sprawdzone)
+            # zmieniamy czas ostatniej aktualizacji
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_opened_file:
+                await info_opened_file.write(json.dumps(info, indent = 3, ensure_ascii = False)) # zapiszemy nowy plik
+        # teraz po prostu sprawdzimy, czy ticker jest na liście tickerów
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb") as set_tickers_file_opened: # otwieramy plik z wieloma tickerami, aby go stamtąd pobrać
+            set_tickers = pickle.loads(await set_tickers_file_opened.read()) # z otwartego pliku ładujemy wartość zbioru tickerów do zmiennej. Jeśli przypadkowo zapisze się kilka zbiorów (co nie powinno się zdarzyć), otworzy się tylko pierwszy z nich
+        if self.name in set_tickers: # po prostu sprawdzamy, czy ticker jest w zbiorze tickerów
+            return True
+        else:
+            return False
+    async def CurrentPrice(self):
+        """Bieżąca cena dla tego tickera"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        # Zmieniono z asynchronicznego na synchroniczne pobieranie danych
+        response = requests.get(s)
+        root = xml.etree.ElementTree.fromstring(response.text)
+        for data in root.findall("data"): # wewnątrz root znajdujemy wszystkie kontenery data i przechodzimy po nich
+            if data.get("id") == "marketdata": # Wewnątrz data, po którym przechodzimy, sprawdzamy atrybut id i chcemy, aby był marketdata
+                rows = data.find("rows") # wewnątrz rows znajdujemy pierwszy kontener z tagiem row
+                row = rows.find("row") # wewnątrz rows kilka row
+                return(row.get("LAST")) # return przerwie pętle, więc tutaj nie są potrzebne sprawdzenia, czy znaleziono informacje
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """Lista świec dla tego tickera
+
+candles_name - niezbędny składnik świec
+
+candles_name: open, close, high, low, value, volume, begin, end
+
+timeframe - interwał czasowy: 1 - 1 min, 10 - 10 min, 60 - 1 godz, 24 - 1 dzień, 7 - 1 tydzień, 31 - 1 miesiąc, 4 - 4 miesiące
+
+start, end - początek i koniec okresu, format RRRR-MM-DD GG:MM:SS"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + f"/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}"
+        # Zmieniono z asynchronicznego na synchroniczne pobieranie danych
+        response = requests.get(s)
+        root = xml.etree.ElementTree.fromstring(response.text)
+        candles = root.find("data")
+        rows = candles.find("rows")
+        listcandles = []
+        if candles_name == "begin" or candles_name == "end": # dla tych będziemy brać wartości z iss w formacie datetime podłączonego modułu (data i czas)
+            for row in rows.findall("row"):
+                datetime_str = row.get(candles_name) # datetime_name jest teraz ciągiem znaków w formacie api
+                # można by użyć datetime.datetime.strptime(), ale tam z latami nie jest fajnie, nie uniwersalnie. Dlatego tak
+                datetime_datetime = datetime.datetime(int(datetime_str[0:4]), int(datetime_str[5:7]), int(datetime_str[8:10]), int(datetime_str[11:13]), int(datetime_str[14:16]), int(datetime_str[17:])) # dzielimy ciąg znaków z datą i czasem na części daty i części czasu, potrzebne modułowi datetime (rok, miesiąc, dzień, godzina, minuta, sekunda). Przy tym nie zapominamy wszystko zamienić na int
+                listcandles.append(datetime_datetime)
+        else:
+            for row in rows.findall("row"):
+                listcandles.append(float(row.get(candles_name)))# ВАŻNY FLOAT, bo inaczej importuje się jako string,
+                # a wykres rysuje ciągi po prostu jeden za drugim, bez odpowiedniego uporządkowania wartości według ich wartości
+        return(listcandles)
+    def setattr_candles_dataframe(self, timeframe = str("24"), start = str(""), end = str("")):
+        # tworzenie dataframe świec jako atrybutu przynajmniej pozwala nie przekazywać go za każdym razem jako argumentu funkcji nakładającej narzędzie analizy technicznej (ponieważ jest przekazywana do self)
+        """Tworzy dataframe świec z odpowiednim timeframe, start i end i umieszcza w self.candles_dataframe
+
+Nie przy inicjacji, ponieważ jeśli ticker jest inicjowany w celu uzyskania bieżącej ceny, nie ma powodu do wykonywania zbędnych operacji"""
+        # tworzymy dataframe z całą informacją o świecach i wypełniamy go za pomocą wcześniej napisanego metody pobierania informacji o świecach
+        candles_dataframe = pd.DataFrame({"open" :  self.candles("open", timeframe, start, end),
+                                          "close" : self.candles("close", timeframe, start, end),
+                                          "high" : self.candles("high", timeframe, start, end),
+                                          "low" : self.candles("low", timeframe, start, end),
+                                          "value" : self.candles("value", timeframe, start, end),
+                                          "begin" : self.candles("begin", timeframe, start, end)
+                                          # end" chyba nie jest potrzebne, begin wystarcza
+                                        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+    def graphic(self, timeframe = str("24"), start = str(""), end = str(""), user_id = int(1124123332)):
+        """zwraca otwarty wykres świecowy ceny od czasu
+
+timeframe - interwał czasowy: 1 - 1 min, 10 - 10 min, 60 - 1h, 24 - 1d, 7 - 1t, 31 - 1mies, 4 - 4mies | None = 24
+
+start, end - początek i koniec okresu, format RRRR-MM-DD GG:MM:SS | None = ""
+
+user_id - id użytkownika, dla którego ten plik. Będzie częścią nazwy pliku
+
+Dodaje wszystkie niezbędne narzędzia analizy technicznej, opierając się na self.tech_dict"""
+        # utworzymy potrzebny dataframe
+        self.setattr_candles_dataframe(timeframe, start, end)
+        # tworzymy up i down - nowe ramki danych, części starej, ale spełniające określone warunki
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        # Zapiszemy to jako atrybuty, ponieważ dla niektórych narzędzi analizy technicznej ważne jest, które świece rosną, a które spadają.
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+        # utworzymy width_big i width_small - szerokości świec zależne od interwału czasowego
+        # Wygląda na to, że 1 dzień na osi x odpowiada 1 jednostce grubości słupka na diagramie (Python prawdopodobnie jest inteligentny)
+        # chociaż na 4 miesiące już nie działa, co dziwne, bo dla wszystkich pozostałych działa
+        # ale w każdym razie od zwiększenia lub zmniejszenia zakresu świece nie zaczynają się nakładać/mieć dużych odstępów. Oznacza to, że szerokość jest związana właśnie z datami
+        if timeframe == "1": # minuta
+            width_big = 1/24/60
+        elif timeframe == "10": # 10 minut
+            width_big = 1/24/6
+        elif timeframe == "60": # godzina
+            width_big = 1/24
+        elif timeframe == "24": # dzień
+            width_big = 1
+        elif timeframe == "7": # tydzień
+            width_big = 7
+        elif timeframe == "31": # miesiąc
+            width_big = 30
+        elif timeframe == "4": # 4 miesiące
+            width_big = 90
+        else:
+            width_big = 0 # teoretycznie nie powinno się zdarzyć
+        width_small = width_big/10
+        setattr(self, "width_big", width_big) # zapiszemy width_big w self, aby później używać w narzędziach analizy technicznej, które są przedstawiane jako wykres słupkowy
+        setattr(self, "width_small", width_small) # wstawiamy width_big do self, aby później użyć w narzędziach analizy technicznej, które są przedstawiane jako wykres słupkowy
+        # zajmiemy się analizą techniczną. Na początek zrozumiemy, ile dodatkowych wykresów dla nich potrzeba
+        number_of_additional_graphics = int(0)
+        for tech in self.tech_dict:
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]: # jeśli narzędzie analizy technicznej jest używane I jeśli to narzędzie analizy technicznej potrzebuje miejsca na dodatkowy wykres, zliczamy je
+                number_of_additional_graphics += 1
+        # jeśli 1 lub więcej narzędzi technicznych chce dodatkowy wykres
+        if number_of_additional_graphics != 0:
+            height_rations_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics # tablica stosunków wysokości wykresów, zależna od liczby wykresów. Potem przekażemy ją do subplots. Ma postać [8, 1, 1]
+            fig, axs = plt.subplots(nrows = 1 + number_of_additional_graphics, ncols = 1, sharex = True, height_ratios = height_rations_list) # tworzymy subplots. fig - kontener wykresów, axs[i] - i-ty wykres
+            axs: List[Axes] # dla podpowiedzi w PyCharm
+            plt.suptitle(self.name, fontsize = 15) # tytuł - nazwa tickera
+            axs[0].grid(True) # siatka dla uproszczenia odbioru wykresu
+            # wypełniamy go świecami up
+            # to jest wykres słupkowy; plt.bar(x = oś x, height = wysokość słupka, width = szerokość słupka, bottom = dolna współrzędna słupka, nie wiem dalej dziwna * i potem jeszcze coś niezrozumiałego)
+            # jest jeszcze argument color, ale w oficjalnej dokumentacji go nie znalazłem. Może to wchodzi w dziwną *
+            axs[0].bar(x = up.begin, height = up.close - up.open,  width = width_big, bottom = up.open, color = "green") # aby sprecyzować, jaki dokładnie argument funkcji podajemy, można pisać nazwa_argumentu = wartość_którą_podajemy
+            axs[0].bar(x = up.begin, height = up.high - up.close,  width = width_small, bottom = up.close, color = "green")
+            axs[0].bar(x = up.begin, height = up.open - up.low,  width = width_small, bottom = up.low, color = "green")
+            # wypełniamy świecami down
+            axs[0].bar(x = down.begin, height = down.open - down.close,  width = width_big, bottom = down.close, color = "red")
+            axs[0].bar(x = down.begin, height = down.high - down.open,  width = width_small, bottom = down.open, color = "red")
+            axs[0].bar(x = down.begin, height = down.close - down.low,  width = width_small, bottom = down.low, color = "red")
+            # dodajemy na wykres narzędzia analizy technicznej
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]: # jeśli narzędzie analizy technicznej jest używane
+                    if self.tech_dict[tech]["use"] and not self.tech_dict[tech]["need_graph_space"]: # jeśli nie wymaga dodatkowego wykresu, wywołamy odpowiednią funkcję
+                        tech_func = getattr(self, tech) # teraz tech_func to funkcja tego technicznego analizy, której nazwę obecnie zawiera tech
+                        tech_func(axs[0])
+                    else : # jeśli wymaga dodatkowego wykresu, to
+                        for i in range(number_of_additional_graphics):
+                            tech_func = getattr(self, tech) # teraz już tech - nazwa funkcji, która wymaga dodatkowego wykresu
+                            axs[i + 1].grid(True) # włączmy siatkę także na każdym dodatkowym wykresie
+                            tech_func(axs[i + 1]) # dla każdego nowego instrumentu używamy nowego wykresu
+        # jeśli 0 narzędzi analizy technicznej wymaga dodatkowego wykresu
+        else: 
+            fig = plt.figure() # tworzymy kontener wykresów
+            plt.title(self.name, fontsize = 15) # tytuł - nazwa tickera
+            ax = fig.add_subplot() # ax - to sam wykres (osie tego wykresu, ale nie jak osie w sensie wiele osi, a jak osie w sensie wykres, określony osiami)
+            ax.grid(True) # Siatka dla uproszczenia odbioru wykresu
+            # wypełniamy go świecami up
+            # to jest wykres słupkowy; plt.bar(x = oś x, height = wysokość słupka, width = szerokość słupka, bottom = dolna współrzędna słupka, nie wiem dalej dziwna * i potem jeszcze coś niezrozumiałego)
+            # Jest jeszcze argument color, ale w oficjalnej dokumentacji go nie znalazłem. Może to wchodzi w dziwną *
+            ax.bar(x = up.begin, height = up.close - up.open,  width = width_big, bottom = up.open, color = "green") # aby sprecyzować, jaki dokładnie argument funkcji podajemy, można pisać nazwa_argumentu = wartość_którą_podajemy
+            ax.bar(x = up.begin, height = up.high - up.close,  width = width_small, bottom = up.close, color = "green")
+            ax.bar(x = up.begin, height = up.open - up.low,  width = width_small, bottom = up.low, color = "green")
+            # wypełniamy świecami down
+            ax.bar(x = down.begin, height = down.open - down.close,  width = width_big, bottom = down.close, color = "red")
+            ax.bar(x = down.begin, height = down.high - down.open,  width = width_small, bottom = down.open, color = "red")
+            ax.bar(x = down.begin, height = down.close - down.low,  width = width_small, bottom = down.low, color = "red")
+            # dodajemy na wykres narzędzia analizy technicznej, które nie wymagają dodatkowego wykresu (w tej sekcji to wszystkie używane narzędzia, ponieważ wcześniej było założenie, że nie ma narzędzi z dodatkowym wykresem)
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]: # jeśli jest używany i nie wymaga dodatkowego wykresu, wywołamy odpowiednią funkcję
+                    tech_func = getattr(self, tech) # teraz tech_func to funkcja tego technicznego analizy, której nazwa jest obecnie zawarta w tech, przy czym jest powiązana z self. Innymi słowy, jej zastosowanie jest analogiczne do zastosowania self.sma(...) przy tech = sma
+                    tech_func(ax)
+
+        # zapisujemy wykres jako obraz w buforze io.BytesIO i zwracamy ten bufor
+        fig.savefig(r"D:\MoexAPI_bot_aiogram3\data_files\graph_for_" + str(user_id) + ".png")
+        plt.close(fig) # zakończymy pracę plt z tą fig
+        return True # po prostu zwrócimy True, gdy wszystko się udało
+    
+    # opisy funkcji analizy technicznej.
+    # Każda ma argumenty self do używania atrybutów i ax, aby na ten ax nanosić narzędzie techniczne (ax - główny wykres dla analizy technicznej bez dodatkowych wykresów i dodatkowy dla analizy technicznej, której to potrzebuje)
+    # Nazwy funkcji technicznej analizy muszą również odpowiadać nazwom z tech_dict, ponieważ używane jest getattr(self, *nazwa narzędzia technicznej analizy*) do uzyskania funkcji, a *nazwy technicznej analizy* są pobierane z tech_dict.
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]: # dla każdego potrzebnego okresu sma stworzymy listę wartości sma i dodamy ją do wykresu
+            if period <=  len(self.candles_dataframe.begin): # ponieważ w przeciwnym razie przy tworzeniu wykresu lista osi x jest pusta, a oś y nie jest pusta (ponieważ tam jest baza rekurencyjna)
+                sma_list = [] # lista wartości sma (odpowiada datom z dataframe)
+                sma_list.append(sum(self.candles_dataframe.close[0: period])/period) # robimy rekurencyjnie, aby nie liczyć za każdym razem dużej sumy
+                for i in range(period, len(self.candles_dataframe.begin)): # początek przesunięty, ponieważ sma jest obliczane nie wcześniej niż z period świec
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period])/period) # dodajemy nową świecę do poprzedniej wartości sma i usuwamy najstarszą
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list) # tutaj potrzebny jest wycinek na osi x, aby oscylator zaczynał się od daty, od której go liczymy
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <=  len(self.candles_dataframe.begin): # ponieważ w przeciwnym razie przy tworzeniu wykresu lista osi x jest pusta, a oś y nie jest pusta (ponieważ zawiera bazę rekurencyjną)
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period])/period) # pierwsza wartość ema to sma dla tego samego okresu
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1)*ema_list[i - period] + 2 * self.candles_dataframe.close[i])/(period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+    def value(self, ax):
+        ax.bar(x = self.up.begin, height = self.up.value, width = self.width_big, color = "green")
+        ax.bar(x = self.down.begin, height = self.down.value, width = self.width_big, color = "red")
+        ax.set_title("Value", fontsize = 7)
+
+"""
+Тесты
+"""
+
+"""
+beb = ticker("SBER")
+beb.setattr_candles_dataframe("24", "2024-01-01", "2024-01-07")
+print(beb.candles_dataframe)
+"""
+
+"""
+beb.tech_dict["value"]["use"] = True
+beb.graphic("24", "2024-01-01", "2024-10-01")
+plt.show
+"""
+
+"""
+beb = ticker("SBER")
+beb.tech_dict["sma"]["use"] = True
+beb.tech_dict["sma"]["periods"] = [20, 10]
+beb.tech_dict["ema"]["use"] = True
+beb.tech_dict["ema"]["periods"] = [150, 250]
+beb.tech_dict["value"]["use"] = True
+beb.graphic("24", "2024-01-01", "2024-05-01")
+"""

@@ -1,0 +1,21 @@
+import pandas as pd
+import statsmodels.api as sm
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Preparar variables para la regresión sin utilizar estilo R (no se utilizan fórmulas)
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)
+y = df['Cost']
+
+# Ajustar el modelo usando el estilo Python (sin fórmulas tipo R)
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Imprimir la tabla ANOVA
+print(anova_table)

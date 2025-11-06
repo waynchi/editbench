@@ -1,0 +1,141 @@
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse
+import httpx
+import asyncio
+import json
+import logging
+import random
+from typing import List, Dict
+
+app = FastAPI()
+
+CHAT_URL = "https://duckduckgo.com/duckchat/v1/chat"
+STATUS_URL = "https://duckduckgo.com/duckchat/v1/status"
+MODELS = {
+    "gpt-4o-mini": {"owned_by": "openai", "is_free": True},
+    "llama-3.1-70b": {"owned_by": "Meta", "is_free": True},
+    "mixtral-8x7b": {"owned_by": "mistralai", "is_free": True},
+    "claude-3-haiku": {"owned_by": "Anthropic", "is_free": False},
+}
+
+# Define table of valid user-agent strings for Windows, macOS, and Linux browsers
+USER_AGENTS = {
+    "windows": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/95.0",
+    ],
+    "mac": [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+    ],
+    "linux": [
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/89.0",
+    ]
+}
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def fetch_vqd() -> dict:
+    """Fetch the VQD token required for authentication.
+    
+    Chooses a random valid user-agent string from the table and returns a dict with the VQD token and the selected user-agent.
+    """
+    # Pick a random user agent from all available options
+    all_agents = USER_AGENTS["windows"] + USER_AGENTS["mac"] + USER_AGENTS["linux"]
+    selected_user_agent = random.choice(all_agents)
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            STATUS_URL,
+            headers={
+                "User-Agent": selected_user_agent,
+                "x-vqd-accept": "1",
+            },
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch VQD: {response.status_code}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve VQD token")
+        vqd_token = response.headers.get("x-vqd-4", "")
+        return {"vqd": vqd_token, "user-agent": selected_user_agent}
+
+async def stream_chat_response(client, vqd: dict, messages: List[Dict], model: str):
+    """Stream the response from the chat API."""
+    headers = {
+        "User-Agent": vqd["user-agent"],
+        "Content-Type": "application/json",
+        "x-vqd-4": vqd["vqd"],
+    }
+    payload = {"model": model, "messages": messages}
+
+    async with client.stream("POST", CHAT_URL, headers=headers, json=payload) as response:
+        if response.status_code != 200:
+            logger.error(f"Chat request failed: {response.status_code}")
+            raise HTTPException(status_code=response.status_code, detail="Chat API request failed")
+        vqd_token = response.headers.get("x-vqd-4", "")
+        async for line in response.aiter_lines():
+            yield line
+
+
+# Store VQD tokens with their authorization headers
+vqd_cache = {}
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """Handle chat completions with optional streaming."""
+    try:
+        data = await request.json()
+        messages = data.get("messages", [])
+        model = data.get("model", "gpt-4o-mini")
+        stream = data.get("stream", False)
+
+        if model not in MODELS:
+            raise HTTPException(status_code=400, detail="Invalid model requested")
+
+        # Get authorization header
+        auth_header = request.headers.get("authorization")
+        
+        # Check if we have a cached VQD for this auth header
+        if auth_header not in vqd_cache:
+            vqd_cache[auth_header] = await fetch_vqd()
+        
+        vqd = vqd_cache[auth_header]
+
+        async with httpx.AsyncClient() as client:
+            if stream:
+                return StreamingResponse(
+                    stream_chat_response(client, vqd, messages, model),
+                    media_type="text/event-stream",
+                )
+            else:
+                aggregated_response = ""
+                async for chunk in stream_chat_response(client, vqd, messages, model):
+                    aggregated_response += chunk
+                return JSONResponse(content=json.loads(aggregated_response))
+    except Exception as e:
+        logger.error(f"Error in chat_completions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/v1/models")
+async def get_models():
+    """Retrieve available models."""
+    try:
+        response_data = []
+        for model_id, details in MODELS.items():
+            response_data.append({
+                "id": model_id,
+                "object": "model",
+                "created": 1686935002,  # Hardcoded for example purposes
+                "owned_by": details["owned_by"],
+                "type": "chat.completions",
+                "is_free": details["is_free"],
+            })
+        return JSONResponse(content={"object": "list", "data": response_data})
+    except Exception as e:
+        logger.error(f"Error in get_models: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Development server entry point
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

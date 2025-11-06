@@ -1,0 +1,66 @@
+import logging
+import os
+import asyncio
+from typing import Any, Dict, List
+from pydantic import BaseModel, Field
+from carvana_enzo_worker.enums.gpt_enums import GptModels, VertextAIModels
+from carvana_enzo_worker.providers.vertexai_claude_provider import VertexAIClaudeProvider
+from carvana_enzo_worker.providers.vertexai_gemini_provider import VertexAIGeminiProvider
+from carvana_enzo_worker.providers.azure_o1_provider import AzureOpenAIo1Provider
+from carvana_enzo_worker.providers.azure_gpt_provider import AzureOpenAIChatProvider
+
+# pylint: disable=W1203, C0415 [Użyj formatowania %s w funkcji logowania, import-poza-toplevel]
+
+
+class LLMArena(BaseModel):
+    """
+    A tool to generate chats using multiple LLM's for a given prompt
+    """
+
+    prompt: str = Field(..., description="The input prompt for the LLMs.")
+    models: List[str] = Field(..., description="A list of model names to use for generating chats.")
+    responses: List[str] = Field([], description="A list of generated chat responses.")
+    kwargs: Dict[str, Any] = Field({}, description="Additional keyword arguments for the LLMs.")
+
+    @staticmethod
+    async def generate_responses_for_models(prompt: str, models: List[str], **kwargs: Any) -> List[str]:
+        """
+        Generate responses from multiple models for a given prompt.
+
+        :param prompt: The input prompt for the LLMs.
+        :param models: A list of model names to use for generating responses.
+        :return: A list of generated responses.
+        """
+        responses = []
+        providers = []
+        for model in models:
+            provider_for_model = LLMArena._get_provider_for_model(model, **kwargs)
+            providers.append(provider_for_model)
+
+        # Run provider.generate_chat_response asynchronously in parallel
+        tasks = [provider.generate_chat_response(prompt) for provider in providers]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for provider, result in zip(providers, results):
+            if isinstance(result, Exception):
+                logging.error(f"Error generating response from {provider}: {result}")
+                responses.append(f"Error generating response from {provider}: {result}")
+            else:
+                responses.append(result)
+
+        return responses
+
+    @staticmethod
+    def _get_provider_for_model(model: str, **kwargs: Any) -> Any:
+        event_id = kwargs.get("event_id", "")
+
+        if model == VertextAIModels.CLAUDE_3_5_SONNET_V2.name:
+            return VertexAIClaudeProvider(event_id=event_id, location=str(os.getenv("VERTEXAI_CLAUDE_REGION")), deployment_id=model)
+        
+        if model == VertextAIModels.GEMINI_2_0_FLASH_EXP.name:
+            return VertexAIGeminiProvider(event_id=event_id, location=str(os.getenv("VERTEXAI_GEMINI_REGION")), deployment_id=model)
+        
+        if model == GptModels.o1.value:
+            return AzureOpenAIo1Provider(event_id=event_id, deployment_id=model)
+        
+        return AzureOpenAIChatProvider(event_id=event_id, deployment_id=model)

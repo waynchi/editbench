@@ -1,0 +1,42 @@
+import math
+
+def find_four_nonzero_squares(n):
+    """
+    尝试把数字 n 表示为四个非零平方数的和，即 n = a^2 + b^2 + c^2 + d^2，其中 a, b, c, d 均大于 0。
+    如果存在这样的表示，则返回 (a, b, c, d)；否则返回 None。
+    """
+    # 确定可能的上限
+    limit = int(math.sqrt(n))
+    # 遍历所有可能的 a, b, c, d（均从 1 开始，因为非零要求）
+    for a in range(1, limit + 1):
+        a2 = a * a
+        if a2 >= n:
+            break
+        for b in range(1, limit + 1):
+            b2 = b * b
+            if a2 + b2 >= n:
+                break
+            for c in range(1, limit + 1):
+                c2 = c * c
+                if a2 + b2 + c2 >= n:
+                    break
+                # 计算 d^2
+                d2 = n - (a2 + b2 + c2)
+                # 确保 d2 > 0 且 d 为正整数
+                if d2 <= 0:
+                    continue
+                d = int(math.sqrt(d2))
+                if d > 0 and d * d == d2:
+                    return (a, b, c, d)
+    return None
+
+if __name__ == "__main__":
+    # 示例测试：分别检测几个数字是否可表示为四个非零平方数的和
+    numbers = [30, 50, 85, 100]
+    for number in numbers:
+        result = find_four_nonzero_squares(number)
+        if result:
+            a, b, c, d = result
+            print(f"{number} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+        else:
+            print(f"{number} 无法表示为四个非零平方的和")

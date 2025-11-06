@@ -1,0 +1,92 @@
+import tkinter as tk
+from tkinter import ttk
+from tkinter import colorchooser
+import random  # Se añadió para generar colores aleatorios
+
+def create_paint_canvas():
+    root = tk.Tk()
+    root.title("Painting Canvas")
+
+    # Crear marco de barra de herramientas
+    toolbar = tk.Frame(root, bd=1, relief=tk.RAISED)
+    toolbar.pack(side=tk.TOP, fill=tk.X)
+
+    # Control de tamaño del pincel
+    size_label = tk.Label(toolbar, text="Brush Size:")
+    size_label.pack(side=tk.LEFT, padx=5)
+    brush_size = tk.Scale(toolbar, from_=1, to=20, orient=tk.HORIZONTAL)
+    brush_size.set(2)  # Tamaño predeterminado
+    brush_size.pack(side=tk.LEFT, padx=5)
+
+    # Visualización del color actual y selector de color
+    current_color = tk.StringVar(value="black")
+    color_display = tk.Label(toolbar, bg=current_color.get(), width=3)
+    color_display.pack(side=tk.LEFT, padx=5)
+
+    def choose_color():
+        color = colorchooser.askcolor(title="Choose brush color")[1]
+        if color:  # Si se eligió un color (no cancelado)
+            current_color.set(color)
+            color_display.config(bg=color)
+
+    color_btn = tk.Button(toolbar, text="Choose Color", command=choose_color)
+    color_btn.pack(side=tk.LEFT, padx=5)
+
+    # Añadir esto después del botón existente del selector de color
+    bg_color = tk.StringVar(value="white")  # Almacenar el color de fondo actual
+    bg_display = tk.Label(toolbar, bg=bg_color.get(), width=3)
+    bg_display.pack(side=tk.LEFT, padx=5)
+
+    def ereaser():
+        current_color.set(bg_color.get())  # Establecer el color del pincel al color de fondo
+        color_display.config(bg=bg_color.get())
+
+    # botón de borrador
+    eraser_btn = tk.Button(toolbar, text="Eraser", command=ereaser)
+    eraser_btn.pack(side=tk.LEFT, padx=5)
+
+    def choose_background():
+        color = colorchooser.askcolor(title="Choose background color")[1]
+        if color:
+            bg_color.set(color)
+            bg_display.config(bg=color)
+            canvas.config(bg=color)
+
+    bg_btn = tk.Button(toolbar, text="Background Color", command=choose_background)
+    bg_btn.pack(side=tk.LEFT, padx=5)
+    
+    # Botón para cambiar el fondo a un color aleatorio
+    def random_background():
+        # Genera un color hexadecimal aleatorio
+        r = lambda: random.randint(0, 255)
+        color = '#%02x%02x%02x' % (r(), r(), r())
+        bg_color.set(color)
+        bg_display.config(bg=color)
+        canvas.config(bg=color)
+        
+    random_bg_btn = tk.Button(toolbar, text="Random Background", command=random_background)
+    random_bg_btn.pack(side=tk.LEFT, padx=5)
+
+    # Crear lienzo
+    canvas = tk.Canvas(root, bg="white", width=800, height=600)
+    canvas.pack(expand=tk.YES, fill=tk.BOTH)
+
+    def clear_canvas():
+        canvas.delete("all")  # Elimina todos los dibujos del lienzo
+
+    # Botón para limpiar el lienzo
+    clear_btn = tk.Button(toolbar, text="Clear Canvas", command=clear_canvas)
+    clear_btn.pack(side=tk.LEFT, padx=5)
+
+    def paint(event):
+        size = brush_size.get()  # Obtener el tamaño actual del pincel
+        x1, y1 = (event.x - size), (event.y - size)  # Calcular la esquina superior izquierda del óvalo
+        x2, y2 = (event.x + size), (event.y + size)  # Calcular la esquina inferior derecha del óvalo
+        canvas.create_oval(x1, y1, x2, y2, fill=current_color.get(), outline=current_color.get())  # Dibujar óvalo en el lienzo con el color actual
+
+    canvas.bind("<B1-Motion>", paint)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    create_paint_canvas()

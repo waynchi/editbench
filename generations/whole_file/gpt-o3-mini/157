@@ -1,0 +1,48 @@
+def conjugate_gradient(A, b, tol=1e-8, max_iter=None):
+    """
+    使用共轭梯度法解线性方程组 Ax = b，其中 A 应为对称正定矩阵。
+
+    参数:
+        A: 二维 NumPy 数组，表示矩阵 A。
+        b: 一维 NumPy 数组，表示向量 b。
+        tol: 收敛容限，默认值为 1e-8。
+        max_iter: 最大迭代次数，默认值为 None（此时使用 b 的大小作为迭代次数）。
+
+    返回:
+        x: 求解得到的向量 x，使得 Ax ≈ b。
+    """
+    import numpy as np
+
+    n = b.shape[0]
+    if max_iter is None:
+        max_iter = n
+
+    x = np.zeros(n)
+    r = b - A @ x
+    p = r.copy()
+    rsold = np.dot(r, r)
+
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rsnew = np.dot(r, r)
+        if np.sqrt(rsnew) < tol:
+            print(f"在第 {i+1} 次迭代时收敛。")
+            break
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+
+    return x
+
+
+if __name__ == '__main__':
+    import numpy as np
+
+    # 示例: 构造一个对称正定矩阵 A 和向量 b
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+
+    solution = conjugate_gradient(A, b)
+    print("求解得到的 x:", solution)

@@ -1,0 +1,68 @@
+import requests # para la solicitud al API
+import xml.etree.ElementTree # para procesar la respuesta xml de la API
+import datetime # para las fechas en el eje x
+import pickle # para almacenar variables en un archivo
+import json
+import aiofiles  # para operaciones asíncronas con archivos
+
+# jódete negro
+# Completa para que set_valutes se llene!!! no se está llenando.
+
+
+# clase moneda
+class valute():
+    """Moneda y todo lo relacionado con ella, a través del Banco Central de la Federación de Rusia
+
+Se requieren bibliotecas:
+
+requests
+
+xml.etree.ElementTree
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """Verificación del nombre de la moneda en el conjunto de monedas. El conjunto se actualiza no más de una vez al día"""
+        # abrimos el archivo de información, encoding para evitar problemas
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_file:
+            info_content = await info_file.read()
+        info = json.loads(info_content)
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"):  # verificamos la condición de que la fecha de reescritura de la lista de monedas sea al menos de hace 1 día
+            # si difiere en más de 1 día, entonces reescribimos la lista (conjunto) de monedas:
+            set_valutes = set()  # creamos un conjunto vacío, en él vamos a verter las monedas
+            s = "http://www.cbr.ru/scripts/XML_daily.asp"
+            r = requests.get(s)
+            root = xml.etree.ElementTree.fromstring(r.content)  # la solicitud de todos modos devuelve los datos del sitio como una cadena, así que no se puede sin fromstring
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                set_valutes.add(CharCode.text)  # cargamos las divisas en nuestro conjunto
+            # abrimos el archivo para escritura binaria del conjunto de tickers en él
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb") as set_valutes_file:
+                await set_valutes_file.write(pickle.dumps(set_valutes))
+            # cambiamos la hora de la última actualización
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_file:
+                await info_file.write(json.dumps(info, indent=3, ensure_ascii=False))  # escribamos un nuevo archivo
+        # ahora simplemente verificamos si la moneda está en la lista de monedas
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb") as set_valutes_file:
+            data = await set_valutes_file.read()
+        set_valutes = pickle.loads(data)
+        if self.name in set_valutes:  # simplemente verificamos si la moneda está en el conjunto de tickers
+            return True
+        else:
+            return False
+
+    def CurrentExchangeRate(self):
+        '''Tipo de cambio actual de la moneda al rublo'''
+        r = requests.get("http://www.cbr.ru/scripts/XML_daily.asp")  # Api del Banco Central de Rusia
+        root = xml.etree.ElementTree.fromstring(r.content)
+        for Valute in root.findall("Valute"):  # buscamos contenedores de divisas
+            for CharCode in Valute.findall("CharCode"):  # buscamos contenedores de códigos de caracteres
+                if CharCode.text == self.name:  # encontramos el contenedor con la moneda necesaria
+                    return (Valute.find("VunitRate").text)

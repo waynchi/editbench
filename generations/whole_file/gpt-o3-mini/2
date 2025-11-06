@@ -1,0 +1,46 @@
+# generate a half adder module of verilog by python
+
+# verilog code
+verilog_code = """
+module half_adder(a, b, c, sum, carry);
+    input a, b;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# verilog module name
+module_name = "half_adder"
+
+# verilog module input and output ports
+input_ports = ["a", "b"]
+output_ports = ["c", "sum", "carry"]
+
+# verilog module parameters
+parameters = ["WIDTH"]
+
+# verilog module parameters value
+parameter_values = ["8"]
+
+# verilog module body
+module_body = """
+    input a, b, d, e;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# verilog module instantiation
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .c(c),
+    .sum(sum),
+    .carry(carry)
+);
+"""

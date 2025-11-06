@@ -1,0 +1,25 @@
+import os
+# 导入 hashlib
+import hashlib
+# 导入 base64
+import base64
+
+project_name = "CheckerKMV"
+
+def createLicense(secretKey: str) -> None:
+    # 项目文件夹在 %appdata%/Local 的路径
+    appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+
+    # 将 secretKey 转为字节形式，然后生成其 SHA256 哈希
+    key_bytes = secretKey.encode("utf-8")
+    hash_obj = hashlib.sha256(key_bytes)
+    hashed_key = hash_obj.digest()
+
+    # 使用 Base64 对哈希值进行编码
+    license_data = base64.b64encode(hashed_key)
+
+    with open(os.path.join(appdata_path, "license.dat"), "wb") as f:
+        f.write(license_data)

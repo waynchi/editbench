@@ -1,0 +1,42 @@
+import numpy as np
+
+def fit_line(x, y):
+    """Funkcja dopasowująca prostą do tablicy"""
+    # Oblicz średnią wartość x i y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Oblicz odchylenie x i y
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # Obliczanie iloczynu odchyleń x i y
+    xy_dev = x_dev * y_dev
+    
+    # Obliczanie kwadratu odchylenia x
+    x_dev_squared = x_dev ** 2
+    
+    # Oblicz nachylenie i punkt przecięcia linii prostej
+    slope = np.sum(xy_dev) / np.sum(x_dev_squared)
+    intercept = y_mean - slope * x_mean
+    
+    return slope, intercept
+
+def fit_quadratic(x, y):
+    """Funkcja dopasowania krzywej kwadratowej do tablicy z obliczeniem maksymalnej wartości odchylenia"""
+    # Utwórz macierz Vandermonde'a
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # Użyj metody najmniejszych kwadratów do obliczenia współczynników
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    # Oblicz przewidywane wartości y na podstawie dopasowanej krzywej
+    y_pred = coeffs[0] * x**2 + coeffs[1] * x + coeffs[2]
+    
+    # Oblicz wartość odchylenia dla każdego punktu
+    deviations = np.abs(y - y_pred)
+    
+    # Wyznacz maksymalną wartość odchylenia
+    max_deviation = np.max(deviations)
+    
+    return coeffs, max_deviation

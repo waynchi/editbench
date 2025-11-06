@@ -1,0 +1,232 @@
+import os
+import shutil
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+
+from dotenv import load_dotenv
+
+import pickle
+import torch
+import json
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """将日志历史保存到JSON文件中。如果文件已存在，则追加到文件中。
+
+参数：
+- log_history：日志条目列表（每个条目是一个字典）。
+- file_path：保存日志的文件路径。
+- append_latest_only：如果为True，则仅追加最新的日志条目。"""
+    # 初始化 current_logs
+    current_logs = []
+
+    # 如果文件存在，加载当前日志并追加到其中
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                content = f.read().strip()
+                if content:
+                    current_logs = json.loads(content)
+                else:
+                    current_logs = []
+        except json.JSONDecodeError:
+            print(f"Warning: {file_path} contains invalid JSON. Overwriting file.")
+            current_logs = []
+        except Exception as e:
+            print(f"An error occurred while reading {file_path}: {e}")
+            current_logs = []
+    else:
+        # 文件不存在；current_logs 仍然是一个空列表
+        pass
+
+    # 决定是附加整个日志历史记录还是仅附加最新条目
+    if append_latest_only and log_history:
+        # 仅附加最近的epoch日志
+        current_logs.append(log_history[-1])
+    else:
+        # 追加整个日志历史
+        current_logs.extend(log_history)
+
+    # 保存更新后的日志历史记录
+    try:
+        with open(file_path, "w") as f:
+            json.dump(current_logs, f, indent=4)
+    except Exception as e:
+        print(f"An error occurred while writing to {file_path}: {e}")
+
+def clear_directory(directory, delete_directory=False):
+    """清除给定目录中的所有文件和子目录。可选择删除目录本身。如果目录不存在且 delete_directory 为 False，则创建目录。
+
+参数：
+    directory (str): 要清除的目录路径。
+    delete_directory (bool): 如果为 True，则在清除内容后删除目录。默认为 False。
+
+引发：
+    OSError: 如果在文件或目录删除过程中发生任何错误。提供有关失败的详细信息。
+示例：
+    clear_directory('/path/to/my/directory')
+    clear_directory('/path/to/my/directory', delete_directory=True)"""
+    if not os.path.exists(directory):
+        if not delete_directory:
+            os.makedirs(directory, exist_ok=True)
+            print(f"Directory '{directory}' created.")
+        else:
+            raise ValueError("Directory does not exist and delete_directory is True. Cannot proceed.")
+        return
+
+    # 使用 os.scandir() 替代 os.listdir() 提高性能
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                try:
+                    if entry.is_dir():
+                        shutil.rmtree(entry.path)
+                        print(f"Removed directory: {entry.path}")
+                    else:
+                        os.remove(entry.path)
+                        print(f"Removed file: {entry.path}")
+                except OSError as e:
+                    print(f"Failed to delete '{entry.path}'. Reason: {e}")
+                    raise  # 如果删除失败，重新引发异常以停止执行
+    except OSError as e:
+        print(f"Failed to scan directory '{directory}'. Reason: {e}")
+        raise
+
+    if delete_directory:
+        try:
+            os.rmdir(directory)
+            print(f"Removed directory: {directory}")
+        except OSError as e:
+            print(f"Failed to delete '{directory}'. Reason: {e}")
+            raise  # 如果目录删除失败，重新引发异常以停止执行
+
+
+def merge_lora_model(
+    model_name="pythia-31M",
+    base_model_repo_name="EleutherAI/",
+    model_load_path=MODEL_PATH,
+    model_save_path=MODEL_PATH,
+):
+
+    my_model_path = os.path.join(model_load_path, model_name)
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model = f"pythia-{param_count}M"
+
+    base_model = AutoModelForCausalLM.from_pretrained(
+        os.path.join(base_model_repo_name, base_model)
+    )
+    model = PeftModel.from_pretrained(base_model, my_model_path)
+    merged_model = model.merge_and_unload()
+    my_model_save_path = os.path.join(model_save_path, f"{model_name}_merged")
+    merged_model.save_pretrained(my_model_save_path)
+
+
+def remove_repetition(question, answer):
+    if question in answer:
+        return answer.replace(question, "").strip()
+    return answer
+
+
+def load_model(
+    model_type,
+    model_path=None,
+    blocks_str=None,
+    vanilla_model_name=None,
+    host_model_name=None,
+):
+    """
+    Loads different types of models based on the model_type parameter.
+
+    Parameters:
+    model_type (str): The type of model to load. One of 'Tuned Model', 'Vanilla Model',
+                      'Transformed Model', 'Final Model', or 'Host Model'.
+    model_path (str): The base path where models are stored.
+    blocks_str (str): A string representing the layers or blocks used in model naming.
+    vanilla_model_name (str): The name or path of the vanilla (base) model.
+    host_model_name (str): The name or path of the host model.
+
+    Returns:
+    model: The loaded model object.
+
+    Raises:
+    ValueError: If an unknown model_type is provided or required parameters are missing.
+    IOError: If loading the model fails.
+
+    Example:
+    model = load_model(
+        model_type="Tuned Model",
+        model_path="/path/to/models",
+        blocks_str="1-5",
+        vanilla_model_name="EleutherAI/pythia-31M"
+    )
+    """
+    if model_type == "Tuned Model":
+        model_name = vanilla_model_name.split("/")[-1]
+
+        # save_path = os.path.join(model_path)
+        # model_save_name = f"{model_name}_trained_{footer}
+        # 将 save_path 和 model_save_name 合并为路径
+
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        tuned_model = AutoModelForCausalLM.from_pretrained(
+            os.path.join(model_path, f"{tuned_model_name}")
+        )
+        return tuned_model
+
+    elif model_type == "Vanilla Model":
+        vanilla_model = AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+        return vanilla_model
+
+    elif model_type == "Transformed Model":
+        name = host_model_name.split("/")[-1]
+        save_path = os.path.join(model_path, f"{name}_preGRAFTED_{blocks_str}.pkl")
+        with open(save_path, "rb") as f:
+            transformed_model = pickle.load(f)
+        return transformed_model
+
+    elif model_type == "Final Model":
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = os.path.join(model_path, model_save_name)
+        with open(save_path, "rb") as f:
+            final_model = pickle.load(f)
+        return final_model
+    elif model_type == "Host Model":
+        host_model = AutoModelForCausalLM.from_pretrained(host_model_name)
+        return host_model
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+def load_batch_losses(file_path):
+    """从检查点文件加载批次损失数据。
+
+参数：
+file_path (str): 检查点文件的路径。
+
+返回：
+list 或 None: 如果可用则返回批次损失，否则返回 None。
+
+日志：
+如果加载失败，则记录错误信息。
+
+示例：
+batch_losses = load_batch_losses('/path/to/checkpoint.pt')"""
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses", None)
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        return batch_losses
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

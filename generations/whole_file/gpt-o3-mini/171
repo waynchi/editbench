@@ -1,0 +1,46 @@
+import pygame
+import math
+
+# 初始化 Pygame
+pygame.init()
+
+# 设置显示器
+screen_width = 800
+screen_height = 800
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Flappy Bird Clone')
+
+# 鸟的属性
+bird_x = 100
+bird_y = screen_height // 2
+bird_width = 40
+bird_height = 30
+bird_flap_height = 10
+gravity = 1
+bird_velocity = 0
+
+# 主循环
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                bird_velocity = -bird_flap_height
+
+    # 应用重力
+    bird_velocity += gravity
+    bird_y += bird_velocity
+
+    # 用一种颜色填充屏幕（例如，黑色）
+    screen.fill((0, 0, 0))
+
+    # 绘制小鸟
+    pygame.draw.rect(screen, (255, 255, 0), (bird_x, bird_y, bird_width, bird_height))
+
+    # 更新显示器
+    pygame.display.flip()
+
+# 退出 Pygame
+pygame.quit()

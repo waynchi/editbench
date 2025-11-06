@@ -1,0 +1,52 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-10, max_iter=None):
+    """
+    Solve the linear system Ax = b using the Conjugate Gradient method.
+    
+    Parameters:
+        A (ndarray): A symmetric positive definite matrix.
+        b (ndarray): Right-hand side vector.
+        x0 (ndarray, optional): Initial guess for the solution (default is zero vector).
+        tol (float, optional): Tolerance for the stopping criterion (default is 1e-10).
+        max_iter (int, optional): Maximum number of iterations (default is the size of b).
+    
+    Returns:
+        x (ndarray): The computed solution to Ax = b.
+    """
+    import numpy as np
+
+    n = b.shape[0]
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    if max_iter is None:
+        max_iter = n
+
+    r = b - A.dot(x)
+    p = r.copy()
+    rs_old = np.dot(r, r)
+
+    for i in range(max_iter):
+        Ap = A.dot(p)
+        alpha = rs_old / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = np.dot(r, r)
+        if np.sqrt(rs_new) < tol:
+            break
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+
+    return x
+
+
+if __name__ == "__main__":
+    import numpy as np
+
+    # Example usage with a symmetric positive definite matrix A.
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    x0 = np.zeros_like(b)
+
+    solution = conjugate_gradient(A, b, x0=x0, tol=1e-8)
+    print("Solution:", solution)

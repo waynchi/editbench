@@ -1,0 +1,246 @@
+import asyncio
+import logging
+import sys
+from datetime import datetime
+# from gotquestions import gq_connector
+from aiogram import Bot, Dispatcher, html
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart
+from aiogram.types import Message
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery
+from aiogram import Router, F
+from aiogram.filters.callback_data import CallbackData 
+
+TOKEN = '1111111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+
+
+# Bot token can be obtained via https://t.me/BotFather
+#TOKEN = getenv("BOT_TOKEN")
+
+# All handlers should be attached to the Router (or Dispatcher)
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher()
+start_router = Router()
+
+class MyCallback(CallbackData, prefix="my"):
+    command: str
+    chat_id: int    
+
+
+class question:    
+    def __init__(self, number, text, answer, razdatkaText=None, razdatkaPic=None,  answerPic=None, zachet=None, nezachet=None, comment=None, note=None, 
+                 commentPic=None, source=None, authors=None, editors=None, controversials=None, appeals=None, teams=None, correctAnswers=None):
+        self.number = number
+        self.text   = text
+        self.answer = answer
+        self.zachet = zachet
+        self.nezachet = nezachet
+        self.comment = comment
+        self.note    = note  
+        self.razdatkaText = razdatkaText
+        self.razdatkaPic = razdatkaPic
+        self.answerPic = answerPic
+        self.zachet = zachet
+        self.nezachet = nezachet
+        self.comment = comment
+        self.note    = note
+        self.commentPic = commentPic
+        self.source = source
+        self.authors = authors
+        self.editors = editors
+        self.controversials = controversials
+        self.appeals = appeals
+        self.teams = teams
+        self.correctAnswers = correctAnswers
+
+
+class chat_info:
+    cur_pack        = {}
+    cur_question    = -1
+    cur_timer_on    = True
+    cur_timer       = 5
+    cur_question_dt = datetime.now()    
+    questions       = []
+
+all_chats = {}
+
+
+async def set_chat_info(chat_id, pack=None, question_num=None, timer_on=None, timer=None, question_dt=None):
+    if chat_id not in all_chats:
+        all_chats[chat_id] = chat_info()
+
+    all_chats[chat_id].cur_pack         = pack if pack is not None else all_chats[chat_id].cur_pack
+
+    if pack is not None:
+        
+        num_tours = len(pack["tours"])
+        for cur_tour in range(num_tours):
+            num_questions = len(pack["tours"][cur_tour]["questions"])
+            for cur_question in range(num_questions):
+
+                q = pack["tours"][cur_tour]["questions"][cur_question]
+
+                r = question (  number = q["number"], text =   q["text"], answer = q["answer"], razdatkaText=q["razdatkaText"], razdatkaPic=q["razdatkaPic"],  answerPic=q["answerPic"], zachet=q["zachet"], nezachet=q["nezachet"], comment=q["comment"], note=q["note"], 
+                 commentPic=q["commentPic"], source=q["source"], authors=q["authors"], editors=q["editors"], controversials=q["controversials"], appeals=q["appeals"], teams=q["teams"], correctAnswers=q["correctAnswers"])
+
+                all_chats[chat_id].questions.append(r)
+                                
+                
+
+    all_chats[chat_id].cur_question     = question_num if question_num is not None else all_chats[chat_id].cur_question
+    all_chats[chat_id].cur_timer_on     = timer_on if timer_on is not None else all_chats[chat_id].cur_timer_on
+    all_chats[chat_id].cur_timer        = timer if timer is not None else all_chats[chat_id].cur_timer
+    all_chats[chat_id].cur_question_dt  = question_dt if question_dt is not None else all_chats[chat_id].cur_question_dt
+
+
+@start_router.callback_query(F.data == 'send_hint')
+async def send_hint(call: CallbackQuery):
+    await call.message.answer("Hint")
+
+@start_router.callback_query(MyCallback.filter(F.command == 'send_next'))
+async def send_next_question(query: CallbackQuery, callback_data: MyCallback):   
+    cur_chat_id = callback_data.chat_id
+    await ask_next_question(cur_chat_id)
+
+
+@start_router.callback_query(MyCallback.filter(F.command == 'send_answer'))
+async def send_answer(query: CallbackQuery, callback_data: MyCallback):   
+    cur_chat_id = callback_data.chat_id
+    q = all_chats[cur_chat_id].questions[all_chats[cur_chat_id].cur_question]
+    answer = f"<b>Ответ:</b>\n"    
+    answer += f"{q.answer}\n\n" 
+
+    if ( q.zachet != ""):
+        answer += f"<b>Зачет:</b>\n"
+        answer += f"{q.zachet}\n\n"
+
+    if ( q.answerPic != ""):
+        answer += f"<b>Картинка:</b>\n"
+        answer += f"{q.answerPic}\n\n"
+
+    answer += f"<b>Комментарий:</b>\n"
+    answer += f"{q.comment}\n\n"
+
+    if ( q.source != ""):
+        answer += f"<b>Источник:</b>\n"
+        answer += f"{q.source}\n\n"
+
+    if ( q.teams is not None and q.teams != 0):
+        answer += f"<b>Взятий:</b> {q.correctAnswers}/{q.teams}({round(100*q.correctAnswers/q.teams)}%)\n"        
+
+
+    inline_kb_list = [
+        [
+        InlineKeyboardButton(text="Дальше", callback_data = MyCallback(command = 'send_next', chat_id = cur_chat_id).pack())
+        ]        
+    ]
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=inline_kb_list )
+
+    await bot.send_message( cur_chat_id, answer, reply_markup= keyboard )     
+
+
+
+async def ask_next_question(chat_id):
+
+    all_chats[chat_id].cur_question += 1   
+    all_chats[chat_id].cur_question_dt = datetime.now()
+
+    text = f"<b>Вопрос {all_chats[chat_id].questions[all_chats[chat_id].cur_question].number}.</b>\n\n"
+    text += f"{all_chats[chat_id].questions[all_chats[chat_id].cur_question].text}"
+    
+    inline_kb_list = [
+        [
+        InlineKeyboardButton(text="Подсказка", callback_data='send_hint'),
+        InlineKeyboardButton(text="Ответ",  callback_data = MyCallback(command = 'send_answer'  , chat_id = chat_id).pack()),                
+        InlineKeyboardButton(text="Дальше", callback_data = MyCallback(command = 'send_next', chat_id = chat_id).pack())
+        ]        
+    ]
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=inline_kb_list )
+
+    Message = await bot.send_message( chat_id, text, reply_markup= keyboard )
+
+
+@dp.message(CommandStart())
+async def command_start_handler(message: Message) -> None:
+    """
+    This handler receives messages with `/start` command
+    """
+    # Most event objects have aliases for API methods that can be called in events' context
+    # For example if you want to answer to incoming message you can use `message.answer(...)` alias
+    # and the target chat will be passed to :ref:`aiogram.methods.send_message.SendMessage`
+    # method automatically or call API method directly via
+    # Bot instance: `bot.send_message(chat_id=message.chat.id, ...)`
+    await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
+
+
+async def load_pack(chat_id, num_pack):
+    Message = await bot.send_message( chat_id, 'Загружаем пакет номер ' + str(num_pack))                        
+
+    # connector = gq_connector()
+    # json = connector.get_pack(num_pack)
+
+    pack_editors_str = "Редакторы пакета: "
+    for editor in json["editors"]:
+        pack_editors_str += editor["name"] + ", "
+
+    Message = await bot.send_message( chat_id, pack_editors_str[:-2])                            
+    await set_chat_info(chat_id = chat_id, pack = json)
+    await ask_next_question(chat_id)
+
+
+async def check_answer(chat_id, text_command):
+    pass
+
+
+async def process_command(chat_id, text_command):
+    
+    if text_command.startswith('/load'):        
+        if text_command[6:].isdigit():
+            num_pack = int(text_command[6:])
+            await load_pack(chat_id, num_pack)
+    else:        
+        if text_command.startswith('/'):
+            if all_chats[chat_id].cur_question != -1:
+                cleaned = ''.join(ch for ch in text_command[2:] if ch.isalpha())
+                await check_answer(chat_id, cleaned)
+        cleaned_message = ''.join(ch for ch in text_command if ch.isalpha())
+        await bot.send_message(chat_id, cleaned_message[::-1])
+            
+
+@dp.message()
+async def echo_handler(message: Message) -> None:
+    """
+    Handler will forward receive a message back to the sender
+
+    By default, message handler will handle all message types (like a text, photo, sticker etc.)
+    """
+    #try:
+        # Send a copy of the received message
+    await process_command(message.chat.id, message.text)
+        #await message.answer(message)                
+        #await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
+        #Message = await bot.send_message(chat_id=message.chat.id, text= message.text[2:4])
+
+    #TODO: catch exceptions later
+    #except TypeError:
+        # But not all the types is supported to be copied so need to handle it
+    #    await message.answer("Something happened: wrong type!")
+
+
+async def main() -> None:
+    # Initialize Bot instance with default bot properties which will be passed to all API calls
+    #bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))    
+
+    # And the run events dispatching    
+
+    dp.include_router(start_router)
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    asyncio.run(main())

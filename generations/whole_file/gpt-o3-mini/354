@@ -1,0 +1,46 @@
+import os
+
+def load_dictionary():
+    # Ładowanie angielskiego słownika z systemowego pliku
+    dictionary_path = "/usr/share/dict/words"
+    if not os.path.exists(dictionary_path):
+        print("Brak pliku słownika na systemie.")
+        return []
+    with open(dictionary_path, "r") as file:
+        # Usuwamy białe znaki i filtrujemy puste linie
+        words = [w.strip() for w in file if w.strip()]
+    return words
+
+# -------------------- Nie modyfikuj poniższego kodu --------------------
+
+# Tu mogłyby być inne funkcje lub definicje zachowane w oryginalnym pliku
+
+# ----------------- POCZĄTEK ZMIENIANEJ SEKCJI -----------------
+
+def main():
+    # Ładujemy słownik angielskich słów
+    words = load_dictionary()
+    if not words:
+        print("Słownik jest niedostępny lub pusty.")
+        return
+
+    # Pobieramy od użytkownika liczbę znaków
+    try:
+        n = int(input("Podaj liczbę znaków: "))
+    except ValueError:
+        print("Nieprawidłowa liczba, spróbuj ponownie.")
+        return
+
+    # Wyszukujemy słowa o podanej długości i wybieramy pierwsze 10
+    matching_words = [word for word in words if len(word) == n]
+    if matching_words:
+        print("Znalezione słowa:")
+        for word in matching_words[:10]:
+            print(word)
+    else:
+        print("Nie znaleziono słów o podanej liczbie znaków.")
+
+# ------------------- KONIEC ZMIENIANEJ SEKCJI -------------------
+
+if __name__ == '__main__':
+    main()

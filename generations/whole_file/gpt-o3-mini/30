@@ -1,0 +1,48 @@
+# Qualquer outra parte do código permanece inalterada.
+# Por exemplo, funções auxiliares ou importações que não foram modificadas.
+
+def soma_de_quatro_quadrados_nao_nulos(n):
+    """
+    Retorna uma lista de tuplas (a, b, c, d) com todos os inteiros positivos
+    (não nulos) tais que:
+      a^2 + b^2 + c^2 + d^2 == n
+
+    Se não houver solução, retorna uma lista vazia.
+    """
+    from math import isqrt
+
+    soluções = []
+    # O maior valor possível para cada inteiro é a raiz inteira de n.
+    max_val = isqrt(n)
+    # Percorre todos os quadrados possíveis (usando números a partir de 1 para garantir não nulos)
+    for a in range(1, max_val + 1):
+        a2 = a * a
+        if a2 > n:
+            break
+        for b in range(1, max_val + 1):
+            b2 = b * b
+            if a2 + b2 > n:
+                break
+            for c in range(1, max_val + 1):
+                c2 = c * c
+                if a2 + b2 + c2 > n:
+                    break
+                for d in range(1, max_val + 1):
+                    soma = a2 + b2 + c2 + d * d
+                    if soma == n:
+                        soluções.append((a, b, c, d))
+                    elif soma > n:
+                        break
+    return soluções
+
+# O código abaixo permanece inalterado.
+if __name__ == '__main__':
+    # Exemplo de uso:
+    # Listar todos os números de 1 a 100 que podem ser expressos como a soma de
+    # quatro quadrados não nulos, mostrando também exemplos de decomposição.
+    limite = 100
+    for numero in range(1, limite + 1):
+        decomposições = soma_de_quatro_quadrados_nao_nulos(numero)
+        if decomposições:
+            print(f"Número {numero} pode ser escrito como a soma de quatro quadrados não nulos.")
+            print("Exemplos:", decomposições)

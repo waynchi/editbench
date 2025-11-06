@@ -1,0 +1,294 @@
+import json
+import random
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+api_key = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=api_key)
+
+class SCP_Object:
+    def __init__(self, name, description, triggers, initial_state):
+        self.name = name
+        self.description = description
+        self.triggers = triggers
+        self.state = initial_state
+
+class D_Personnel:
+    def __init__(self, name, initial_state):
+        self.name = name
+        self.state = initial_state
+        self.memory = [] # Lista ciągów znaków, które pamięta z eksperymentów
+
+class Room:
+    def __init__(self, name, description, initial_state):
+        self.name = name
+        self.description = description
+        self.state = initial_state
+
+class Game:
+    def __init__(self):
+        self.scp_objects = self.load_scp_objects()
+        self.current_scp = random.choice(self.scp_objects)
+        self.d_personnel = D_Personnel("D-" + str(random.randint(1000, 9999)), initial_state="calm")
+        self.room = Room("Test Chamber", "A standard containment chamber.", initial_state="clean")
+        self.player_report = ""
+        self.experiment_log = []
+
+    def load_scp_objects(self):
+        # Przykładowe obiekty SCP, mogą być później załadowane z pliku
+        return [
+            SCP_Object(
+                name="SCP-173",
+                description="SCP-173 is a concrete statue that moves when not directly observed.",
+                triggers={
+                    "not_observed": "SCP-173 moves quickly towards the nearest person.",
+                    "touch": "SCP-173 does nothing.",
+                },
+                initial_state="immobile"
+            ),
+            SCP_Object(
+                name="SCP-096",
+                description="SCP-096 is a humanoid creature that becomes extremely hostile when its face is viewed.",
+                triggers={
+                    "view_face": "SCP-096 will scream and chase the viewer.",
+                    "touch": "SCP-096 does nothing.",
+                },
+                initial_state="docile"
+            ),
+            SCP_Object(
+                name="SCP-999",
+                description="SCP-999 is a large, amorphous, gelatinous mass of translucent orange slime with a consistency similar to that of peanut butter. SCP-999's behavior is best described as playful and dog-like.",
+                triggers={
+                    "touch": "SCP-999 will make a happy sound and try to hug the person.",
+                    "attack": "SCP-999 will try to hug the person.",
+                },
+                initial_state="happy"
+            )
+        ]
+
+    def llm_request(self, system_prompt, user_prompt):
+        completion = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                },
+            ],
+            temperature=0.02,
+            max_tokens=1024,
+            top_p=1,
+            stream=False,
+            response_format={"type": "json_object"},
+            stop=None,
+        )
+        try:
+            return json.loads(completion.choices[0].message.content)
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON: {completion.choices[0].message.content}")
+            return {"message": "Error decoding JSON", "intention": "error"}
+
+    def check_instruction_clarity(self, instruction):
+        system_prompt = "You are a helpful assistant that checks if the instruction to people is clear and understandable. Provide a json response with the following fields: 'reasoning' (a step-by-step analysis of the instruction), 'decision' (True if the instruction is clear, False otherwise), and 'why' (a brief explanation of your decision)."
+        user_prompt = f"Analyze the clarity of this instruction: {instruction}"
+        response = self.llm_request(system_prompt, user_prompt)
+        return response
+
+    def check_instruction_possibility(self, instruction):
+        system_prompt = "You are a helpful assistant that checks if the instruction is physically possible. Provide a json response with the following fields: 'reasoning' (a step-by-step analysis of the instruction's feasibility), 'decision' (True if the instruction is possible, False otherwise), and 'why' (a brief explanation of your decision)."
+        user_prompt = f"Analyze the possibility of this instruction: {instruction}. Current room state: {self.room.state}"
+        response = self.llm_request(system_prompt, user_prompt)
+        return response
+
+    def check_d_willingness(self, instruction):
+        system_prompt = "You are a D-class personnel in a test chamber with an unknown SCP object. Provide a json response with the following fields: 'reasoning' (a step-by-step analysis of your willingness), 'decision' (True if you agree to perform the instruction, False otherwise), and 'why' (a brief explanation of your decision)."
+        user_prompt = f"Will you perform this instruction? Instruction: {instruction}. Your current state: {self.d_personnel.state}. Your current knowledge about SCP: {self.d_personnel.memory}"
+        response = self.llm_request(system_prompt, user_prompt)
+        return response
+
+    def emulate_experiment(self, instruction):
+        self.experiment_log.append(f"Instruction: {instruction}")
+        
+        # Początkowe sprawdzenia
+        clarity_check = self.check_instruction_clarity(instruction)
+        if clarity_check["decision"] == "False":
+            self.experiment_log.append(f"Instruction not clear: {clarity_check['why']}")
+            return f"Instruction not clear. Please clarify. Here is why: {clarity_check['why']}"
+
+        possibility_check = self.check_instruction_possibility(instruction)
+        if possibility_check["decision"] == "False":
+            self.experiment_log.append(f"Instruction impossible: {possibility_check['why']}")
+            return f"Instruction impossible. Please provide a possible instruction. Here is why: {possibility_check['why']}"
+
+        willingness_check = self.check_d_willingness(instruction)
+        if willingness_check["decision"] == "False":
+            self.experiment_log.append(f"D-personnel refused: {willingness_check['why']}")
+            return f"D-personnel refused. Reason: {willingness_check['why']}"
+
+        self.experiment_log.append("All checks passed. Starting emulation.")
+        
+        # Pętla emulacji
+        current_actor = "d_personnel"
+        count_of_iterations = 0
+        action_history = [instruction]  # Zacznij od początkowej instrukcji
+        
+        while True and count_of_iterations < 5:
+            count_of_iterations += 1
+            if current_actor == "d_personnel":
+                actions = self.generate_possible_actions(action_history, self.d_personnel)
+                if not actions:
+                    self.experiment_log.append("No possible actions for D-personnel.")
+                    break
+                
+                chosen_action = self.choose_action(actions)
+                self.experiment_log.append(f"D-personnel action: {chosen_action}")
+                
+                outcomes = self.generate_outcomes(chosen_action, self.d_personnel, self.current_scp, self.room)
+                self.experiment_log.append(f"Outcomes: {outcomes}")
+                
+                self.apply_outcomes(outcomes)
+                action_history.append({"d_personnel": {"action": chosen_action, "outcomes": outcomes}})
+                
+                current_actor = "scp"
+            elif current_actor == "scp":
+                scp_actions = self.generate_possible_actions(action_history, self.current_scp)
+                if not scp_actions:
+                    self.experiment_log.append("No possible actions for SCP.")
+                    break
+                
+                chosen_scp_action = self.choose_action(scp_actions)
+                self.experiment_log.append(f"SCP action: {chosen_scp_action}")
+                
+                scp_outcomes = self.generate_outcomes(chosen_scp_action, self.d_personnel, self.current_scp, self.room)
+                self.experiment_log.append(f"SCP Outcomes: {scp_outcomes}")
+                
+                self.apply_outcomes(scp_outcomes)
+                action_history.append({"scp": {"action": chosen_scp_action, "outcomes": scp_outcomes}})
+                
+                current_actor = "d_personnel"
+
+    def generate_possible_actions(self, action_history, actor):
+        if isinstance(actor, D_Personnel):
+            system_prompt = """You are a helpful assistant that generates possible actions for D-class personnel. 
+            Answer in json format in format: {actions: ["action1", "action2", ... ]}. 
+            Generate 3-5 possible actions based on the instruction and action history."""
+            
+            user_prompt = f"""Generate possible actions for D-class personnel based on this history:
+            Initial instruction: {action_history[0]}
+            Action history: {action_history[1:]}
+            Current state: {actor.state}
+            Current knowledge about SCP: {actor.memory}"""
+            response = self.llm_request(system_prompt, user_prompt)
+            if "actions" in response:
+                return response["actions"]
+            else:
+                return []
+        elif isinstance(actor, SCP_Object):
+            system_prompt = """You are a helpful assistant that generates possible actions for an SCP object. 
+            Answer in json format in format: {actions: ["action1", "action2", ... ]}. 
+            Generate 3-5 possible actions based on the instruction and action history, considering the SCP's current state, description, and triggers."""
+            user_prompt = f"""Generate possible actions for the SCP object based on this history:
+            Initial instruction: {action_history[0]}
+            Action history: {action_history[1:]}
+            SCP state: {actor.state}
+            SCP description: {actor.description}
+            SCP triggers: {actor.triggers}"""
+            response = self.llm_request(system_prompt, user_prompt)
+            if "actions" in response:
+                return response["actions"]
+            else:
+                return []
+
+    def choose_action(self, actions):
+        if not actions:
+            return None
+        return random.choice(actions)
+
+    def generate_outcomes(self, action, d_personnel, scp_object, room):
+        system_prompt = "You are a helpful assistant that generates possible outcomes of an action. Answer in json format in format: {outcomes: [{\"description\": \"\", \"d_personnel_state\": \"\", \"scp_state\": \"\", \"room_state\": \"\"}, ... ]}. Generate 3-5 possible outcomes based on the action and current state."
+        user_prompt = f"Generate possible outcomes for this action: {action}. D-personnel state: {d_personnel.state}. SCP state: {scp_object.state}. Room state: {room.state}. SCP description: {scp_object.description}. SCP triggers: {scp_object.triggers}"
+        response = self.llm_request(system_prompt, user_prompt)
+        if "outcomes" in response:
+            return response["outcomes"]
+        else:
+            return []
+
+    def apply_outcomes(self, outcomes):
+        if not outcomes:
+            return
+        chosen_outcome = random.choice(outcomes)
+        self.experiment_log.append(f"Chosen outcome: {chosen_outcome}")
+        if "d_personnel_state" in chosen_outcome:
+            self.d_personnel.state = chosen_outcome["d_personnel_state"]
+        if "scp_state" in chosen_outcome:
+            self.current_scp.state = chosen_outcome["scp_state"]
+        if "room_state" in chosen_outcome:
+            self.room.state = chosen_outcome["room_state"]
+
+    def get_d_report(self):
+        if self.d_personnel.state == "dead":
+            return "D-personnel is dead. No report available."
+        system_prompt = "You are a D-class personnel. You need to describe what happened during the experiment. Answer in json format in format: {report: \"\"}. Describe what you remember from the experiment."
+        user_prompt = f"Describe what happened during the experiment. Your current state: {self.d_personnel.state}. Your current knowledge about SCP: {self.d_personnel.memory}. Experiment log: {self.experiment_log}"
+        response = self.llm_request(system_prompt, user_prompt)
+        if "report" in response:
+            self.d_personnel.memory.append(response["report"])
+            return response["report"]
+        else:
+            return "No report available."
+
+    def get_d_death_report(self):
+        if self.d_personnel.state != "dead":
+            return "D-personnel is alive. No death report available."
+        system_prompt = "You are a forensic expert. You need to describe the state of the dead D-class personnel. Answer in json format in format: {report: \"\"}. Describe the state of the body."
+        user_prompt = f"Describe the state of the dead D-class personnel. Experiment log: {self.experiment_log}"
+        response = self.llm_request(system_prompt, user_prompt)
+        if "report" in response:
+            return response["report"]
+        else:
+            return "No death report available."
+
+    def start_experiment(self, instruction):
+        self.experiment_log = []
+        result = self.emulate_experiment(instruction)
+        if result:
+            return result
+        if self.d_personnel.state == "dead":
+            report = self.get_d_death_report()
+        else:
+            report = self.get_d_report()
+        self.d_personnel = D_Personnel("D-" + str(random.randint(1000, 9999)), initial_state="calm")
+        return report
+
+    def submit_report(self, player_report):
+        self.player_report = player_report
+        system_prompt = "You are a helpful assistant that checks if the player report is factually correct. Answer in json format in format: {message: \"\", score: 0-100}. Compare the player report with the SCP description and triggers. Score should be 0 if the report is completely wrong and 100 if the report is completely correct."
+        user_prompt = f"Compare the player report with the SCP description and triggers. Player report: {player_report}. SCP description: {self.current_scp.description}. SCP triggers: {self.current_scp.triggers}"
+        response = self.llm_request(system_prompt, user_prompt)
+        return response
+
+    def play(self):
+        print("Welcome to SCPIE!")
+        instruction = input("Enter instruction for D-personnel: ")
+        result = self.start_experiment(instruction)
+        print("Experiment result:", result)
+        print("\n\n\n")
+        for log in self.experiment_log:
+            if isinstance(log, dict):
+                json.dumps(log, indent=4, ensure_ascii=False)
+            else:
+                print(log)
+            print()
+        # print(self.experiment_log)
+
+if __name__ == "__main__":
+    game = Game()
+    game.play()
+    # print("Tak")

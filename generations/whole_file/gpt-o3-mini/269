@@ -1,0 +1,111 @@
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain_community.retrievers import BM25Retriever
+from os import getenv
+from dotenv import load_dotenv
+import streamlit as st
+from streamlit_chat import message
+import PyPDF2
+import nltk
+from nltk.tokenize import word_tokenize
+from langchain.callbacks.base import BaseCallbackHandler
+
+load_dotenv()
+
+st.title("♥ CardioRAG")
+
+# загрузить PDF для RAG
+if "retriever" not in st.session_state:
+    st.text("Loading PDF...")
+    prog_bar = st.progress(0)
+    pdf_reader = PyPDF2.PdfReader(open("Moss and Adams 10e Vol 1 & 2.pdf", 'rb'))
+    chunks = []
+    for page_num in range(60, 600):
+        prog_bar.progress((page_num-60)/(600-60))
+        chunks.append(pdf_reader.pages[page_num].extract_text())
+    # поместить фрагменты в хранилище векторов
+    retriever = BM25Retriever.from_texts(chunks, metadatas=[{"page_num": p } for p in range(60, 600)], preprocess_func=word_tokenize)
+    st.session_state["retriever"] = retriever
+st.text("Loaded PDF")
+
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Hi, I'm a chatbot who has read the Moss & Adams Cardiology textbook. How can I help you?"}
+    ]
+
+# настроить текстовое поле для ввода пароля, если он еще не установлен
+if "password" not in st.session_state:
+    with st.form("pw_input", clear_on_submit=True):
+        password = st.text_input("Enter password", type="password")
+        if st.form_submit_button("Submit"):
+            if password == getenv("PASSWORD"):
+                st.session_state["password"] = password
+            else:
+                st.error("Incorrect password")
+
+with st.form("chat_input", clear_on_submit=True):
+    a,b = st.columns([4,1])
+    user_input = a.text_input(
+        label="Question:",
+        placeholder="What is the incidence of congenital heart disease?",
+        label_visibility="collapsed",
+    )
+    b.form_submit_button("Send", use_container_width=True)
+
+for i, msg in enumerate(st.session_state.messages):
+    message(msg["content"], is_user=msg["role"] == "user", key=str(i))
+
+if user_input and st.session_state.get("password"):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    message(user_input, is_user=True, key=str(len(st.session_state.messages) - 1))
+
+    llm = ChatOpenAI(
+        api_key=getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+        model_name="meta-llama/llama-3.2-3b-instruct",
+        streaming=True)
+
+    retriever = st.session_state["retriever"]
+    docs = retriever.get_relevant_documents(user_input)
+    DIVIDER = "-"*10
+    context = DIVIDER.join([f"Page {d.metadata['page_num']}: {d.page_content}" for d in docs])
+
+    prompt = PromptTemplate(
+        input_variables=["context", "question"],
+        template="""You are a helpful AI assistant who has read the Moss & Adams Cardiology textbook. \
+Use the following context to answer the question. If you don't know the answer, just say you don't know.
+
+Context: {context}
+
+Question: {question}
+
+Answer:"""
+    )
+
+    print(prompt)
+    
+    # --- Modified Section to Support Streaming Responses ---
+    # Define a callback handler that streams tokens to the Streamlit interface.
+    class StreamlitCallbackHandler(BaseCallbackHandler):
+        def __init__(self, container):
+            self.response = ""
+            self.container = container
+
+        def on_llm_new_token(self, token: str, **kwargs) -> None:
+            self.response += token
+            # Clear and update the container with the new response
+            self.container.empty()
+            message(self.response, key="streaming_response")
+
+    # Create a placeholder container for streaming output.
+    streaming_container = st.empty()
+    stream_handler = StreamlitCallbackHandler(streaming_container)
+
+    # Create the LLMChain with the streaming callback.
+    chain = LLMChain(llm=llm, prompt=prompt, callbacks=[stream_handler])
+    response = chain.run(context=context, question=user_input)
+
+    st.session_state['messages'].append({"role": "assistant", "content": response})
+    message(response, key=str(len(st.session_state.messages) - 1))
+    # --- End of Modified Section ---

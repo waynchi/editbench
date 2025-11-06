@@ -1,0 +1,572 @@
+import os
+import random
+import torch
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import precision_score, recall_score
+from torch.nn import functional as F
+from PIL import Image, ImageDraw, ImageFont
+import matplotlib.pyplot as plt
+import seaborn as sns
+from colpali_engine.interpretability import (
+    get_similarity_maps_from_embeddings,
+    plot_all_similarity_maps,
+)
+import pandas as pd
+from transformers import AutoModel, AutoProcessor
+
+# Ścieżka do wyodrębnionego zbioru danych Flickr8k
+FLICKR8K_IMAGES_PATH = "flickr8k/Images"
+FLICKR8K_CAPTIONS_PATH = "flickr8k/captions.txt"
+
+# Funkcja do ładowania par obraz-tekst z Flickr8k
+def load_flickr8k_data(images_path, captions_path, fraction=0.1):
+    # Przeczytaj plik z podpisami
+    with open(captions_path, "r") as f:
+        captions_data = f.readlines()[1:]  # Pomiń nagłówek
+
+    # Przetwórz podpisy
+    image_text_pairs = {}
+    for line in captions_data:
+        image_name, caption = line.strip().split(",", 1)
+        if image_name not in image_text_pairs:
+            image_text_pairs[image_name] = []
+        image_text_pairs[image_name].append(caption)
+
+    # Załaduj tylko część zbioru danych
+    selected_images = random.sample(list(image_text_pairs.keys()), int(len(image_text_pairs) * fraction))
+    image_text_pairs = {k: image_text_pairs[k] for k in selected_images}
+
+    # Tworzenie par obrazów i podpisów
+    pairs = []
+    for image_name, captions in image_text_pairs.items():
+        image_path = os.path.join(images_path, image_name)
+        if os.path.exists(image_path):
+            pairs.append((Image.open(image_path), random.choice(captions)))
+    return pairs
+
+# Funkcja do tworzenia niepowiązanych par
+def create_unrelated_pairs(image_text_pairs):
+    """Tworzy niepowiązane pary obrazów i tekstów poprzez losowe przetasowanie tekstów.
+
+Argumenty:
+    image_text_pairs (list): Lista krotek zawierających obrazy i ich odpowiadające teksty.
+
+Zwraca:
+    list: Lista krotek zawierających obrazy i niepowiązane teksty."""
+    images, texts = zip(*image_text_pairs)
+    unrelated_texts = random.sample(texts, len(texts))
+    return list(zip(images, unrelated_texts))
+
+
+def create_visual_pairs(image_text_pairs):
+    """Tworzy pary oryginalnych i zaugumentowanych obrazów z par obraz-tekst.
+
+Ta funkcja przyjmuje listę par obraz-tekst i tworzy nowe pary składające się
+z oryginalnych obrazów i ich zaugumentowanych wersji. Augmentacja używana
+w tej implementacji to poziome odbicie.
+
+Argumenty:
+    image_text_pairs (list): Lista krotek zawierających pary (obraz, tekst),
+        gdzie obrazy są obiektami PIL Image, a teksty są ciągami znaków.
+
+Zwraca:
+    list: Lista krotek zawierających pary (oryginalny_obraz, zaugumentowany_obraz),
+        gdzie oba elementy są obiektami PIL Image."""
+    from torchvision.transforms import ToTensor
+    images, _ = zip(*image_text_pairs)
+    augmented_images = [ToTensor()(image).flip(-1) for image in images]  # Przykład augmentacji: poziome odbicie
+    return list(zip(images, augmented_images))
+
+
+def get_embeddings(images, texts, model_id="google/siglip-base-patch16-224"):
+    """Dla podanych list obrazów i tekstów zwraca znormalizowane osadzenia dla obu."""
+    # Upewnij się, że texts jest listą ciągów znaków
+    if not all(isinstance(t, str) for t in texts):
+        raise ValueError("All text inputs must be strings.")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = AutoModel.from_pretrained(model_id, ignore_mismatched_sizes=True).to(device)
+    processor = AutoProcessor.from_pretrained(model_id)
+    
+    # Przetwarzanie wstępne obrazów i tekstów
+    image_inputs = processor(images=images, return_tensors="pt").to(device)
+    text_inputs = processor(text=texts, return_tensors="pt", padding="max_length").to(device)
+    
+    with torch.no_grad():
+        image_embeds = model.get_image_features(**image_inputs)
+        text_embeds = model.get_text_features(**text_inputs)
+
+    # Normalizuj osadzenia
+    image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
+    text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+
+    return image_embeds, text_embeds
+
+
+def cosine_similarity_analysis(embeddings1, embeddings2, title):
+    """Oblicza podobieństwo cosinusowe dla pasujących i niepowiązanych par oraz porównuje rozkłady."""
+    similarities = cosine_similarity(embeddings1.cpu().numpy(), embeddings2.cpu().numpy())
+
+    # Dopasowane pary: Diagonalna macierzy podobieństwa
+    matching_similarities = np.diag(similarities)
+
+    # Niezwiązane pary: Podobieństwa poza przekątną
+    unrelated_similarities = similarities[~np.eye(similarities.shape[0], dtype=bool)]
+
+    print(f"### {title} ###")
+    print(f"Mean Matching Similarity: {np.mean(matching_similarities):.4f}")
+    print(f"Mean Unrelated Similarity: {np.mean(unrelated_similarities):.4f}")
+    print()
+
+    # Rysuj rozkłady
+    plt.figure(figsize=(10, 6))
+    sns.histplot(matching_similarities, kde=True, label="Matching Pairs", color="blue", bins=30)
+    sns.histplot(unrelated_similarities, kde=True, label="Unrelated Pairs", color="red", bins=30)
+    plt.title(f"{title}: Cosine Similarity Distributions")
+    plt.xlabel("Cosine Similarity")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.show()
+
+# ## b. Wyszukiwanie najbliższego sąsiada
+def retrieval_metrics(query_embeds, target_embeds, ground_truth_indices, k=5):
+    """Oblicza Precision@k i Recall@k dla wyszukiwania najbliższego sąsiada.
+
+Ta funkcja ocenia skuteczność wyszukiwania poprzez obliczanie Precision@k i Recall@k.
+Precision@k mierzy dokładność wśród top-k znalezionych elementów, podczas gdy Recall@k mierzy zdolność
+do znalezienia odpowiedniego elementu wśród top-k znalezionych elementów. Zakłada, że istnieje tylko jedno
+prawdziwe dopasowanie na zapytanie.
+
+Argumenty:
+    query_embeds (torch.Tensor): Wektory osadzeń danych zapytania.
+    target_embeds (torch.Tensor): Wektory osadzeń danych docelowych (baza danych).
+    ground_truth_indices (list): Lista indeksów w danych docelowych reprezentujących prawdziwe dopasowania dla każdego zapytania.
+    k (int): Liczba najlepszych wyników do rozważenia.
+
+Zwraca:
+    tuple: Krotka zawierająca średnie Precision@k i średnie Recall@k."""
+    similarities = cosine_similarity(query_embeds.cpu().numpy(), target_embeds.cpu().numpy())
+    sorted_indices = np.argsort(-similarities, axis=1)[:, :k]  # Indeksy top-k
+
+    # Oblicz metryki
+    precisions = []
+    recalls = []
+    for i, true_idx in enumerate(ground_truth_indices):
+        retrieved_indices = sorted_indices[i]
+        true_positives = int(true_idx in retrieved_indices)
+        precisions.append(true_positives / k)
+        recalls.append(true_positives / 1)  # Tylko jedno prawdziwe dopasowanie na zapytanie
+
+    mean_precision = np.mean(precisions)
+    mean_recall = np.mean(recalls)
+
+    return mean_precision, mean_recall
+
+def plot_query_token_importance(
+    pil_image,
+    similarity_maps,
+    query_tokens,
+    alpha: float = 0.5
+) -> None:
+    """Narysuj osobną mapę cieplną dla każdego tokena zapytania w similarity_maps.
+
+Argumenty:
+    pil_image (PIL.Image.Image): Oryginalny obraz (np. załadowany za pomocą Image.open(...)).
+    similarity_maps (torch.Tensor): 
+        Kształt = (num_query_tokens, n_patches_x, n_patches_y).
+    query_tokens (List[str]): Lista ciągów znaków dla każdego tokena w zapytaniu.
+    alpha (float): Przezroczystość nakładek map cieplnych (0=przezroczysty, 1=nieprzezroczysty)."""
+    # Konwertuj PIL na numpy
+    image_np = np.array(pil_image)
+    H, W = image_np.shape[:2]
+
+    num_tokens = similarity_maps.size(0)
+    assert num_tokens == len(query_tokens), (
+        f"The number of query tokens in similarity_maps ({num_tokens}) "
+        f"doesn't match the length of query_tokens list ({len(query_tokens)})."
+    )
+
+    fig, axs = plt.subplots(1, num_tokens, figsize=(5 * num_tokens, 5))
+    if num_tokens == 1:
+        # Jeśli jest tylko jeden token, axs nie będzie iterowalny
+        axs = [axs]
+
+    for idx in range(num_tokens):
+        # Każda mapa podobieństwa dla pojedynczego tokenu zapytania: kształt = (n_patches_x, n_patches_y)
+        single_map = similarity_maps[idx]  # (n_patches_x, n_patches_y)
+
+        # Zwiększ rozdzielczość do pełnego rozmiaru obrazu
+        single_map_4d = single_map.unsqueeze(0).unsqueeze(0)  # (1,1,n_patches_x, n_patches_y)
+        upsampled = F.interpolate(
+            single_map_4d,
+            size=(H, W),
+            mode='bilinear',
+            align_corners=False
+        )
+        
+        # .to(torch.float32) naprawia, jeśli twoja mapa jest w formacie bfloat16
+        heatmap = upsampled.squeeze().to(torch.float32).cpu().numpy()  # (H, W)
+
+        # Opcjonalnie znormalizuj mapę cieplną (odkomentuj, jeśli chcesz)
+        # heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
+
+        # Wykres
+        axs[idx].imshow(image_np, cmap=None if image_np.ndim == 3 else 'gray')
+        axs[idx].imshow(heatmap, cmap='jet', alpha=alpha)
+        axs[idx].set_title(f"Query: {query_tokens[idx]}")
+        axs[idx].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def get_maps_and_embeds(batch_images, batch_queries, model, processor, image, use_qwen=False):
+    """Oblicza mapy podobieństwa i osadzenia z partii obrazów i zapytań przy użyciu określonego modelu i procesora.
+
+Argumenty:
+    batch_images (dict): Słownik z przetworzonymi przez procesor partiami wejściowych obrazów.
+    batch_queries (dict): Słownik z przetworzonymi przez procesor partiami wejściowych zapytań.
+    model (nn.Module): Model używany do obliczania osadzeń.
+    processor (Processor): Procesor odpowiedzialny za przetwarzanie obrazów i tekstu.
+
+Zwraca:
+    tuple: Krotka zawierająca:
+        - original_maps (torch.Tensor): Mapy podobieństwa między obrazami a zapytaniami 
+            o kształcie (num_queries, n_patches_x, n_patches_y).
+        - original_image_embeddings (torch.Tensor): Osadzenia wejściowych obrazów.
+        - original_query_embeddings (torch.Tensor): Osadzenia wejściowych zapytań."""
+    with torch.no_grad():
+        original_image_embeddings = model.forward(**batch_images)
+        original_query_embeddings = model.forward(**batch_queries)
+    if use_qwen:
+        n_patches = processor.get_n_patches(image_size=image.size, patch_size=model.patch_size, spatial_merge_size=model.spatial_merge_size)
+    else:
+        n_patches = processor.get_n_patches(image_size=image.size, patch_size=model.patch_size)
+    image_mask = processor.get_image_mask(batch_images)
+
+    # Oblicz oryginalne mapy podobieństwa
+    original_batched_maps = get_similarity_maps_from_embeddings(
+        image_embeddings=original_image_embeddings,
+        query_embeddings=original_query_embeddings,
+        n_patches=n_patches,
+        image_mask=image_mask,
+    )
+    original_maps = original_batched_maps[0]  # (długość_zapytania, n_płatków_x, n_płatków_y)
+    return original_maps, original_image_embeddings, original_query_embeddings
+
+
+def visualize_token_map(image, original_maps, token_list, token_index=2, cmap="Greens"):
+    """Wizualizuj mapę uwagi tokena na trzy sposoby: oryginalny obraz, surową mapę uwagi z wartościami numerycznymi oraz nakładkę mapy uwagi na oryginalny obraz. Argumenty: image (PIL.Image): Obraz wejściowy do wizualizacji. original_maps (torch.Tensor lub np.ndarray): Mapy uwagi o kształcie (num_tokens, wysokość, szerokość). token_list (list[str]): Lista ciągów tokenów odpowiadających każdej mapie uwagi. token_index (int, opcjonalnie): Indeks tokena/mapy do wizualizacji. Domyślnie 2. cmap (str, opcjonalnie): Nazwa koloru Matplotlib do wizualizacji map uwagi. Domyślnie "Greens". Funkcja tworzy figurę z trzema podwykresami: 1. Oryginalny obraz wejściowy 2. Surowa mapa uwagi z adnotacjami wartości numerycznych 3. Mapa uwagi nałożona na oryginalny obraz z paskiem kolorów Zwraca: Brak. Wyświetla wizualizację za pomocą matplotlib."""
+    # Przekształć obraz na tablicę NumPy
+    image_np = np.array(image)
+
+    # Wybierz mapę odpowiadającą tokenowi
+    visual_map = original_maps[token_index]
+
+    # Przekształć visual_map na tablicę NumPy, jeśli jest tensorem
+    if isinstance(visual_map, torch.Tensor):
+        visual_map = visual_map.cpu().to(dtype=torch.float32).numpy()
+    elif not isinstance(visual_map, np.ndarray):
+        visual_map = np.array(visual_map)
+
+    # Przekształć mapę na obraz PIL
+    visual_map_pil = Image.fromarray(visual_map)
+
+    # Zmień rozmiar używając NEAREST, aby zachować 'duże piksele
+    visual_map_pil = visual_map_pil.resize(
+        (image_np.shape[1], image_np.shape[0]),  # szerokość, wysokość
+        resample=Image.NEAREST
+    )
+
+    # Konwertuj z powrotem na NumPy
+    resized_map = np.array(visual_map_pil)
+
+    # Utwórz wykres z podwykresami
+    fig, axes = plt.subplots(1, 3, figsize=(15, 2))
+
+    # Wyświetl surowy obraz
+    axes[0].imshow(image_np)
+    axes[0].set_title("Raw Image")
+    axes[0].axis("off")
+    # Wyświetl surową mapę z adnotacjami
+    im = axes[1].imshow(visual_map, cmap=cmap)
+    axes[1].set_title("Raw Map")
+    axes[1].axis("off")
+
+    # Adnotuj mapę cieplną
+    for i in range(visual_map.shape[0]):
+        for j in range(visual_map.shape[1]):
+            text = axes[1].text(j, i, f"{visual_map[i, j]:.2f}",
+                           ha="center", va="center", color="w" if visual_map[i, j] > visual_map.max() / 2 else "black")
+
+    # Wyświetl nakładkę wykresu
+    axes[2].imshow(image_np, alpha=1)
+    axes[2].imshow(resized_map, cmap=cmap, alpha=0.6)
+    axes[2].set_title("Overlay: Image + Map")
+    axes[2].axis("off")
+    # Dodaj skalę kolorów dla nakładki z wartościami odpowiadającymi surowej mapie
+    cbar = fig.colorbar(plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=visual_map.min(), vmax=visual_map.max())), ax=axes[2], shrink=0.8, orientation="vertical")
+    cbar.set_label("Map Intensity")
+    # Dodaj tytuł z nazwą tokena
+    plt.suptitle(f"Token: {token_list[token_index]}")
+
+    # Dostosuj układ i wyświetl
+    plt.tight_layout()
+    plt.show()
+
+
+
+def create_single_patch_image(
+    n_patches_x, n_patches_y, patch_size, main_color, special_color, special_patch, special_patch_width=2,
+):
+    """
+    Creates an image composed of colored patches, with one special patch highlighted.
+
+    The image is divided into a grid of n_patches_x by n_patches_y patches, each of size
+    patch_size x patch_size pixels. All patches are filled with the main_color, except
+    for the special_patch, which is filled with special_color.  The special patch can
+    also have a width of more than one patch.
+    Args:
+        n_patches_x (int): Number of patches horizontally.
+        n_patches_y (int): Number of patches vertically.
+        patch_size (int): The size (in pixels) of each square patch.
+        main_color (list): The [R, G, B] color for most patches.
+        special_color (list): The [R, G, B] color for the special patch.
+        special_patch (tuple): The (row, col) position of the top-left corner of the special patch (0-indexed).
+        special_patch_width (int, optional): The width of the special patch in number of patches. Defaults to 2.
+
+    Returns:
+        PIL Image: The generated image.
+    """
+
+    # Utwórz 3D tablicę NumPy dla obrazu
+    img_height = n_patches_y * patch_size
+    img_width = n_patches_x * patch_size
+    image_data = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+
+    # Wypełnij cały obraz głównym kolorem
+    image_data[:, :] = main_color
+
+    # Przypisz specjalny kolor do specjalnej łatki
+    special_row, special_col = special_patch
+    image_data[
+        special_row * patch_size : (special_row + special_patch_width) * patch_size,
+        special_col * patch_size : (special_col + special_patch_width) * patch_size
+    ] = special_color
+
+    return Image.fromarray(image_data)
+
+
+def extract_patch_mask(image, patch_size, special_color=[0, 0, 0]):
+    """Wyodrębnij maskę binarną wskazującą lokalizację specjalnej łatki.
+
+Argumenty:
+    image (PIL.Image.Image): Obraz wejściowy.
+    patch_size (int): Rozmiar każdej kwadratowej łatki w pikselach.
+    special_color (list[int]): Kolor RGB specjalnej łatki.
+
+Zwraca:
+    np.ndarray: Maska binarna o kształcie (n_patches_y, n_patches_x) wskazująca
+                lokalizację specjalnej łatki (1 dla specjalnej łatki, 0 w przeciwnym razie)."""
+    # Przekształć obraz na tablicę NumPy
+    image_np = np.array(image)
+
+    # Pobierz wymiary obrazu
+    img_height, img_width, _ = image_np.shape
+
+    # Oblicz liczbę fragmentów
+    n_patches_y = img_height // patch_size
+    n_patches_x = img_width // patch_size
+
+    # Zainicjuj maskę łaty
+    patch_mask = np.zeros((n_patches_y, n_patches_x), dtype=np.int32)
+
+    # Iteruj przez wszystkie fragmenty, aby zlokalizować specjalny fragment
+    for row in range(n_patches_y):
+        for col in range(n_patches_x):
+            # Wyodrębnij fragment
+            patch = image_np[
+                row * patch_size : (row + 1) * patch_size,
+                col * patch_size : (col + 1) * patch_size
+            ]
+
+            # Sprawdź, czy fragment pasuje do specjalnego koloru
+            if np.allclose(patch.mean(axis=(0, 1)), special_color, atol=1e-6):
+                patch_mask[row, col] = 1  # Oznacz tę łatkę jako specjalną
+
+    return patch_mask
+
+
+def evaluate_map_quality(similarity_map, patch_mask):
+    """Oceń jakość mapy podobieństwa w odniesieniu do binarnej maski łaty.
+
+Argumenty:
+    similarity_map (np.ndarray): Mapa podobieństwa (wysokość, szerokość).
+    patch_mask (np.ndarray): Binarna maska dla łaty (1 dla czarnej łaty, 0 w pozostałych miejscach).
+
+Zwraca:
+    dict: Metryki, w tym korelacja, szczytowa dokładność i wynik nakładania."""
+    # Spłaszcz mapę i maskę dla łatwiejszych obliczeń
+    sim_map_flat = similarity_map.flatten()
+    patch_mask_flat = patch_mask.flatten()
+    
+    # (A) Korelacja
+    correlation = np.corrcoef(sim_map_flat, patch_mask_flat)[0, 1]
+    
+    # (B) Lokalizacja Szczytowego Sygnału
+    max_location = np.unravel_index(np.argmax(similarity_map), similarity_map.shape)
+    expected_location = np.unravel_index(np.argmax(patch_mask), patch_mask.shape)
+    peak_accuracy = 1 if max_location == expected_location else 0
+    
+    # (C) Znormalizowana Nakładka Mapy
+    black_patch_score = similarity_map[patch_mask == 1].mean()
+    background_score = similarity_map[patch_mask == 0].mean()
+    overlap_score = black_patch_score / (background_score + 1e-8)  # Unikaj dzielenia przez zero
+    
+    # Zwróć wszystkie metryki
+    return {
+        "correlation": correlation,
+        "peak_accuracy": peak_accuracy,
+        "overlap_score": overlap_score,
+    }
+
+def evaluate_image_maps(similarity_map, real_image):
+    """Ocena mapy podobieństwa względem binarnej reprezentacji rzeczywistego obrazu.
+
+Ta funkcja oblicza dwie metryki:
+- Dokładność: Sprawdza, czy jakiekolwiek maksymalne wartości w mapie podobieństwa pokrywają się z niezerowymi pikselami w obrazie.
+- Wynik: Oblicza znormalizowany wynik, sumując iloczyn elementów mapy podobieństwa i binarnego obrazu,
+  a następnie dzieląc przez sumę pikseli binarnego obrazu. Mapa podobieństwa jest skalowana, jeśli to konieczne, aby dopasować wymiary obrazu.
+
+Argumenty:
+    similarity_map (np.ndarray): Mapa podobieństwa do oceny.
+    real_image (PIL.Image): Rzeczywisty obraz używany do oceny.
+
+Zwraca:
+    dict: Słownik zawierający metryki dokładności (bool) i wyniku (float)."""
+    # Przekształć rzeczywisty obraz na binarną tablicę (1 - znormalizowana skala szarości)
+    image_array = 1 - np.array(real_image.convert('L'), dtype=np.float32) / 255.0
+
+    # Utwórz maskę dla maksymalnych wartości w mapie podobieństwa
+    acc_visual_map = np.where(similarity_map == similarity_map.max(), similarity_map, 0)
+    visual_map = np.copy(similarity_map)
+    
+    # Sprawdź, czy skalowanie jest konieczne
+    if image_array.shape != visual_map.shape:
+        scale_factor = image_array.shape[0] // visual_map.shape[0]
+        scaled_visual_map = np.kron(np.abs(visual_map), np.ones((scale_factor, scale_factor)))
+        acc_visual_map = np.kron(np.abs(acc_visual_map), np.ones((scale_factor, scale_factor)))
+    else:
+        scaled_visual_map = visual_map
+ 
+    # Oblicz dokładność i wynik
+    accuracy = np.any(image_array * acc_visual_map)
+    score = np.sum(image_array * scaled_visual_map) / (np.sum(image_array) + 1e-8)  # Unikaj dzielenia przez zero
+    return {
+        "accuracy": accuracy,
+        "score": score
+    }
+
+def create_single_patch_image_with_text(
+    n_patches_x,
+    n_patches_y,
+    patch_size,
+    main_color,
+    special_color,
+    special_patch,
+    text="Hello",
+    text_color=(255, 255, 255),
+    special_patch_width=2,
+    font_size=16,
+    font_path='./fonts/Roboto-Regular.ttf'  # Dodano parametr font_path z wartością domyślną
+):
+    """Tworzy obraz składający się z kolorowych łatek, ale umieszcza pojedyncze słowo (lub tekst) wewnątrz obszaru „specjalnej” łatki."""
+    # Utwórz 3D tablicę NumPy dla obrazu
+    img_height = n_patches_y * patch_size
+    img_width = n_patches_x * patch_size
+    image_data = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+
+    # Wypełnij cały obraz głównym kolorem
+    image_data[:, :] = main_color
+
+    # Przypisz specjalny kolor do specjalnego obszaru łaty
+    special_row, special_col = special_patch
+    image_data[
+        special_row * patch_size : (special_row + special_patch_width) * patch_size,
+        special_col * patch_size : (special_col + special_patch_width) * patch_size,
+    ] = special_color
+
+    # Przekształć na obraz Pillow, aby móc na nim rysować
+    img = Image.fromarray(image_data)
+    draw = ImageDraw.Draw(img)
+
+    # Załaduj czcionkę o określonym rozmiarze
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except IOError:
+        print(f"Error loading font from {font_path}. Using default font.")
+        font = ImageFont.load_default()
+
+    # Oblicz środek specjalnej łatki w współrzędnych pikselowych
+    patch_center_x = (
+        special_col * patch_size
+        + (special_patch_width * patch_size) // 2
+    )
+    patch_center_y = (
+        special_row * patch_size
+        + (special_patch_width * patch_size) // 2
+    )
+
+    # Oblicz obramowanie tekstu, aby wyśrodkować tekst
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    text_x = patch_center_x - text_width // 2
+    text_y = patch_center_y - text_height // 2
+
+    # Umieść tekst na środku specjalnej łatki
+    draw.text((text_x, text_y), text, fill=text_color, font=font)
+
+    return img
+
+
+def visualize_results_grid(results_df):
+    # Dynamically determine the number of columns using the results_df
+    num_columns = results_df.shape[1]
+    # Wyodrębnij i przekształć wszystkie kolumny na numeryczne, jeśli to konieczne
+    columns = [results_df.iloc[:, i] for i in range(num_columns)]
+    columns = [pd.to_numeric(col, errors='coerce') if not pd.api.types.is_numeric_dtype(col) else col for col in columns]
+    
+    # Wnioskować kształt siatki z liczby wierszy wyników
+    grid_size = int(np.sqrt(len(results_df)))
+    # Przekształć kolumny w macierze
+    matrices = [col.to_numpy().reshape(grid_size, grid_size) for col in columns]
+    
+    # Ustawienia wizualizacji
+    fig, axes = plt.subplots(1, num_columns, figsize=(6 * num_columns, 2))
+    if num_columns == 1:
+        axes = [axes]
+        
+    # Define default colormaps for visualization, cycling if necessary
+    default_cmaps = ["coolwarm", "viridis", "plasma", "inferno", "magma", "cividis"]
+    cmaps = [default_cmaps[i % len(default_cmaps)] for i in range(num_columns)]
+    
+    titles = [
+        f"{results_df.columns[i]} (Categorical/Binary)" if pd.api.types.is_categorical_dtype(columns[i]) or pd.api.types.is_bool_dtype(columns[i])
+        else f"{results_df.columns[i]} (Continuous)"
+        for i in range(num_columns)
+    ]
+
+    # Wyświetl każdą macierz
+    for i, (matrix, ax, title, cmap) in enumerate(zip(matrices, axes, titles, cmaps)):
+        im = ax.imshow(matrix, cmap=cmap, interpolation="none")
+        ax.set_title(title)
+        ax.set_xticks(range(grid_size))
+        ax.set_yticks(range(grid_size))
+        fig.colorbar(im, ax=ax)
+
+    # Wyświetl wykres
+    plt.tight_layout()
+    plt.show()

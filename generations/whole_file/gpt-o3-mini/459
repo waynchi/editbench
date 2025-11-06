@@ -1,0 +1,39 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print("Input lines:", lines)
+    # Eliminar líneas vacías y separar por cualquier espacio en blanco.
+    split_rows = [line.strip().split() for line in lines if line.strip()]
+    # Convertir la lista de listas a un arreglo de NumPy. Se espera que cada línea tenga al menos dos columnas.
+    try:
+        data = np.array(split_rows, dtype=int)
+    except ValueError:
+        print("Error: Verifique que todas las líneas contengan números válidos y que el delimitador sea el adecuado.")
+        return
+
+    if data.ndim == 1 or data.shape[1] < 2:
+        print("Error: Se esperaban al menos dos columnas en el archivo de entrada.")
+        return
+
+    # Extraer las dos primeras columnas
+    list_1 = list(data[:, 0])
+    list_2 = list(data[:, 1])
+
+    # Ordenar ambas listas para obtener la mejor correspondencia minimizando las diferencias absolutas.
+    list_1.sort()
+    list_2.sort()
+
+    total_distance = sum(abs(a - b) for a, b in zip(list_1, list_2))
+    print("Suma total de distancias:", total_distance)
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

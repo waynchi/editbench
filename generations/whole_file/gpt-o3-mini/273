@@ -1,0 +1,46 @@
+import pygame
+import math
+
+# Инициализация Pygame
+pygame.init()
+
+# Настроить дисплей
+screen_width = 800
+screen_height = 800
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Flappy Bird Clone')
+
+# Свойства птицы
+bird_x = 100
+bird_y = screen_height // 2
+bird_width = 40
+bird_height = 30
+bird_flap_height = 10
+gravity = 1
+bird_velocity = 0
+
+# Основной цикл
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                bird_velocity = -bird_flap_height
+
+    # Применить гравитацию
+    bird_velocity += gravity
+    bird_y += bird_velocity
+
+    # Заполнить экран цветом (например, черным)
+    screen.fill((0, 0, 0))
+
+    # Нарисовать птицу
+    pygame.draw.rect(screen, (255, 255, 0), (bird_x, bird_y, bird_width, bird_height))
+
+    # Обновить дисплей
+    pygame.display.flip()
+
+# Завершение работы основного цикла и выход из Pygame
+pygame.quit()

@@ -1,0 +1,43 @@
+import os
+import shutil
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+# Carpeta con todas las fotos / carpeta con fotos para entrenamiento
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Leemos los nombres de los directorios, que son el tipo de eclipse
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# Carpeta con fotos para validación
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Carpeta con fotos para prueba
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Proporción de imágenes en la validación
+VAL_FRAC = 0.3
+
+# Creamos un directorio con el conjunto de validación para cada tipo de eclipse.
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # Leemos el conjunto de imágenes.
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Ordenamos las imágenes para la determinación
+    images_filename = sorted(os.listdir(eclipse_path))
+    
+    # Dividamos el conjunto de datos `train` en dos conjuntos: train y val
+    train_images, val_images = train_test_split(
+        images_filename, test_size=VAL_FRAC, random_state=42, shuffle=True
+    )
+
+    print(f'{eclipse} | train images = {len(train_images)} | val images = {len(val_images)}')
+    
+    # Guardamos el conjunto de validación: movemos las imágenes seleccionadas a la carpeta de validación
+    for image_filename in val_images:
+        source = os.path.join(eclipse_path, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

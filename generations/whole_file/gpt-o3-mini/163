@@ -1,0 +1,80 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+
+# 修改后的部分：利用 posts_generator 和 replies 创建一个层次字典
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+hierarchy_dict = {}  # 层次字典，用于保存每个帖子及其回复
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_children_count = post['children']
+    # 初始化每个帖子的条目，包含基本信息和空的回复列表
+    hierarchy_dict[f"{post_author}/{post_permlink}"] = {
+        "author": post_author,
+        "permlink": post_permlink,
+        "replies": []
+    }
+    cnt = 0
+    X += 1
+    if post_children_count > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies_list = comment.get_replies()
+        cnt = 0
+        for reply in post_replies_list:
+            author = reply['author']
+            text = reply['body']
+            if is_own_author(author):
+                # 重新评估评论
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+            # 将回复添加到帖子的层次字典中
+            hierarchy_dict[f"{post_author}/{post_permlink}"]["replies"].append({
+                "author": author,
+                "permlink": reply['permlink'],
+                "body": text
+            })
+    if cnt > 3:
+        print("Iterador: ", X)
+        print(reply['author'], '/', reply['permlink'])
+
+# 如有需要，可查看生成的层次字典
+#print(hierarchy_dict)

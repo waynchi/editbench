@@ -1,0 +1,46 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """Interakcja z lokalnym LLM za pomocą API Ollama.
+
+    :param prompt: Wejściowy prompt dla LLM.
+    :param base_url: Bazowy URL API Ollama.
+    :return: Odpowiedź z LLM."""
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # Zastąp nazwą swojego modelu
+        "prompt": prompt,
+        "max_tokens": 2048  # Dostosuj w razie potrzeby
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+        # >>>>>>> Zmodyfikowany fragment <<<<<<<
+        try:
+            data = response.json()
+        except ValueError:
+            # Obsługa błędu dekodowania JSON, gdy API zwraca dodatkowe dane
+            json_text = response.text.strip()
+            first_brace = json_text.find("{")
+            last_brace = json_text.rfind("}")
+            if first_brace != -1 and last_brace != -1:
+                json_text = json_text[first_brace:last_brace+1]
+                data = json.loads(json_text)
+            else:
+                data = {}
+        return data.get('response', '')
+        # >>>>>>> Koniec zmodyfikowanego fragmentu <<<<<<<
+    except requests.exceptions.RequestException as e:
+        return None
+
+# Przykład użycia
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")

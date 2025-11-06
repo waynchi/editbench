@@ -1,0 +1,40 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# 数据来自一个API，因此我们通过请求获取数据并进行初步分析
+api_url = "http://example.com/api/data"  # 请替换为实际的API URL
+response = requests.get(api_url)
+# 假设API返回的数据是一个JSON数组，每个元素都是一个字典
+api_data = response.json()
+
+# 从API数据创建一个DataFrame
+df = spark.createDataFrame(api_data)
+
+# 分析数据：显示schema和部分数据记录
+print("数据的Schema:")
+df.printSchema()
+print("数据预览:")
+df.show(5)
+
+# 配置与ADL2的连接使用Microsoft ID身份
+# 在Synapse的笔记本中不需要显式提供凭据
+# Spark将使用notebook的托管身份进行身份验证。
+
+# 指定ADL2中容器和文件夹的路径
+container_name = "<your_container_name>"  # 用你的容器名称替换
+folder_path = "<your_folder_path>"  # 替换为容器内文件夹的路径
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# 将DataFrame以parquet格式写入ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# 可选：读取parquet文件进行验证
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# 停止 Spark 会话
+spark.stop()

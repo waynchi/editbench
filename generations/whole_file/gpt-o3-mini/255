@@ -1,0 +1,33 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print(lines)
+    # Remove empty lines (if any) to prevent conversion issues.
+    lines = [line for line in lines if line.strip()]
+    # Split each line by three spaces and convert to a NumPy array of integers.
+    cols = [l.split("   ") for l in lines]
+    cols = np.array(cols, dtype=int).T
+
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    # Improved algorithm:
+    # Instead of repeatedly finding and removing the minimum values (which is O(n^2)),
+    # we sort both lists (O(n log n)) and then pair the corresponding elements to compute their differences.
+    list_1.sort()
+    list_2.sort()
+
+    total_distance = sum(abs(a - b) for a, b in zip(list_1, list_2))
+    print(total_distance)
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

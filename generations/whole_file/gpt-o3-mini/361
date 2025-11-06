@@ -1,0 +1,34 @@
+def can_be_expressed_as_four_nonzero_squares(n):
+    # Sprawdza, czy liczbę n można przedstawić jako sumę czterech niezerowych kwadratów.
+    # Każdy składnik to kwadrat liczby >= 1, czyli a^2 + b^2 + c^2 + d^2 = n przy a,b,c,d >= 1.
+    # Minimalna wartość to 1^2+1^2+1^2+1^2 = 4.
+    limit = int(n**0.5)
+    for a in range(1, limit + 1):
+        a2 = a * a
+        if a2 >= n:
+            continue
+        for b in range(1, limit + 1):
+            b2 = b * b
+            if a2 + b2 >= n:
+                continue
+            for c in range(1, limit + 1):
+                c2 = c * c
+                if a2 + b2 + c2 >= n:
+                    continue
+                for d in range(1, limit + 1):
+                    if a2 + b2 + c2 + d * d == n:
+                        return True
+    return False
+
+def main():
+    print("Liczby, które można wyrazić jako sumę czterech niezerowych kwadratów:")
+    # Przykładowo sprawdzamy liczby od 4 do 100:
+    results = []
+    for n in range(4, 101):
+        if can_be_expressed_as_four_nonzero_squares(n):
+            results.append(n)
+    print("Liczby w przedziale [4, 100]:")
+    print(results)
+
+if __name__ == "__main__":
+    main()

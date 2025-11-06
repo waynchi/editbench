@@ -1,0 +1,29 @@
+import math
+
+def get_numbers_sum_four_nonzero_squares(limit):
+    """
+    Returns a sorted list of numbers that can be expressed as the sum of four nonzero squares,
+    where each square is of a positive integer and the sum does not exceed the given limit.
+    """
+    numbers = set()
+    max_base = int(math.sqrt(limit))
+    for a in range(1, max_base + 1):
+        for b in range(1, max_base + 1):
+            for c in range(1, max_base + 1):
+                for d in range(1, max_base + 1):
+                    s = a*a + b*b + c*c + d*d
+                    if s <= limit:
+                        numbers.add(s)
+    return sorted(numbers)
+
+def main():
+    limit = 100  # You can change this limit to check for a different range
+    # Highlighted section to be changed: Numbers that can be expressed as the sum of four non-zero squares
+    numbers = get_numbers_sum_four_nonzero_squares(limit)
+    # End of highlighted section
+
+    print("Numbers up to", limit, "that can be expressed as the sum of four non-zero squares:")
+    print(numbers)
+
+if __name__ == '__main__':
+    main()

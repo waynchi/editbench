@@ -1,0 +1,11 @@
+import os
+from pymilvus import connections
+
+# Record the current path as cwd
+cwd = os.getcwd()
+
+# Create database connection using pymilvus
+connections.connect(alias="default", host="localhost", port="19530")
+
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128

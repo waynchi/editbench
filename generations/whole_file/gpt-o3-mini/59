@@ -1,0 +1,42 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, flattened_size):  # Принимаем flattened_size как аргумент
+        super(SimpleConvNet1, self).__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == '__main__':
+    # Пример использования модели
+    # Допустим входное изображение имеет размер 32x32, тогда после двух блоков с пулингом размер уменьшится до 8x8.
+    # Количество каналов после conv2 равно 64, т.е. flattened_size = 64 * 8 * 8 = 4096.
+    flattened_size = 64 * 8 * 8
+    model = SimpleConvNet1(flattened_size)
+    dummy_input = torch.randn(1, 3, 32, 32)  # батч из одного изображения размером 32x32 с 3 каналами
+    output = model(dummy_input)
+    print("Output shape:", output.shape)

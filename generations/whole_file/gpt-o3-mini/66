@@ -1,0 +1,36 @@
+import numpy as np
+
+from manim import *
+
+class MaroAnimation(Scene):
+    def construct(self):
+        # Create the text
+        text = Text("Maro", font_size=120)
+        
+        # Add a nice color gradient
+        text.set_color_by_gradient(BLUE, PURPLE, PINK)
+        
+        # Create the animation sequence
+        self.play(
+            Write(text, run_time=2),
+            rate_func=smooth
+        )
+        
+        # Add a gentle pulse animation
+        self.play(
+            text.animate.scale(1.2),
+            rate_func=there_and_back,
+            run_time=1.5
+        )
+        
+        # Add a slight rotation for style
+        # Combined the rotate and shift animations into one chained animation, 
+        # which prevents potential conflicts from using text.animate twice in one play call.
+        self.play(
+            text.animate.rotate(PI/12).shift(UP * 0.5),
+            rate_func=ease_in_out_sine,
+            run_time=1
+        )
+        
+        # Hold the final frame
+        self.wait(2)

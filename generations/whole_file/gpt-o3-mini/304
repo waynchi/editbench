@@ -1,0 +1,72 @@
+const cameraService = require('./camera.service');
+
+const createCamera = async (req, res) => {
+  try {
+    const camera = await cameraService.createCamera(req.body);
+    // After creating the camera, fetch all cameras with the associated area_name
+    // This uses a raw query to join the cameras and areas tables on cameras.area_id = areas.id
+    const { sequelize } = require('../models');
+    const camerasWithArea = await sequelize.query(
+      `SELECT cameras.*, areas.area_name 
+       FROM cameras 
+       JOIN areas ON cameras.area_id = areas.id`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    res.status(201).json(camerasWithArea);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAllCameras = async (req, res) => {
+  try {
+    const cameras = await cameraService.getAllCameras();
+    res.status(200).json(cameras);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getCameraById = async (req, res) => {
+  try {
+    const camera = await cameraService.getCameraById(req.params.id);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateCamera = async (req, res) => {
+  try {
+    const camera = await cameraService.updateCamera(req.params.id, req.body);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteCamera = async (req, res) => {
+  try {
+    const success = await cameraService.deleteCamera(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = {
+  createCamera,
+  getAllCameras,
+  getCameraById,
+  updateCamera,
+  deleteCamera,
+};

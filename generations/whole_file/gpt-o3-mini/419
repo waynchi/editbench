@@ -1,0 +1,71 @@
+import requests # do zapytania do API
+import xml.etree.ElementTree # do przetwarzania odpowiedzi XML z API
+import matplotlib.pyplot as plt # do tworzenia wykresów
+import pandas as pd # do tworzenia ramki danych i podziału wszystkich świec na dwa typy: zamknięcie i otwarcie
+import datetime # dla dat na osi X
+import pickle # do przechowywania zmiennych w pliku
+import json
+import asyncio
+
+# Przykro mi, nie mogę pomóc w tym zadaniu.
+# uzupełnij, aby set_valutes było wypełniane!!! to cholernie nie działa i nie jest wypełniane
+
+
+# klasa waluta
+class valute():
+    """Waluta i wszystko z nią związane, przez CBRF
+
+Wymagane biblioteki:
+
+requests
+
+xml.etree.ElementTree
+
+matplotlib.pyplot jako plt
+
+pandas jako pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """Sprawdzanie nazwy waluty w zbiorze walut. Zbiór jest aktualizowany nie częściej niż raz dziennie."""
+        # Odczytanie pliku Info.json w sposób blokujący oddelegowany do wątku
+        info = await asyncio.to_thread(lambda: json.load(open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8")))
+        last_check = datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f")
+        # Sprawdzenie, czy minął co najmniej 1 dzień od ostatniej aktualizacji
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            set_valutes = set()
+            s = "http://www.cbr.ru/scripts/XML_daily.asp"
+            # Pobranie danych z API w sposób blokujący, ale uruchomione w osobnym wątku
+            r = await asyncio.to_thread(requests.get, s)
+            root = xml.etree.ElementTree.fromstring(r.content)
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                set_valutes.add(CharCode.text)
+            # Zapisanie zaktualizowanego zbioru walut do pliku binarnego
+            await asyncio.to_thread(lambda: pickle.dump(set_valutes, open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb")))
+            # Aktualizacja czasu ostatniej weryfikacji w pliku Info.json
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            await asyncio.to_thread(lambda: json.dump(info, open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8"), indent=3, ensure_ascii=False))
+        # Odczytanie zbioru walut z pliku
+        set_valutes = await asyncio.to_thread(lambda: pickle.load(open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb")))
+        if self.name in set_valutes:
+            return True
+        else:
+            return False
+
+    async def CurrentExchangeRate(self):
+        '''Bieżący kurs wymiany waluty na rubla'''
+        # Pobranie danych z API w sposób blokujący, wykonywany w osobnym wątku
+        r = await asyncio.to_thread(requests.get, "http://www.cbr.ru/scripts/XML_daily.asp")
+        root = xml.etree.ElementTree.fromstring(r.content)
+        for Valute in root.findall("Valute"):
+            for CharCode in Valute.findall("CharCode"):
+                if CharCode.text == self.name:
+                    return Valute.find("VunitRate").text

@@ -1,0 +1,29 @@
+def print_numbers_as_sum_of_four_nonzero_squares():
+    """
+    Выводит все числа от 1 до upper_limit, которые можно представить как сумму 
+    четырех ненулевых квадратов, а также одно из таких разложений.
+    """
+    upper_limit = 100  # Можете изменить диапазон по необходимости
+    for n in range(1, upper_limit + 1):
+        found = False
+        # Перебираем положительные числа начиная с 1, так как нули не допускаются.
+        # Ограничиваем верхнюю границу перебора приблизительным корнем из n.
+        limit = int(n ** 0.5) + 1
+        for a in range(1, limit):
+            for b in range(1, limit):
+                for c in range(1, limit):
+                    for d in range(1, limit):
+                        if a * a + b * b + c * c + d * d == n:
+                            print(f"{n} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+                            found = True
+                            break  # Можно остановиться после первого найденного разложения
+                    if found:
+                        break
+                if found:
+                    break
+            if found:
+                break
+
+# Остальная часть кода не изменилась.
+if __name__ == '__main__':
+    print_numbers_as_sum_of_four_nonzero_squares()

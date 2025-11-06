@@ -1,0 +1,144 @@
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse
+import httpx
+import asyncio
+import json
+import logging
+from typing import List, Dict
+import random
+
+app = FastAPI()
+
+CHAT_URL = "https://duckduckgo.com/duckchat/v1/chat"
+STATUS_URL = "https://duckduckgo.com/duckchat/v1/status"
+MODELS = {
+    "gpt-4o-mini": {"owned_by": "openai", "is_free": True},
+    "llama-3.1-70b": {"owned_by": "Meta", "is_free": True},
+    "mixtral-8x7b": {"owned_by": "mistralai", "is_free": True},
+    "claude-3-haiku": {"owned_by": "Anthropic", "is_free": False},
+}
+
+# Zdefiniuj prawidłowe ciągi user-agent dla różnych przeglądarek i systemów operacyjnych
+USER_AGENTS = {
+    "mac": [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 12.4; rv:109.0) Gecko/20100101 Firefox/109.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15",
+    ],
+    "win": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/109.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Microsoft YaHei Safari/537.3",
+    ],
+    "linux": [
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+    ],
+}
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def fetch_vqd() -> Dict:
+    """Pobierz token VQD wymagany do uwierzytelnienia i zwróć losowy ciąg user-agent."""
+    # Wybierz losowy ciąg user-agent
+    user_agent = random.choice(random.choice(list(USER_AGENTS.values())))
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            STATUS_URL,
+            headers={
+                "User-Agent": user_agent,
+                "x-vqd-accept": "1",
+            },
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch VQD: {response.status_code}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve VQD token")
+        vqd = response.headers.get("x-vqd-4", "")
+        return {"vqd": vqd, "user-agent": user_agent}
+        
+async def stream_chat_response(client, vqd: dict, messages: List[Dict], model: str):
+    """Strumieniuj odpowiedź z API czatu."""
+    headers = {
+        "User-Agent": vqd["user-agent"],
+        "Content-Type": "application/json",
+        "x-vqd-4": vqd["vqd"],
+    }
+    payload = {"model": model, "messages": messages}
+
+    async with client.stream("POST", CHAT_URL, headers=headers, json=payload) as response:
+        if response.status_code != 200:
+            logger.error(f"Chat request failed: {response.status_code}")
+            raise HTTPException(status_code=response.status_code, detail="Chat API request failed")
+        vqd = response.headers.get("x-vqd-4", "")
+        async for line in response.aiter_lines():
+            yield line
+
+
+# Przechowuj tokeny VQD z ich nagłówkami autoryzacyjnymi
+vqd_cache = {}
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """Obsługa zakończeń czatu z opcjonalnym strumieniowaniem."""
+    try:
+        data = await request.json()
+        messages = data.get("messages", [])
+        model = data.get("model", "gpt-4o-mini")
+        stream = data.get("stream", False)
+
+        if model not in MODELS:
+            raise HTTPException(status_code=400, detail="Invalid model requested")
+
+        # Pobierz nagłówek autoryzacji
+        auth_header = request.headers.get("authorization")
+        
+        # Sprawdź, czy mamy zapisany w pamięci podręcznej VQD dla tego nagłówka autoryzacji
+        if auth_header in vqd_cache:
+            if not vqd_cache[auth_header]["vqd"]:
+                del vqd_cache[auth_header]
+                raise HTTPException(status_code=429, detail="Limit of conversations reached")
+        else:
+            vqd_cache[auth_header] = await fetch_vqd()
+        
+        vqd = vqd_cache[auth_header]
+
+        async with httpx.AsyncClient() as client:
+            if stream:
+                return StreamingResponse(
+                    stream_chat_response(client, vqd, messages, model),
+                    media_type="text/event-stream",
+                )
+            else:
+                aggregated_response = ""
+                async for chunk in stream_chat_response(client, vqd, messages, model):
+                    aggregated_response += chunk
+                return JSONResponse(content=json.loads(aggregated_response))
+    except Exception as e:
+        logger.error(f"Error in chat_completions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/v1/models")
+async def get_models():
+    """Pobierz dostępne modele."""
+    try:
+        response_data = []
+        for model_id, details in MODELS.items():
+            response_data.append({
+                "id": model_id,
+                "object": "model",
+                "created": 1686935002,  # Zakodowane na sztywno w celach przykładowych
+                "owned_by": details["owned_by"],
+                "type": "chat.completions",
+                "is_free": details["is_free"],
+            })
+        return JSONResponse(content={"object": "list", "data": response_data})
+    except Exception as e:
+        logger.error(f"Error in get_models: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Punkt wejścia serwera deweloperskiego
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,0 +1,242 @@
+import pytest
+import yaml
+from collections import Counter
+import numpy as np
+from scipy import stats
+from fastapi.testclient import TestClient
+from app import fastapp  # 导入现有的 FastAPI 应用实例
+from src.utils import get_settings
+
+
+@pytest.fixture(scope="session")
+def fast_app():
+    """从现有应用程序获取 FastAPIApp 实例"""
+    return fastapp
+
+
+@pytest.fixture(scope="session")
+def n_trials():
+    """用于分布测试的试验次数"""
+    return 300000
+
+
+def get_ground_truth_probabilities():
+    """从 YAML 配置文件中提取真实概率。返回一个模型名称到其归一化概率的字典。"""
+    # 读取 YAML 文件
+    config = get_settings()
+
+    # 提取活动模型的权重（未被注释掉的）
+    model_weights = {
+        model_name: model_info["weight"]
+        for model_name, model_info in config["models"].items()
+    }
+
+    # 计算总权重以进行归一化
+    total_weight = sum(model_weights.values())
+
+    # 计算归一化概率
+    probabilities = {
+        model_name: weight / total_weight
+        for model_name, weight in model_weights.items()
+    }
+
+    return probabilities
+
+
+def calculate_expected_paired_probabilities(ground_truth_probs):
+    """计算在不放回抽样对时的期望概率。
+
+对于每个模型 M，其总概率为：
+P(M) = P(M 首先被选中) + P(M 第二个被选中)
+= P(M 首先) + sum[P(其他首先) * P(M 第二个 | 其他首先)]"""
+    models = list(ground_truth_probs.keys())
+    n_models = len(models)
+    adjusted_probs = {}
+
+    for model in models:
+        prob = 0
+        # 首先被选中的概率
+        prob_first = ground_truth_probs[model]
+
+        # 被选为第二的概率
+        for other_model in models:
+            if other_model != model:
+                # 如果 other_model 被首先选中 (prob_first_other)，
+                # 那么模型被选为第二的概率是其权重除以
+                # 所有权重之和减去other_model的权重
+                prob_first_other = ground_truth_probs[other_model]
+                remaining_weight = sum(
+                    ground_truth_probs[m] for m in models if m != other_model
+                )
+                prob_second_given_first = ground_truth_probs[model] / remaining_weight
+                prob += prob_first_other * prob_second_given_first
+
+        # 总概率是被选为第一或第二的概率之和
+        total_prob = prob_first + prob
+        adjusted_probs[model] = total_prob
+
+    # 归一化概率
+    total = sum(adjusted_probs.values())
+    return {model: prob / total for model, prob in adjusted_probs.items()}
+
+
+def test_model_distribution(fast_app, n_trials):
+    """测试单个模型选择的分布是否与预期概率匹配"""
+    # 从配置中获取真实概率
+    ground_truth_probs = get_ground_truth_probabilities()
+
+    # 计算配对采样的调整概率
+    expected_probs = calculate_expected_paired_probabilities(ground_truth_probs)
+
+    # 收集样本 - 单独统计每个模型
+    selected_models = []
+    for _ in range(n_trials):
+        models, _, _ = fast_app.select_models(tags=[])
+        selected_models.extend(models)
+
+    # 统计每个模型的出现次数
+    model_counts = Counter(selected_models)
+
+    # 计算总选择次数（每次试验选择2个模型）
+    total_selections = n_trials * 2
+
+    # 打印分析
+    print("\nModel Distribution Analysis:")
+    print("\nProbability Comparison:")
+    print(
+        f"{'Model':<30} {'Original':<12} {'Adjusted':<12} {'Observed':<12} {'Diff %':<10}"
+    )
+    print("-" * 75)
+
+    # 为卡方检验准备数组
+    observed_freqs = []
+    expected_freqs = []
+
+    for model in sorted(ground_truth_probs.keys()):
+        original_prob = ground_truth_probs[model]
+        expected_prob = expected_probs[model]
+        observed_count = model_counts[model]
+        observed_prob = observed_count / total_selections
+        diff_percent = ((observed_prob - expected_prob) / expected_prob) * 100
+
+        print(
+            f"{model:<30} {original_prob:>11.4f} {expected_prob:>11.4f} "
+            f"{observed_prob:>11.4f} {diff_percent:>+9.1f}%"
+        )
+
+        # “将数据添加到数组以进行卡方检验”
+        expected_freqs.append(expected_prob * total_selections)
+        observed_freqs.append(observed_count)
+
+    # 执行卡方检验
+    chi2, p_value = stats.chisquare(observed_freqs, expected_freqs)
+
+    print("\nStatistical Analysis:")
+    print(f"Total selections: {total_selections}")
+    print(f"Chi-square statistic: {chi2:.4f}")
+    print(f"P-value: {p_value:.4f}")
+
+    # 断言 p 值高于阈值
+    assert (
+        p_value > 0.05
+    ), f"Distribution of selected models differs significantly from expected (p={p_value:.4f})"
+
+
+def test_tag_filtering(fast_app):
+    """测试模型选择是否遵循标签过滤"""
+    # 使用特定标签进行测试
+    test_tag = list(fast_app.tag_to_models.keys())[0]  # 获取第一个可用的标签
+    tagged_models = fast_app.tag_to_models[test_tag]
+
+    # 使用该标签进行多次采样
+    for _ in range(100):
+        models, client1, client2 = fast_app.select_models(tags=[test_tag])
+        # 检查选择的模型是否具有所需的标签
+        assert all(
+            model in tagged_models for model in models
+        ), f"Selected models {models} don't all have tag {test_tag}"
+
+
+def test_different_models(fast_app):
+    """测试 select_models 是否总是返回两个不同的模型"""
+    for _ in range(100):
+        models, _, _ = fast_app.select_models(tags=[])
+        assert len(set(models)) == 2, f"Selected models {models} are not unique"
+
+
+def test_empty_tags_uses_all_models(fast_app):
+    """测试空标签列表是否使用所有可用模型"""
+    all_models = set()
+    n_trials = 1000
+
+    # 运行多次试验以确保我们看到所有可能的模型
+    for _ in range(n_trials):
+        models, _, _ = fast_app.select_models(tags=[])
+        all_models.update(models)
+
+    # 检查我们是否已经看到了所有可用的模型
+    assert all_models == set(
+        fast_app.models
+    ), f"Not all models were selected. Missing: {set(fast_app.models) - all_models}"
+
+
+def test_model_client_mapping(fast_app):
+    """测试返回的客户端是否对应于选定的模型"""
+    for _ in range(100):
+        models, client1, client2 = fast_app.select_models(tags=[])
+
+        # 检查客户端是否与其各自的模型匹配
+        assert (
+            models[0] in client1.models
+        ), f"Client 1 doesn't support model {models[0]}"
+        assert (
+            models[1] in client2.models
+        ), f"Client 2 doesn't support model {models[1]}"
+
+
+def test_model_position_distribution(fast_app, n_trials):
+    """测试每个模型在第一和第二位置出现的频率是否大致相等"""
+    # 跟踪每个模型的位置
+    position_counts = {}  # {model: [第一位置计数, 第二位置计数]}
+
+    # 收集样本
+    for _ in range(n_trials):
+        models, _, _ = fast_app.select_models(tags=[])
+
+        # 为新模型初始化计数器
+        for model in models:
+            if model not in position_counts:
+                position_counts[model] = [0, 0]
+
+        # 统计位置（索引0表示第一个位置，1表示第二个位置）
+        position_counts[models[0]][0] += 1
+        position_counts[models[1]][1] += 1
+
+    # 打印和分析结果
+    print("\nPosition Distribution Analysis:")
+    print(f"{'Model':<30} {'First Pos %':<12} {'Second Pos %':<12} {'Diff %':<10}")
+    print("-" * 65)
+
+    # 检查每个模型在第一和第二位置的频率是否在50%的2%以内
+    for model in sorted(position_counts.keys()):
+        first_count = position_counts[model][0]
+        second_count = position_counts[model][1]
+        total_count = first_count + second_count
+
+        if total_count == 0:
+            continue
+
+        first_percent = (first_count / total_count) * 100
+        second_percent = (second_count / total_count) * 100
+        diff_percent = first_percent - second_percent
+
+        print(
+            f"{model:<30} {first_percent:>11.1f} {second_percent:>11.1f} "
+            f"{diff_percent:>+9.1f}"
+        )
+
+        # 检查第一位置的比例是否在50%±2%的范围内
+        assert abs(first_percent - 50) <= 2, (
+            f"Model {model} first position percentage {first_percent:.1f}% "
+            f"is not within 2% of 50%"
+        )

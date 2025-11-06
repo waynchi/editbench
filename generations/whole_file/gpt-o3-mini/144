@@ -1,0 +1,46 @@
+import requests
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """使用 Ollama API 与本地 LLM 交互。
+
+    :param prompt: LLM 的输入提示。
+    :param base_url: Ollama API 的基础 URL。
+    :return: 来自 LLM 的响应。"""
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # 替换为您的模型名称
+        "prompt": prompt,
+        "max_tokens": 2048  # 根据需要调整
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+        # 开始修改部分：处理返回内容中可能存在的额外数据问题
+        try:
+            data = response.json()
+        except ValueError:
+            # 如果遇到 "额外数据" 错误，尝试只解析第一个 JSON 对象
+            import json
+            text = response.text.strip()
+            first_brace = text.find('{')
+            last_brace = text.rfind('}')
+            if first_brace != -1 and last_brace != -1:
+                json_str = text[first_brace:last_brace+1]
+                data = json.loads(json_str)
+            else:
+                data = {}
+        return data.get('response', '')
+        # 结束修改部分
+    except requests.exceptions.RequestException as e:
+        return None
+
+# 示例用法
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")

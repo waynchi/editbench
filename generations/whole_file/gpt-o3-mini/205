@@ -1,0 +1,47 @@
+import { messages } from "./messages.js";
+
+$().ready(() => {
+    const loading = $('.container-loading');
+    const payment = $('.payment-section');
+    const info = $('.user-info');
+    const main = $('.main');
+
+    // 从 localStorage 中检索值 using jQuery
+    let storedData = $.parseJSON(localStorage.getItem('userData')) || {};
+    let userInfo = storedData.userInfo;
+    let paymentInfo = storedData.paymentInfo;
+
+    // 根据需要使用检索到的数据
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $('#generateTaxButton').click(() => {
+        main.fadeOut(500);
+        setTimeout(() => {
+            loading.css('display', 'flex');
+
+            let lastTimeout = 0;
+            messages.forEach(message => {
+                lastTimeout = lastTimeout + message.time;
+            })
+            console.log(`intervalo: ${lastTimeout}`)
+
+            const loadMessages = $('#loading-messages');
+            messages.forEach(element => {
+                console.log(element.text)
+                console.log(element.time)
+                const timeout = element.time;
+                setTimeout(() => {
+                    loadMessages.text(element.text);
+                }, timeout);
+            });
+
+            setTimeout(() => {
+                console.log('pagamento');
+                loading.css('display', 'none');
+                payment.css('display', 'block');
+                info.css('display', 'block');
+            }, lastTimeout + 500);
+        }, 200);
+    });
+});

@@ -1,0 +1,42 @@
+def generate_response():
+    from langchain_ollama import ChatOllama
+    from langchain_core.prompts.chat import ChatPromptTemplate
+    import json
+
+    # Инициализировать модель ChatOllama
+    chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+    # chat_model = ChatOllama(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     },
+    # )
+
+    # Загрузить значения SHAP из файла JSON
+    with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Загрузить системный запрос из файла
+    with open("system.prompt", "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Подготовить сообщения
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Сгенерировать ответ
+    user_input = json.dumps(shap_values_json)  # Подготовить ввод пользователя
+
+    chain = prompt | chat_model
+
+    response = chain.invoke(user_input)
+    return response.content
+
+if __name__ == "__main__":
+    result = generate_response()
+    print(result)

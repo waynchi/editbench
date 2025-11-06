@@ -1,0 +1,82 @@
+#
+# @lc app=leetcode id=2379 lang=python3
+#
+# [2379] Mínimo de recoloreos para obtener K bloques negros consecutivos
+#
+# https://leetcode.com/problems/minimum-recolors-to-get-k-consecutive-black-blocks/description/
+#
+# algoritmos
+# Fácil (59.47%)
+# Me gusta: 751
+# Disgustos: 21
+# Total aceptados: 61.3K
+# Total de envíos: 103K
+# Ejemplo de caso de prueba: '"WBBWWBBWBW"\n7
+#
+# Se te da una cadena blocks de longitud n indexada desde 0, donde blocks[i] es
+# ya sea 'W' o 'B', representando el color del bloque i-ésimo. Los caracteres
+# W' y 'B' denotan los colores blanco y negro, respectivamente.
+# 
+# También se te da un entero k, que es el número deseado de consecutivos
+# bloques negros.
+# 
+# En una operación, puedes recolorear un bloque blanco para que se convierta en negro
+# bloque.
+# 
+# Devuelve el número mínimo de operaciones necesarias para que haya al menos
+# una ocurrencia de k bloques negros consecutivos.
+# 
+# 
+# Ejemplo 1:
+# 
+# 
+# Entrada: bloques = "WBBWWBBWBW", k = 7
+# Salida: 3
+# Explicación:
+# Una forma de lograr 7 bloques negros consecutivos es recolorear el 0º, 3º y
+# 4to bloque
+# para que los bloques = "BBBBBBBWBW".
+# Se puede demostrar que no hay forma de lograr 7 bloques negros consecutivos en
+# menos de 3 operaciones.
+# Por lo tanto, devolvemos 3.
+# 
+# 
+# Ejemplo 2:
+# 
+# 
+# Entrada: bloques = "WBWBBBW", k = 2
+# Salida: 0
+# Explicación:
+# No se necesitan cambios, ya que ya existen 2 bloques negros consecutivos.
+# Por lo tanto, devolvemos 0.
+# 
+# 
+# 
+# Restricciones:
+# 
+# 
+# n == longitud de blocks
+# 1 <= n <= 100
+# blocks[i] es 'W' o 'B'.
+# 1 <= k <= n
+# 
+# 
+#
+
+# @lc code=inicio
+class Solution:
+    def minimumRecolors(self, blocks: str, k: int) -> int:
+        # Inicializar el recuento de 'W' en la primera ventana de tamaño k
+        whites = sum(1 for i in range(k) if blocks[i] == 'W')
+        minRecolors = whites
+        
+        # Desplazamos la ventana a través de la cadena
+        for i in range(k, len(blocks)):
+            if blocks[i - k] == 'W':
+                whites -= 1
+            if blocks[i] == 'W':
+                whites += 1
+            minRecolors = min(minRecolors, whites)
+            
+        return minRecolors
+# @lc code=end

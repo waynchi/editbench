@@ -1,0 +1,118 @@
+import requests
+import json
+import os
+from huggingface_hub import InferenceClient
+from datetime import datetime
+from PIL import Image
+import time  # 添加 time 模块用于重试等待
+
+class ImageGenerator:
+    def __init__(self, openrouter_key, hf_token, output_folder):
+        self.openrouter_key = openrouter_key
+        self.hf_token = hf_token
+        self.output_folder = output_folder
+        
+        # 如果输出文件夹不存在则创建
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+    def generate_prompt(self, base_prompt, model="openai/gpt-3.5-turbo"):
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.openrouter_key}",
+                "X-Title": "ImagePromptGenerator",
+            },
+            data=json.dumps({
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": base_prompt
+                    }
+                ],
+                "temperature": 0.9,  # 更高的温度以获得更多的创造力
+                "max_tokens": 150,
+                "top_p": 0.9,
+                "frequency_penalty": 0.5,
+                "presence_penalty": 0.5
+            })
+        )
+        
+        return response.json()['choices'][0]['message']['content']
+
+    def create_image(self, prompt, hf_model="black-forest-labs/FLUX.1-schnell"):
+        client = InferenceClient(hf_model, token=self.hf_token)
+        
+        # 使用附加参数生成具有创造性的图像
+        while True:
+            try:
+                image = client.text_to_image(prompt)
+                return image
+            except Exception as e:
+                print(f"Error in image generation: {str(e)}. Retrying in 61 seconds...")
+                time.sleep(61)
+
+    def save_image(self, image, prompt):
+        # 为唯一文件名创建时间戳
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 从提示的前30个字符创建已清理的文件名
+        sanitized_prompt = "".join(x for x in prompt[:30] if x.isalnum() or x in (' ','-','_')).strip()
+        filename = f"{timestamp}_{sanitized_prompt}.png"
+        
+        # 保存图像
+        filepath = os.path.join(self.output_folder, filename)
+        image.save(filepath)
+        
+        return filepath
+
+    def generate_batch(self, base_prompt, n_images=1, openrouter_model="openai/gpt-3.5-turbo", hf_model="black-forest-labs/FLUX.1-schnell"):
+        generated_files = []
+        
+        for i in range(n_images):
+            try:
+                # 生成增强提示
+                enhanced_prompt = self.generate_prompt(base_prompt, model=openrouter_model)
+                print(f"Generated prompt {i+1}: {enhanced_prompt}")
+                
+                # 创建图像
+                image = self.create_image(enhanced_prompt, hf_model=hf_model)
+                
+                # 保存图像
+                filepath = self.save_image(image, enhanced_prompt)
+                generated_files.append(filepath)
+                
+                print(f"Successfully generated and saved image {i+1} to: {filepath}")
+                
+            except Exception as e:
+                print(f"Error generating image {i+1}: {str(e)}")
+                
+        return generated_files
+
+# 使用示例
+if __name__ == "__main__":
+    # 配置
+    OPENROUTER_API_KEY = "MASK_1"
+    HF_TOKEN = "MASK_2"
+    OUTPUT_FOLDER = "kuvat/4"
+    
+    # 初始化生成器
+    generator = ImageGenerator(OPENROUTER_API_KEY, HF_TOKEN, OUTPUT_FOLDER)
+    
+    # 生成图像
+    base_prompt = "Make a unique and creative image prompt for a poster about \"BPR WIARD\" and billiards/pool. Do not say anything except for the prompt."
+    n_images = 3
+    openrouter_model = "qwen/qwen-2.5-72b-instruct"  # 或任何其他可用的模型
+    hf_model = "black-forest-labs/FLUX.1-schnell"
+    
+    generated_files = generator.generate_batch(
+        base_prompt=base_prompt,
+        n_images=n_images,
+        openrouter_model=openrouter_model,
+        hf_model=hf_model
+    )
+    
+    print("\nGenerated files:")
+    for file in generated_files:
+        print(file)

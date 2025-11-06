@@ -1,0 +1,55 @@
+function createTurnState(allyStates, foeStates) {
+  // Найти текущий ход, основываясь на том, у какой группы еще есть юниты, которые могут действовать
+  let currentTurn = (allyStates.some(unit => !unit.hasActed)
+    ? "player"
+    : (foeStates.some(unit => !unit.hasActed) ? "cpu" : "player"));
+
+  let turnNumber = 1;
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    if (currentTurn === "player") {
+      currentTurn = "cpu";
+      // Логика CPU здесь (например, движение и действия ИИ)
+      allyStates.forEach(unit => unit.hasActed = true);
+      foeStates.forEach(unit => unit.hasActed = false);
+      cpuTurn();
+    } else {
+      currentTurn = "player";
+      foeStates.forEach(unit => unit.hasActed = true);
+      allyStates.forEach(unit => unit.hasActed = false);
+      turnNumber++; // Увеличивать номер хода только после хода игрока
+    }
+     // Сбросить доступность действий для всех юнитов в начале нового хода
+  }
+
+  function cpuTurn() {
+    // Пример поведения процессора (замените на вашу фактическую логику ИИ)
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // Проверить, действовал ли юнит в этом ходу
+        // Выполнить действия процессора (например, движение, атака)
+        // ... ваша логика ИИ для процессора здесь ...
+
+        cpuUnit.hasActed = true; // Отметить, что юнит уже действовал
+      }
+    }
+
+    // После того как все CPU-единицы совершили действие (или решили не действовать), завершить ход CPU
+    nextTurn(); // Автоматически переключиться обратно на ход игрока
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

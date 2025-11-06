@@ -1,0 +1,137 @@
+import math
+class Value:
+    """almacena un único valor escalar y su gradiente"""
+
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self.grad = 0
+        # variables internas utilizadas para la construcción del gráfico de autograd
+        self._backward = lambda: None
+        self._prev = set(_children)
+        self._op = _op # la operación que produjo este nodo, para graphviz / depuración / etc
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+
+        return out
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __pow__(self, other):
+        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+        out = Value(self.data**other, (self,), f'**{other}')
+
+        def _backward():
+            self.grad += (other * self.data**(other-1)) * out.grad
+        out._backward = _backward
+
+        return out
+
+
+        print(f'** EXP {self}')
+        out = Value(math.exp(self.data), (self,), "e")
+        def _backward():
+            self.grad += math.exp(self.data) * out.grad
+        out._backward = _backward
+        
+        return out
+    
+    def log(self):
+        out = Value(math.log(self.data), (self,), f'log{self.data}')
+        def _backward():
+            self.grad += 1 / self.data
+        out._backward = _backward       
+        
+        return out
+    
+    def relu(self):
+        assert isinstance(self.data, (int, float)), "only supporting int/float powers for now"
+        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
+        out._backward = _backward
+
+        return out
+    
+    @staticmethod
+    def softmax(xs):
+        # xs is a list of Value objects
+        # Para estabilidad numérica se resta el máximo
+        max_x = max(v.data for v in xs)
+        exps = []
+        for v in xs:
+            # Se crea la operación exponencial restando max_x para estabilidad
+            e = Value(math.exp(v.data - max_x), (v,), "exp")
+            # Se define su función de retropropagación personalizada
+            def _backward(e=e, v=v):
+                # Derivada parcial de exp(v - max_x) con respecto a v es exp(v - max_x)
+                v.grad += math.exp(v.data - max_x) * e.grad
+            e._backward = _backward
+            exps.append(e)
+        # Suma de todos los exponentes
+        sum_exps = exps[0]
+        for e in exps[1:]:
+            sum_exps = sum_exps + e
+        # Cálculo del softmax: cada salida es exp(v - max_x) / suma de exponentes
+        outs = [e / sum_exps for e in exps]
+        return outs
+
+    def backward(self):
+
+        # orden topológico de todos los hijos en el grafo
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        # ir una variable a la vez y aplicar la regla de la cadena para obtener su gradiente
+        self.grad = 1
+        for v in reversed(topo):
+            v._backward()
+
+    def __neg__(self): # -self
+        return self * -1
+    def __gt__(self, other):
+        return self.data > other.data
+
+    def __radd__(self, other): # otro + self
+        return self + other
+
+    def __sub__(self, other): # self - otro
+        return self + (-other)
+
+    def __rsub__(self, other): # otro - self
+        return other + (-self)
+
+    def __rmul__(self, other): # otro * self
+        return self * other
+
+    def __truediv__(self, other): # self / otro
+        return self * other**-1
+
+    def __rtruediv__(self, other): # otro / self
+        return other * self**-1
+
+    def __repr__(self):
+        return f"Value(data={self.data}, grad={self.grad})"

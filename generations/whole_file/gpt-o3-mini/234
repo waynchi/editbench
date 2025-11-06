@@ -1,0 +1,664 @@
+from typing import Literal
+import os
+import datetime
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from utils import *
+import sqlite3
+from tradecalendar import TradeCalendar
+
+
+class Datafeed:
+    def __init__(self, mode: Literal["backtest", "live"] = "backtest"):
+        self.config = read_config_file("config/config.json")
+        self.tickers = self.get_tickers_list()
+        self.db_path = self.config.get("db_path", "stocks_data.db")
+        self.mode = mode
+
+        # 初始化交易日历和日期
+        self.trade_calendar = TradeCalendar(mode=self.mode, config=self.config)
+        
+        # 将配置日期转换为 pd.Timestamp
+        start_date_key = "download_start_date_live" if mode == "live" else "download_start_date"
+        end_date_key = "download_end_date_live" if mode == "live" else "download_end_date"
+        
+        self.config_start = pd.to_datetime(self.config.get(start_date_key))
+        self.config_end = pd.to_datetime(self.config.get(end_date_key))
+
+        # 初始化意大利假期
+        self.italy_holidays = self.trade_calendar.get_italian_holidays_with_custom_dates(
+            self.config_start, self.config_end
+        )
+
+    def init_database(self):
+        """Inizializza il database SQLite."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS daily_data (
+                    date DATE,
+                    ticker TEXT,
+                    open REAL,
+                    high REAL,
+                    low REAL,
+                    close REAL,
+                    adj_close REAL,
+                    volume INTEGER,
+                    source TEXT,
+                    manipulated TEXT,
+                    insert_date DATE,
+                    PRIMARY KEY (date, ticker)
+                )
+            """
+            )
+
+    def get_tickers_list(self) -> list:
+        """Legge la lista dei ticker dal file di configurazione."""
+        with open(self.config.get("tickers_list"), "r") as file:
+            return [line.strip() for line in file if not line.startswith("#")]
+
+    def identify_gaps(self, df: pd.DataFrame, ticker: str, business_days: pd.DatetimeIndex) -> pd.DataFrame:
+        """
+        Identifica i gap nella serie temporale considerando solo i giorni
+        tra il primo e l'ultimo dato disponibile per il ticker.
+        """
+        # 确保 DataFrame 的索引是 DatetimeIndex
+        if isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+
+        # 获取该股票代码实际可用的第一个和最后一个数据
+        ticker_first_date = df.index.min()
+        ticker_last_date = df.index.max()
+
+        # 过滤 business_days 以仅考虑在可用数据范围内的那些天
+        relevant_business_days = business_days[
+            (business_days >= ticker_first_date) & (business_days <= ticker_last_date)
+        ]
+
+        # 识别区间内缺失的天数
+        missing_days = set(relevant_business_days) - set(df.index)
+
+        if missing_days:
+            write_log(
+                f"datafeed.py - {ticker}: Identificati {len(missing_days)} gap tra "
+                f"{ticker_first_date.strftime('%Y-%m-%d')} e {ticker_last_date.strftime('%Y-%m-%d')}"
+            )
+            for day in sorted(missing_days):
+                write_log(f"datafeed.py - {ticker}: Gap identificato in data {day.strftime('%Y-%m-%d')}")
+
+            # 为缺失的天数创建DataFrame
+            gap_df = pd.DataFrame(
+                index=sorted(missing_days), columns=df.columns, dtype=df.dtypes.to_dict()
+            )
+            df = pd.concat([df, gap_df]).sort_index()
+        else:
+            write_log(
+                f"datafeed.py - {ticker}: Nessun gap identificato tra "
+                f"{ticker_first_date.strftime('%Y-%m-%d')} e {ticker_last_date.strftime('%Y-%m-%d')}"
+            )
+
+        return df.reset_index()
+
+    def fill_gaps(self, df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+        """
+        Riempie i gap nei dati usando una strategia più robusta.
+        """
+        try:
+            df_filled = df.copy()
+            df_filled['date'] = pd.to_datetime(df_filled['date'])  # 确保日期为datetime64
+            df_filled = df_filled.set_index("date").resample('D').asfreq().reset_index()
+            
+            # OHLCV 列表
+            price_cols = ["Open", "High", "Low", "Close", "Adj Close"]
+            volume_cols = ["Volume"]
+
+            # 用于日志记录的统计数据
+            fill_stats = {"ffill": 0, "bfill": 0, "interpolate": 0, "volume_fills": 0}
+
+            # 1. 价格管理（OHLC）
+            for col in price_cols:
+                # 识别缺失值
+                missing_mask = df_filled[col].isna()
+                initial_missing = missing_mask.sum()
+
+                if initial_missing > 0:
+                    # 首先尝试使用线性插值填补短缺口（1-2天）
+                    df_filled[col] = df_filled[col].interpolate(method="linear", limit=2)
+                    interpolated = initial_missing - df_filled[col].isna().sum()
+                    fill_stats["interpolate"] += interpolated
+
+                    # 对于剩余的，使用 ffill 和 bfill
+                    before_ffill = df_filled[col].isna().sum()
+                    df_filled[col] = df_filled[col].ffill()
+                    after_ffill = df_filled[col].isna().sum()
+                    fill_stats["ffill"] += before_ffill - after_ffill
+
+                    # 处理剩余的NA值使用bfill
+                    df_filled[col] = df_filled[col].bfill()
+                    fill_stats["bfill"] += after_ffill
+
+            # 2. 对体积的特殊处理
+            for col in volume_cols:
+                missing_mask = df_filled[col].isna()
+                initial_missing = missing_mask.sum()
+
+                if initial_missing > 0:
+                    # 对于体积，计算前5天的移动平均值
+                    rolling_mean = df_filled[col].rolling(window=5, min_periods=1).mean()
+                    df_filled.loc[missing_mask, col] = rolling_mean[missing_mask]
+                    fill_stats["volume_fills"] += initial_missing
+
+            # 最终检查
+            remaining_na = df_filled.isna().sum()
+            if remaining_na.any():
+                write_log(
+                    f"datafeed.py - ATTENZIONE: {ticker} ha ancora {remaining_na.sum()} valori NA dopo il filling"
+                )
+                for col in df_filled.columns:
+                    if remaining_na[col] > 0:
+                        write_log(
+                            f"datafeed.py - {ticker}: Colonna {col} ha {remaining_na[col]} NA"
+                        )
+
+            # 统计日志
+            write_log(f"datafeed.py - Statistiche filling per {ticker}:")
+            write_log(f"  - Interpolazioni: {fill_stats['interpolate']}")
+            write_log(f"  - Forward fills: {fill_stats['ffill']}")
+            write_log(f"  - Backward fills: {fill_stats['bfill']}")
+            write_log(f"  - Volume fills: {fill_stats['volume_fills']}")
+
+        except Exception as e:
+            write_log(f"datafeed.py - Error in fill_gaps for {ticker}: {str(e)}")
+            raise
+
+        return df_filled
+
+    def download_stocks_data(self, force_overwrite: bool = False) -> None:
+        """Scarica i dati delle azioni."""
+        write_log(f"datafeed.py - Avvio download dati nel range: {self.config_start} - {self.config_end}")
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            for ticker in self.tickers:
+                try:
+                    write_log(f"datafeed.py - Elaborazione {ticker}")
+
+                    if force_overwrite:
+                        self.download_yfinance(ticker, self.config_start, self.config_end, cursor)
+                        continue
+
+                    # 修改了查询执行和结果处理
+                    cursor.execute(
+                        """
+                        SELECT MIN(date) as min_date, MAX(date) as max_date 
+                        FROM daily_data 
+                        WHERE ticker = ?
+                        """,
+                        (ticker,),
+                    )
+                    existing_range = cursor.fetchone()
+
+                    # 添加对查询结果的适当验证
+                    if existing_range is None or existing_range[0] is None:
+                        write_log(f"datafeed.py - Nessun dato esistente per {ticker}, procedendo con il download completo")
+                        self.download_yfinance(ticker, self.config_start, self.config_end, cursor)
+                        continue
+
+                    # 将数据库中的日期转换为 pd.Timestamp
+                    existing_start = pd.to_datetime(existing_range[0])
+                    existing_end = pd.to_datetime(existing_range[1])
+
+                    if self.config_start >= existing_start and self.config_end <= existing_end:
+                        write_log(f"datafeed.py - Dati già presenti per {ticker}")
+                        continue
+
+                    # 下载缺失的数据
+                    if self.config_start < existing_start:
+                        start_download = self.config_start
+                        end_download = existing_start - pd.Timedelta(days=1)
+                        self.download_yfinance(ticker, start_download, end_download, cursor)
+
+                    if self.config_end > existing_end:
+                        start_download = existing_end + pd.Timedelta(days=1)
+                        end_download = self.config_end
+                        self.download_yfinance(ticker, start_download, end_download, cursor)
+
+                except Exception as e:
+                    write_log(f"datafeed.py - Errore per {ticker}: {str(e)}")
+                    continue  # 添加 continue 以继续处理下一个股票代码
+
+            self.log_database_stats()
+
+    def download_yfinance(self, ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp, cursor: sqlite3.Cursor) -> None:
+        """
+        Processa il download e salvataggio dei dati per un ticker specifico da yfinance
+        """
+        try:
+            df = pd.DataFrame()  # 初始化一个空的DataFrame
+
+            try:
+                try:
+                    df = yf.download(
+                        ticker,
+                        start=start_date,
+                        end=end_date + pd.Timedelta(days=1),  # 添加一天以包含结束日期
+                        progress=False,
+                    )
+                except Exception as e:
+                    write_log(f"datafeed.py - Error during download for {ticker}: {e}")
+                    return
+            except Exception as e:
+                write_log(f"datafeed.py - Errore durante il download dei dati per {ticker}: {e}")
+                return  # 如果下载失败则跳过进一步处理
+
+            if df.empty:
+                write_log(f"datafeed.py - No data downloaded for {ticker} in the specified period.")
+                return
+
+            # 关键：立即重置索引并添加 Ticker 列
+            df = df.reset_index()
+            df['Ticker'] = ticker
+            df.rename(columns={'Date': 'date'}, inplace=True)  # 将 Date 重命名为 date
+            df['date'] = pd.to_datetime(df['date'])
+
+            # 将数据插入数据库
+            for _, row in df.iterrows():
+                try:
+                    date_value = row['date']
+                    # 如果由于某种原因我们还有一个 Series，只取其值
+                    if isinstance(date_value, pd.Series):
+                        date_value = date_value.iloc[0]
+                    
+                    # 转换为datetime然后转换为字符串YYYY-MM-DD
+                    date_str = pd.to_datetime(date_value).strftime('%Y-%m-%d')
+                    
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO daily_data 
+                        (date, ticker, open, high, low, close, adj_close, volume, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            date_str,           # 使用清理后的日期值
+                            ticker,             # 直接使用作为参数传递的股票代码
+                            float(row['Open']),
+                            float(row['High']),
+                            float(row['Low']),
+                            float(row['Close']),
+                            float(row['Adj Close']),
+                            int(row['Volume']),
+                            "yfinance"
+                        )
+                    )
+                except Exception as e:
+                    write_log(f"datafeed.py - Errore nell'inserimento della riga per {ticker} "
+                            f"data {date_value}: {str(e)}")
+                    continue
+
+            cursor.connection.commit()
+            write_log(f"datafeed.py - Download completato per {ticker}")
+
+        except Exception as e:
+            write_log(f"datafeed.py - Errore critico durante l'elaborazione di {ticker}: {str(e)}")
+            raise
+  
+    def verify_data_completeness(self) -> None:
+        """Verifica la completezza dei dati per ogni ticker."""
+        write_log(f"datafeed.py - Start of the verification of data completeness")
+        with sqlite3.connect(self.db_path) as conn:
+            df_dates = pd.read_sql_query("SELECT DISTINCT date FROM daily_data", conn)
+            # 使用更灵活的日期解析
+            min_date = pd.to_datetime(df_dates["date"])
+            max_date = pd.to_datetime(df_dates["date"]).max()
+
+            for ticker in self.tickers:
+                missing_days = self._find_missing_days(ticker)
+                if missing_days is None:
+                    write_log(f"datafeed.py - Ticker {ticker} non presente nel dataset")
+                    continue
+
+                write_log(f"datafeed.py - Analisi completezza dati per {ticker}:")
+
+                if missing_days:
+                    write_log(f"datafeed.py - Giorni lavorativi mancanti per {ticker}:")
+                    for day in sorted(missing_days):
+                        write_log(f"datafeed.py - {ticker}: Giorno mancante {day}")
+                else:
+                    write_log(f"datafeed.py - Tutti i giorni lavorativi presenti per {ticker}")
+
+    def log_database_stats(self):
+        """Logga le statistiche del database."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT MIN(date), MAX(date) FROM daily_data")
+            min_date, max_date = cursor.fetchone()
+            write_log(f"datafeed.py - Range date finale nel database: {min_date} - {max_date}")
+
+            for ticker in self.tickers:
+                cursor.execute(
+                    "SELECT MIN(date), MAX(date) FROM daily_data WHERE ticker = ?", (ticker,)
+                )
+                result = cursor.fetchone()
+                if result and result[0]:
+                    write_log(
+                        f"datafeed.py - {ticker} - Date range finale: {result[0]} - {result[1]}"
+                    )
+
+    def fill_zero_values(self, df: pd.DataFrame, lookback_period: int = 5) -> pd.DataFrame:
+        """
+        Fills zero values in OHLCV columns using specific strategies for each data type.
+
+        Args:
+            df: DataFrame with the data to fill.
+            lookback_period: Lookback period for calculating averages.
+
+        Returns:
+            DataFrame with filled zero values.
+        """
+        df_filled = df.copy()
+        df_filled = df_filled.reset_index()
+        price_cols = ["Open", "High", "Low", "Close", "Adj Close"]
+        volume_cols = ["Volume"]
+
+        fill_stats = {}
+
+        for ticker in df_filled['Ticker'].unique():
+            ticker_stats = {
+                "price_fills": {col: 0 for col in price_cols},
+                "volume_fills": 0,
+                "mean_fills": 0,
+                "nearest_fills": 0,
+            }
+
+            ticker_data = df_filled[df_filled['Ticker'] == ticker].copy()
+            ticker_data = ticker_data.set_index('date')
+
+            # 如果日期索引还不是 DatetimeIndex，则将其转换为 DatetimeIndex
+            if not isinstance(ticker_data.index, pd.DatetimeIndex):
+                ticker_data.index = pd.to_datetime(ticker_data.index)
+
+            if ticker_data.index.duplicated().any():
+                write_log(f"datafeed.py - Duplicate dates found for {ticker}, keeping first occurrence.")
+                ticker_data = ticker_data[~ticker_data.index.duplicated(keep='first')]
+
+            try:
+                # 1. 价格管理
+                for col in price_cols:
+                    zero_mask = ticker_data[col] == 0
+                    zero_dates = ticker_data[zero_mask].index
+
+                    if len(zero_dates) > 0:
+                        for date in zero_dates:
+                            prev_data = ticker_data.loc[:date][col]
+                            prev_data = prev_data[prev_data != 0][-lookback_period:]
+
+                            next_data = ticker_data.loc[date:][col]
+                            next_data = next_data[next_data != 0][:lookback_period]
+
+                            if len(prev_data) > 0 and len(next_data) > 0:
+                                prev_val = prev_data.iloc[-1]
+                                next_val = next_data.iloc[0]
+                                weighted_val = (prev_val + next_val) / 2
+                                ticker_data.loc[date, col] = weighted_val
+                                ticker_stats["mean_fills"] += 1
+                            elif len(prev_data) > 0:
+                                ticker_data.loc[date, col] = prev_data.iloc[-1]
+                                ticker_stats["nearest_fills"] += 1
+                            elif len(next_data) > 0:
+                                ticker_data.loc[date, col] = next_data.iloc[0]
+                                ticker_stats["nearest_fills"] += 1
+
+                            ticker_stats["price_fills"][col] += 1
+
+                # 2. 交易量管理
+                for col in volume_cols:
+                    zero_mask = ticker_data[col] == 0
+                    zero_dates = ticker_data[zero_mask].index
+
+                    if len(zero_dates) > 0:
+                        for date in zero_dates:
+                            surrounding_data = ticker_data[
+                                (ticker_data.index >= date - pd.Timedelta(days=lookback_period)) &
+                                (ticker_data.index <= date + pd.Timedelta(days=lookback_period))
+                            ][col]
+                            non_zero_vol = surrounding_data[surrounding_data != 0]
+
+                            if len(non_zero_vol) > 0:
+                                ticker_data.loc[date, col] = int(non_zero_vol.mean())
+                                ticker_stats["volume_fills"] += 1
+
+                # 用修改后的 ticker_data 更新 df_filled
+                for col in price_cols + volume_cols:
+                    if col in price_cols:
+                        df_filled.loc[df_filled['Ticker'] == ticker, col] = ticker_data[col].astype(float)
+                    elif col in volume_cols:
+                        df_filled.loc[df_filled['Ticker'] == ticker, col] = ticker_data[col].astype(int)
+                fill_stats[ticker] = ticker_stats
+
+            except Exception as e:
+                write_log(f"datafeed.py - Error during zero value filling for {ticker}: {str(e)}")
+
+        df_filled = df_filled.reset_index()  # 确保我们总是将日期作为列返回，而不是索引
+        self._write_detailed_fill_stats(fill_stats)
+        self._verify_remaining_zeros(df_filled, price_cols + volume_cols)
+        return df_filled
+
+    def _write_detailed_fill_stats(self, fill_stats: dict):
+        """Scrive statistiche dettagliate delle operazioni di filling."""
+        log_file_path = os.path.join("log", "fill_zero_detailed.txt")
+        with open(log_file_path, "w") as f:
+            f.write("Report dettagliato operazioni di fill zero:\n")
+            f.write("=" * 80 + "\n\n")
+
+            for ticker, stats in fill_stats.items():
+                f.write(f"Ticker: {ticker}\n")
+                f.write("-" * 40 + "\n")
+                f.write("Prezzi:\n")
+                for col, fills in stats["price_fills"].items():
+                    f.write(f"  - {col}: {fills} fills\n")
+                f.write(f"Volume: {stats['volume_fills']} fills\n")
+                f.write(f"Fills con media: {stats['mean_fills']}\n")
+                f.write(f"Fills con valore più vicino: {stats['nearest_fills']}\n\n")
+
+    def _verify_remaining_zeros(self, df: pd.DataFrame, columns: list):
+        """Verifica e logga eventuali valori zero rimanenti."""
+        zero_counts = (df[columns] == 0).sum()
+        if zero_counts.sum() > 0:
+            write_log("datafeed.py - ATTENZIONE: Valori zero rimanenti dopo il filling:")
+            for col in columns:
+                if zero_counts[col] > 0:
+                    write_log(f"  - {col}: {zero_counts[col]} valori zero")
+
+                    # 记录剩余零值的详细信息
+                    zero_mask = df[col] == 0
+                    zero_records = df[zero_mask]
+                    for idx, row in zero_records.iterrows():
+                        write_log(f"    * Ticker: {row['Ticker']} in data {idx}")
+
+    def load_data_from_db(self) -> pd.DataFrame:
+        """Carica i dati dal database."""
+        with sqlite3.connect(self.db_path) as conn:
+            df = pd.read_sql_query(
+                """
+                SELECT date, ticker, open, high, low, close, adj_close, volume
+                FROM daily_data
+                """,
+                conn,
+            )
+
+            df["date"] = pd.to_datetime(df["date"], format="%Y-%m-%d")
+
+            # 将“ticker”列重命名为“Ticker”
+            df = df.rename(columns={"ticker": "Ticker"})
+
+            df = df.set_index(["Ticker", "date"])
+            df.columns = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+
+            return df
+
+    def save_data_to_db(self, df: pd.DataFrame) -> None:
+        """
+        Salva i dati elaborati nel database usando INSERT OR REPLACE.
+        Aggiunge la colonna "insert_date" con la data e ora di sistema al momento dell'inserimento.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            df_to_save = df.copy().reset_index()  # 始终重置索引
+            # 如果日期尚未转换为日期时间格式，则进行转换，并正确处理无效日期
+            if not pd.api.types.is_datetime64_any_dtype(df_to_save['date']):
+                df_to_save['date'] = pd.to_datetime(df_to_save['date'], errors='raise')  # 现在引发错误
+            df_to_save['date'] = df_to_save['date'].dt.strftime('%Y-%m-%d')
+            
+            # 将列重命名以匹配数据库模式
+            column_mapping = {
+                'Ticker': 'ticker',
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Adj Close': 'adj_close',
+                'Volume': 'volume'
+            }
+            
+            # 仅重命名存在的列
+            for old_col, new_col in column_mapping.items():
+                if old_col in df_to_save.columns:
+                    df_to_save = df_to_save.rename(columns={old_col: new_col})
+            
+            # 如果不存在，则添加 source 和 insert_date 列
+            if 'source' not in df_to_save.columns:
+                df_to_save['source'] = 'Yahoo Finance'
+            if 'insert_date' not in df_to_save.columns:
+                df_to_save['insert_date'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+            # 确保所有必需的列都存在
+            required_columns = ['date', 'ticker', 'open', 'high', 'low', 'close', 
+                              'adj_close', 'volume', 'source', 'insert_date']
+            missing_columns = set(required_columns) - set(df_to_save.columns)
+            if missing_columns:
+                write_log(f"datafeed.py - Missing required columns: {missing_columns}")
+                raise ValueError(f"Missing required columns: {missing_columns}")
+            # 调试日志
+            write_log(f"datafeed.py - Final columns before save: {df_to_save.columns.tolist()}")
+            write_log(f"datafeed.py - Number of rows to save: {len(df_to_save)}")
+            
+            # 使用 executemany 插入数据以提高性能
+            cursor = conn.cursor()
+            data_to_insert = df_to_save[required_columns].values.tolist()
+            
+            cursor.executemany(
+                """
+                INSERT OR REPLACE INTO daily_data 
+                (date, ticker, open, high, low, close, adj_close, volume, source, insert_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                data_to_insert
+            )
+            
+            conn.commit()
+            write_log(f"datafeed.py - Successfully saved {len(df_to_save)} records to database")
+            
+        except Exception as e:
+            conn.rollback()
+            write_log(f"datafeed.py - Error saving data to database: {str(e)}")
+            raise
+        finally:
+            conn.close()
+
+    def fill_gaps_for_all_tickers(self):
+        """Riempie i gap per tutti i ticker nel database."""
+        with sqlite3.connect(self.db_path) as conn:
+            for ticker in self.tickers:
+                try:
+                    missing_days = self._find_missing_days(ticker)
+                    if missing_days is None:
+                        write_log(f"datafeed.py - Nessun dato esistente per {ticker}")
+                        continue
+
+                    # 使用缺失的天数来填补空白...
+                    write_log(f"datafeed.py - Inizio riempimento gap per {ticker}")
+                    # 获取该股票代码的最小和最大日期
+                    write_log(f"datafeed.py - {ticker}: Esecuzione query SQL per load dati in dataframe")
+                    df = pd.read_sql_query(
+                        """
+                        SELECT date, open, high, low, close, adj_close, volume
+                        FROM daily_data
+                        WHERE ticker = ?
+                        ORDER BY date
+                        """,
+                        conn,
+                        params=(ticker,),
+                    )
+                    write_log(f"datafeed.py - {ticker}: Query SQL completata")
+                    if df.empty:
+                        write_log(f"datafeed.py - Nessun dato esistente per {ticker}")
+                        continue
+
+                    # 将日期列转换为datetime
+                    write_log(f"datafeed.py - {ticker}: Conversione colonna 'date' in datetime")
+                    df['date'] = pd.to_datetime(df['date'])
+                    write_log(f"datafeed.py - {ticker}: Conversione completata")
+
+                    # 获取日期范围
+                    existing_start = df['date'].min()
+                    existing_end = df['date'].max()
+                    write_log(f"datafeed.py - {ticker}: Data inizio esistente: {existing_start}")
+                    write_log(f"datafeed.py - {ticker}: Data fine esistente: {existing_end}")
+
+                    # 获取工作日
+                    write_log(f"datafeed.py - {ticker}: Calcolo business days")
+                    business_days = self.trade_calendar.get_business_days(
+                        existing_start, existing_end, self.italy_holidays
+                    )
+                    write_log(f"datafeed.py - {ticker}: Calcolo business days completato")
+
+                    # 识别并填补缺口
+                    write_log(f"datafeed.py - {ticker}: Impostazione indice del DataFrame su date")
+                    df = df.set_index('date')
+                    write_log(f"datafeed.py - {ticker}: Indice impostato")
+
+                    write_log(f"datafeed.py - {ticker}: Identificazione gap")
+                    df_filled = self.identify_gaps(df, ticker, business_days)
+                    write_log(f"datafeed.py - {ticker}: Identificazione gap completata")
+
+                    write_log(f"datafeed.py - {ticker}: Riempimento gap")
+                    df_filled = self.fill_gaps(df_filled, ticker)
+                    write_log(f"datafeed.py - {ticker}: Riempimento gap completato")
+
+                    # 保存填充的数据
+                    write_log(f"datafeed.py - {ticker}: Salvataggio dati")
+                    self.save_data_to_db(df_filled)
+                    write_log(f"datafeed.py - {ticker}: Salvataggio dati completato")
+                except Exception as e:
+                    write_log(f"datafeed.py - Errore durante il riempimento dei gap per {ticker}: {str(e)}")
+                    continue
+
+    def _find_missing_days(self, ticker):
+        with sqlite3.connect(self.db_path) as conn:
+            df_ticker = pd.read_sql_query(
+                "SELECT date FROM daily_data WHERE ticker = ?", conn, params=(ticker,)
+            )
+            if df_ticker.empty:
+                return None  # 或者根据期望的行为引发异常
+
+            df_ticker["date"] = pd.to_datetime(df_ticker["date"])
+            ticker_start = df_ticker["date"].min()
+            ticker_end = df_ticker["date"].max()
+
+            business_days = self.trade_calendar.get_business_days(
+                ticker_start, ticker_end, self.italy_holidays
+            )
+            missing_days = set(business_days) - set(df_ticker["date"])
+            return missing_days
+
+
+if __name__ == "__main__":
+    datafeed = Datafeed()
+    # datafeed.download_stocks_data()
+    datafeed.verify_data_completeness()
+    datafeed.fill_gaps_for_all_tickers()
+    # df = datafeed.load_data_from_db()
+    # df_filled = datafeed.fill_zero_values(df)
+    # datafeed.save_data_to_db(df_filled)

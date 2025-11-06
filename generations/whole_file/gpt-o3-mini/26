@@ -1,0 +1,59 @@
+# Other parts of the code remain unchanged.
+
+def conjugate_gradient_method(A, b, x0=None, tol=1e-10, max_iter=None):
+    """
+    Решает систему линейных уравнений Ax = b с помощью метода спряжённых градиентов.
+    
+    Параметры:
+        A : numpy.ndarray
+            Симметричная положительно определённая матрица коэффициентов.
+        b : numpy.ndarray
+            Вектор свободных членов.
+        x0 : numpy.ndarray, optional
+            Начальное приближение решения. Если None, используется нулевой вектор.
+        tol : float, optional
+            Допустимая точность решения.
+        max_iter : int, optional
+            Максимальное количество итераций. Если None, используется размерность вектора b.
+    
+    Возвращает:
+        x : numpy.ndarray
+            Приблизительное решение системы.
+    """
+    import numpy as np
+
+    n = len(b)
+    if x0 is None:
+        x = np.zeros(n, dtype=float)
+    else:
+        x = x0.astype(float)
+
+    if max_iter is None:
+        max_iter = n
+
+    r = b - A.dot(x)
+    p = r.copy()
+    rs_old = np.dot(r, r)
+
+    for i in range(max_iter):
+        Ap = A.dot(p)
+        alpha = rs_old / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = np.dot(r, r)
+        if np.sqrt(rs_new) < tol:
+            break
+        beta = rs_new / rs_old
+        p = r + beta * p
+        rs_old = rs_new
+    return x
+
+# The rest of the code remains unchanged.
+if __name__ == '__main__':
+    import numpy as np
+
+    # Пример использования функции метода спряжённых градиентов
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    x = conjugate_gradient_method(A, b)
+    print("Найденное решение x:", x)

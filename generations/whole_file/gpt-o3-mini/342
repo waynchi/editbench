@@ -1,0 +1,35 @@
+import random
+
+def roll_dice(num_rolls):
+    """Rzuca sześciościenną kostką określoną liczbę razy i zwraca częstotliwości każdego wyniku.
+
+Argumenty:
+    num_rolls: Liczba rzutów kostką.
+
+Zwraca:
+    Słownik, w którym kluczami są liczby od 1 do 6 (reprezentujące ścianki kostki), a wartościami są ich częstotliwości. Zwraca pusty słownik, jeśli num_rolls nie jest dodatnią liczbą całkowitą.
+
+Zgłasza:
+    TypeError: jeśli num_rolls nie jest liczbą całkowitą.
+    ValueError: jeśli num_rolls nie jest dodatnie."""
+    if not isinstance(num_rolls, int):
+        raise TypeError("Number of rolls must be an integer.")
+    if num_rolls <= 0:
+        raise ValueError("Number of rolls must be positive.")
+
+    frequencies = {i: 0 for i in range(1, 7)}  # Inicjalizuj częstotliwości dla każdej ścianki (1-6)
+    for _ in range(num_rolls):
+        roll = random.randint(1, 6)  # Symuluj rzut kostką
+        frequencies[roll] += 1
+    return frequencies
+
+if __name__ == "__main__":
+    num_rolls = 10000
+    try:
+        results = roll_dice(num_rolls)
+        print(f"Frequencies of die rolls after {num_rolls} rolls (in percentages):")
+        for face, frequency in results.items():
+            percentage = (frequency / num_rolls) * 100
+            print(f"Face {face}: {percentage:.2f}%")
+    except (TypeError, ValueError) as e:
+        print(f"Error: {e}")

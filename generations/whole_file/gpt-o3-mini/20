@@ -1,0 +1,33 @@
+import numpy as np
+
+# Use the intended file path
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print(lines)
+    
+    # Remove empty lines if any
+    lines = [line for line in lines if line.strip()]
+    
+    # Split each line by three spaces.
+    cols = [line.split("   ") for line in lines]
+    cols = np.array(cols).T.astype(int)
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+    
+    # Instead of repeatedly finding and popping the smallest element,
+    # sort both lists and compute the absolute differences pairwise.
+    list_1.sort()
+    list_2.sort()
+    all_dists = [abs(num1 - num2) for num1, num2 in zip(list_1, list_2)]
+    
+    print(sum(all_dists))
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

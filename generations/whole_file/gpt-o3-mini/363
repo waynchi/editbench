@@ -1,0 +1,105 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+
+# ---------------------------------------------------------------------
+# Modified section: build a hierarchical dictionary for posts and replies
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+hierarchy = {}  # This will store the posts and their replies hierarchically.
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_children = post['children']
+    X += 1
+    cnt = 0  # Count of valid replies for this post
+
+    # Initialize the dictionary structure for the post
+    post_dict = {
+        "author": post_author,
+        "permlink": post_permlink,
+        "replies": []
+    }
+
+    if post_children > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        replies_list = comment.get_replies()
+
+        def build_reply_tree(replies):
+            nonlocal cnt
+            tree = []
+            for reply in replies:
+                author = reply['author']
+                text = reply['body']
+                # If the reply meets any exclusion criteria, skip processing it.
+                if is_own_author(author):
+                    continue
+                if is_banned(author):
+                    continue
+                if procesar(text):
+                    cnt += 1
+                    reply_dict = {
+                        "author": author,
+                        "permlink": reply['permlink'],
+                        "body": text,
+                        "replies": []
+                    }
+                    # If this reply has children, attempt to build its subtree recursively.
+                    if reply.get('children', 0) > 0:
+                        try:
+                            nested_comment = Comment(authorperm=f"{reply['author']}/{reply['permlink']}")
+                            nested_replies = nested_comment.get_replies()
+                            reply_dict["replies"] = build_reply_tree(nested_replies)
+                        except Exception:
+                            # If there's an error fetching nested replies, continue without them.
+                            pass
+                    tree.append(reply_dict)
+            return tree
+
+        post_dict["replies"] = build_reply_tree(replies_list)
+
+    # Only add the post to the hierarchy if it has more than 3 valid replies.
+    if cnt > 3:
+        hierarchy[f"{post_author}/{post_permlink}"] = post_dict
+
+# For demonstration, print out the hierarchical dictionary.
+# You could comment out or remove the following lines in production.
+for key, value in hierarchy.items():
+    print("Post:", key)
+    print("Hierarchy:", value)
+    print("-" * 40)
+# ---------------------------------------------------------------------

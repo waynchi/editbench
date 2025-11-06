@@ -1,0 +1,80 @@
+const dbName            = 'keyval-store';
+const defStoreName      = 'keyval';
+const histStoreName     = 'history';
+const workspaceStoreName= 'workspaces';
+const tilesStoreName    = 'tiles';
+let defDBF, wsDBF, tlDBF, hsDBF;
+function promisifyRequest(request) {
+    return new Promise((resolve, reject) => {
+        request.oncomplete = request.onsuccess = () => resolve(request.result);
+        request.onabort = request.onerror = () => reject(request.error);
+    });
+}
+
+function dbGetValue(key, customStore = defDBF) {
+    return customStore('readonly', (store) => promisifyRequest(store.get(key)));
+}
+function dbSetValue(key, value, customStore = defDBF) {
+    return customStore('readwrite', (store) => {
+        store.put(value, key);
+        return promisifyRequest(store.transaction);
+    });
+}
+function dbDelEntry(key, customStore = defDBF) {
+    return customStore('readwrite', (store) => {
+        store.delete(key);
+        return promisifyRequest(store.transaction);
+    });
+}
+function _eachCursor(customStore, callback) {
+    return customStore('readonly', (store) => {
+        store.openCursor().onsuccess = function () {
+            if (!this.result)
+                return;
+            callback(this.result);
+            this.result.continue();
+        };
+        return promisifyRequest(store.transaction);
+    });
+}
+
+function dbGetKeys(customStore = defDBF) {
+    const items = [];
+    return _eachCursor(customStore, (cursor) => items.push(cursor.key)).then(() => items);
+}
+function dbGetValues(customStore = defDBF) {
+    const items = [];
+    return _eachCursor(customStore, (cursor) => items.push(cursor.value)).then(() => items);
+}
+function dbGetEntries(customStore = defDBF) {
+    const items = [];
+    return _eachCursor(customStore, (cursor) => items.push([cursor.key, cursor.value])).then(() => items);
+}
+
+
+function _createStore() {
+    const versionDB = 2;
+    const request = indexedDB.open(dbName, versionDB);
+    request.onupgradeneeded = function(event) {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(defStoreName)) {
+            db.createObjectStore(defStoreName);
+        }
+        if (!db.objectStoreNames.contains(workspaceStoreName)) {
+            db.createObjectStore(workspaceStoreName);
+        }
+        if (!db.objectStoreNames.contains(histStoreName)) {
+            db.createObjectStore(histStoreName);
+        }
+        if (!db.objectStoreNames.contains(tilesStoreName)) {
+            db.createObjectStore(tilesStoreName);
+        }
+    }
+    const dbp = promisifyRequest(request);
+    defDBF  = (txMode, callback) => dbp.then((db) => {  return callback(db.transaction(defStoreName      , txMode).objectStore(defStoreName)); });
+    wsDBF   = (txMode, callback) => dbp.then((db) => {  return callback(db.transaction(workspaceStoreName, txMode).objectStore(workspaceStoreName)); });
+    tlDBF   = (txMode, callback) => dbp.then((db) => {  return callback(db.transaction(tilesStoreName    , txMode).objectStore(tilesStoreName)); });
+    hsDBF   = (txMode, callback) => dbp.then((db) => {  return callback(db.transaction(histStoreName     , txMode).objectStore(histStoreName)); });
+}
+
+_createStore();

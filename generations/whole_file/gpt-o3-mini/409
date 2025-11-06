@@ -1,0 +1,80 @@
+const cameraService = require('./camera.service');
+
+const createCamera = async (req, res) => {
+  try {
+    // Create a new camera record
+    const newCamera = await cameraService.createCamera(req.body);
+
+    // Raw query to join cameras and areas tables to get all camera fields along with area_name
+    const query = `
+      SELECT cameras.*, areas.area_name
+      FROM cameras
+      JOIN areas ON cameras.area_id = areas.id
+      WHERE cameras.id = ?
+    `;
+
+    // Execute the raw query using replacements to safely inject the camera id.
+    const joinedCamera = await cameraService.db.query(query, {
+      replacements: [newCamera.id],
+      type: cameraService.db.QueryTypes.SELECT,
+    });
+    
+    // Respond with the first (and only) joined result
+    res.status(201).json(joinedCamera[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAllCameras = async (req, res) => {
+  try {
+    const cameras = await cameraService.getAllCameras();
+    res.status(200).json(cameras);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getCameraById = async (req, res) => {
+  try {
+    const camera = await cameraService.getCameraById(req.params.id);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateCamera = async (req, res) => {
+  try {
+    const camera = await cameraService.updateCamera(req.params.id, req.body);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteCamera = async (req, res) => {
+  try {
+    const success = await cameraService.deleteCamera(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = {
+  createCamera,
+  getAllCameras,
+  getCameraById,
+  updateCamera,
+  deleteCamera,
+};

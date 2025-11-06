@@ -1,0 +1,278 @@
+import requests # 用于API请求
+import xml.etree.ElementTree # 用于处理 API 的 xml 响应
+import matplotlib.pyplot as plt # 用于绘制图表
+import pandas as pd # 用于创建数据框并将所有蜡烛分为两种类型：收盘和开盘
+import datetime # 用于X轴的日期
+import pickle # 用于在文件中存储变量
+import json # 用于处理数据库
+
+# 没有技术分析工具和空白天（无交易）的问题，因为在数据框中无交易的天数不是零，而是根本不存在。因此，它们不会破坏指标的值。
+# 类标的，方法图表和当前价格
+class ticker():
+    """股票代码及其相关内容，通过 MoexApi
+
+需要的库：
+
+requests
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name: str):
+        """self.name - 股票代码名称
+self.tech_dict - 技术分析字典"""
+        self.name = name 
+        """Имя тикера, то есть сам по себе тикер"""
+        # 原则上这里可以更改所有用户的默认设置。可能需要通过这个实现自定义技术分析工具。
+        self.tech_dict = {"value" : {"use" : False, "has_periods" : False, "need_graph_space" : True}, 
+                          "sma" : {"use" : False, "has_periods" : True, "periods" : [], "need_graph_space" : False},
+                          "ema" : {"use" : False, "has_periods" : True, "periods" : [],"need_graph_space" : False}
+                          }
+        """Словарь реализованных опций теханализа. Имеет вид \n
+        {"sma": {"use": True, "periods": [20, 50], "need_graph_space": False}, "rsi": {"use": True, "periods": [10], "need_graph_space": True}} \n
+        Где use отвечает за использование, period - список периодов, по которым будут считаться значения, need_graph_space за то, требует ли осциллятор доп места на графике \n
+        Изначально все use имеют значение False, а списки периодов пусты \n \n
+        При реализации нового инструмента теханализа достаточно дописать его в self.tech_dict \n
+        При этом функцию, соответствующую этому инструменту важно назвать также, как и сам инструмент в словаре. А её аргументы - self и ax (редактируемый/заполняемый график) \n
+        Доп графики инструментов теханализа, которые их требуют, будут отображаться в таком же порядке, в котором инструменты располагаются в словаре. Также в этом порядке будут высвечиваться кнопки в боте и уже выбранные инструменты теханализа"""
+    def correct_name(self):
+        """检查股票代码名称是否存在于股票代码集合中。集合每天更新不超过一次。"""
+        # 异步重写开始
+        import asyncio
+        import aiofiles
+
+        async def read_info():
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as f:
+                data = await f.read()
+                return json.loads(data)
+        info = asyncio.run(read_info())
+        # 异步重写结束
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f"): # 检查条件，确保重写股票代码列表的日期至少是1天前。
+            # 如果相差超过1天，则重写股票代码列表（集合）：
+            set_tickers = set() # 创建一个空集合，将在其中填入股票代码。
+            s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            r = requests.get(s)
+            root = xml.etree.ElementTree.fromstring(r.content) # 请求仍然会将网站数据作为字符串返回，所以必须使用fromstring。
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID")) # 将股票代码导入到我们的集合中
+            set_tickers_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb") # 打开文件以二进制方式写入集合中的代码。
+            pickle.dump(set_tickers, set_tickers_file_opened) # 将创建的集合写入文件。如果有变化，每次都会重写（已验证）
+            set_tickers_file_opened.close() # 关闭文件
+            # 更改最后更新时间
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8")
+            json.dump(info, info_opened_file, indent = 3, ensure_ascii = False) # 写入新文件
+            info_opened_file.close()
+        # 现在只需检查列表中是否有该股票代码
+        set_tickers_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb") # 打开包含多个股票代码的文件以从中获取它们
+        set_tickers = pickle.load(set_tickers_file_opened) # 从打开的文件中将一组代码的值加载到变量中。如果意外地记录了多个集合（不应该发生这种情况），则只会打开其中的第一个。
+        if self.name in set_tickers: # 只需检查该股票代码是否在股票代码集合中
+            return True
+        else:
+            return False
+    def CurrentPrice(self):
+        """此代码的当前价格"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        r = requests.get(s) # 获取 r 的 XML 格式，r.status_code 是响应代码，r.content 是响应内容的字符串，r.text 是文本形式的内容。
+        root = xml.etree.ElementTree.fromstring(r.content) # 我们从 r 中获取内容并放入变量中。除了内容，r 至少还包含有关请求状态的信息（错误 404，一切正常 400 等）
+        for data in root.findall("data"): # 在root中找到所有data容器并遍历它们
+            if data.get("id") == "marketdata": # 在遍历的 data 中查看 id 属性，并希望它是 marketdata
+                rows = data.find("rows") # 在rows中找到第一个带有row标签的容器
+                row = rows.find("row") # 在 rows 中有多个 row，寻找其中带有 tqbr 的那个
+                return(row.get("LAST")) # return 会中断循环，所以这里不需要检查信息是否找到。
+    def candles(self, candles_name: str, timeframe: str, start: str, end: str): # 添加时间范围
+        """蜡烛图列表用于此代码 
+
+candles_name - 蜡烛图的必要组成部分 
+
+candles_name: open, close, high, low, value, volume, begin, end 
+
+timeframe - 时间框架: 1 - 1 分钟, 10 - 10 分钟, 60 - 1 小时, 24 - 1 天, 7 - 1 周, 31 - 1 个月, 4 - 4 个月 
+
+start, end - 时间段的开始和结束，格式为 年-月-日 时:分:秒"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + f"/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}"
+        r = requests.get(s)
+        root = xml.etree.ElementTree.fromstring(r.content)
+        candles = root.find("data")
+        rows = candles.find("rows")
+        listcandles = []
+        if candles_name == "begin" or candles_name == "end": # 对于这些，我们将从 iss 中获取值，以连接模块的 datetime 格式（日期和时间）
+            for row in rows.findall("row"):
+                datetime_str = row.get(candles_name) # datetime_name 现在是 api 格式的字符串
+                # 可以使用 datetime.datetime.strptime()，但年份处理不好，不够通用。所以这样做。
+                datetime_datetime = datetime.datetime(int(datetime_str[0:4]), int(datetime_str[5:7]), int(datetime_str[8:10]), int(datetime_str[11:13]), int(datetime_str[14:16]), int(datetime_str[17:])) # 将日期和时间的字符串切割成datetime模块所需的日期和时间部分（年、月、日、时、分、秒）。同时不要忘记将所有部分转换为int。
+                listcandles.append(datetime_datetime)
+        else:
+            for row in rows.findall("row"):
+                listcandles.append(float(row.get(candles_name)))# 重要的是FLOAT，否则会导入为字符串,
+                # 而图表只是简单地按顺序绘制字符串，没有根据其值进行合理的排列。
+        return(listcandles)
+    def setattr_candles_dataframe(self, timeframe = str("24"), start = str(""), end = str("")):
+        # 创建蜡烛数据框作为属性至少可以避免每次将其作为参数传递给应用技术分析工具的函数（因为它被传递到self中）
+        """创建具有相应timeframe、start和end的蜡烛数据框并放入self.candles_dataframe
+
+不是在初始化时，因为如果ticker是为了获取当前价格而初始化的，就没有理由进行多余的操作。"""
+                # 创建包含所有蜡烛信息的数据框，并通过先前编写的方法获取蜡烛信息填充它。
+        candles_dataframe = pd.DataFrame({"open" :  self.candles("open", timeframe, start, end),
+                                          "close" : self.candles("close", timeframe, start, end),
+                                          "high" : self.candles("high", timeframe, start, end),
+                                          "low" : self.candles("low", timeframe, start, end),
+                                          "value" : self.candles("value", timeframe, start, end),
+                                          "begin" : self.candles("begin", timeframe, start, end)
+                                          # end"似乎不需要，begin就足够了。
+                                        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+    def graphic(self, timeframe = str("24"), start = str(""), end = str("")):
+        """返回从时间开始的价格蜡烛图
+
+timeframe - 时间框架: 1 - 1分钟, 10 - 10分钟, 60 - 1小时, 24 - 1天, 7 - 1周, 31 - 1月, 4 - 4个月 | None = 24
+
+start, end - 时间段的开始和结束，格式为 YYYY-MM-DD HH:MM:SS | None = ""
+
+sma - 是否需要简单移动平均线, sma_periods - 简单移动平均线的周期数组 | None = False, []
+
+ema - 是否需要指数移动平均线, ema_periods - 指数移动平均线的周期数组 | None = False, []"""
+        # 创建所需的数据框架
+        self.setattr_candles_dataframe(timeframe, start, end)
+        # 创建 up 和 down - 新的数据框，是旧数据框的一部分，但满足特定条件。
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        # 将其记录为属性，因为对于某些技术分析工具来说，重要的是哪些蜡烛在上涨，哪些在下跌。
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+        # 创建 width_big 和 width_small - 取决于时间框架的蜡烛宽度
+        # 看起来 x 轴上的 1 天对应于图表中柱状条的 1 个单位厚度（Python 可能很聪明）
+        # 虽然在4个月时已经不起作用了，虽然奇怪，因为对其他所有情况都有效。
+        # 但无论如何，蜡烛的范围增大或减小时不会重叠/有大间隙。这意味着宽度确实与日期有关。
+        if timeframe == "1": # 分钟
+            width_big = 1/24/60
+        elif timeframe == "10": # 10分钟
+            width_big = 1/24/6
+        elif timeframe == "60": # 小时
+            width_big = 1/24
+        elif timeframe == "24": # 天
+            width_big = 1
+        elif timeframe == "7": # 星期
+            width_big = 7
+        elif timeframe == "31": # 月
+            width_big = 30
+        elif timeframe == "4": # 4个月
+            width_big = 90
+        else:
+            width_big = 0 # 这种情况理论上不可能发生
+        width_small = width_big/10
+        setattr(self, "width_big", width_big) # 将 width_big 放入 self，以便稍后在显示为条形图的技术分析工具中使用。
+        # 处理技术分析。首先了解需要多少附加图表。
+        number_of_additional_graphics = int(0)
+        for tech in self.tech_dict:
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]: # 如果技术分析工具被使用并且该工具需要额外图表的空间，则计算它
+                number_of_additional_graphics += 1
+        # 如果一个或多个技术分析工具需要额外的图表
+        if number_of_additional_graphics != 0:
+            height_rations_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics # 图表高度比数组，取决于图表的数量。然后将其传递给subplots。形式为[8, 1, 1]。
+            fig, axs = plt.subplots(nrows = 1 + number_of_additional_graphics, ncols = 1, sharex = True, height_ratios = height_rations_list) # 创建子图。fig - 图表容器，axs[i] - 第i个图表
+            plt.suptitle(self.name, fontsize = 15) # 标题 - 股票代码名称
+            axs[0].grid(True) # 网格以简化图表的感知
+            # 用上涨的蜡烛填充它
+            # 这是柱状图；plt.bar(x = x轴, height = 柱子高度, width = 柱子宽度, bottom = 柱子底部坐标, 不知道后面奇怪的*和之后不明白的东西)
+            # 还有一个参数 color，但在官方文档中我没有找到。可能这包含在奇怪的 * 中。
+            axs[0].bar(x = up.begin, height = up.close - up.open,  width = width_big, bottom = up.open, color = "green") # 为了明确具体的函数参数，可以写参数名=给定的值
+            axs[0].bar(x = up.begin, height = up.high - up.close,  width = width_small, bottom = up.close, color = "green")
+            axs[0].bar(x = up.begin, height = up.open - up.low,  width = width_small, bottom = up.low, color = "green")
+            # 用下跌蜡烛填充
+            axs[0].bar(x = down.begin, height = down.open - down.close,  width = width_big, bottom = down.close, color = "red")
+            axs[0].bar(x = down.begin, height = down.high - down.open,  width = width_small, bottom = down.open, color = "red")
+            axs[0].bar(x = down.begin, height = down.close - down.low,  width = width_small, bottom = down.low, color = "red")
+            # 在图表上添加技术分析工具
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]: # 如果使用技术分析工具
+                    if self.tech_dict[tech]["use"] and not self.tech_dict[tech]["need_graph_space"]: # 如果不需要额外的图表，调用相应的函数
+                        tech_func = getattr(self, tech) # 现在 tech_func 是技术分析的函数，其名称目前由 tech 承载。
+                        tech_func(axs[0])
+                    else : # 如果需要额外的图表，则
+                        for i in range(number_of_additional_graphics):
+                            tech_func = getattr(self, tech) # 现在 tech 是需要额外图表的函数的名称
+                            axs[i + 1].grid(True) # 在每个附加图表上也启用网格
+                            tech_func(axs[i + 1]) # 对于每个新工具使用新图表
+        # 如果0个技术分析工具需要额外的图表
+        else: 
+            fig = plt.figure() # 创建图表容器
+            plt.title(self.name, fontsize = 15) # 标题 - 代码名称
+            ax = fig.add_subplot() # ax 是图表本身
+            ax.grid(True) # 用于简化图表感知的网格
+            # 用上涨的蜡烛填充
+            # 这是柱状图；plt.bar(x = x轴, height = 柱子高度, width = 柱子宽度, bottom = 柱子底部坐标, 不知道接下来奇怪的*然后还有些不明白的东西)
+            # 还有一个参数 color，但在官方文档中我没有找到。可能这包含在奇怪的 * 中。
+            ax.bar(x = up.begin, height = up.close - up.open,  width = width_big, bottom = up.open, color = "green") # 为了明确具体的函数参数，可以写成参数名=给定的值
+            ax.bar(x = up.begin, height = up.high - up.close,  width = width_small, bottom = up.close, color = "green")
+            ax.bar(x = up.begin, height = up.open - up.low,  width = width_small, bottom = up.low, color = "green")
+            # 用down的蜡烛填充
+            ax.bar(x = down.begin, height = down.open - down.close,  width = width_big, bottom = down.close, color = "red")
+            ax.bar(x = down.begin, height = down.high - down.open,  width = width_small, bottom = down.open, color = "red")
+            ax.bar(x = down.begin, height = down.close - down.low,  width = width_small, bottom = down.low, color = "red")
+            # 在图表上添加不需要额外图表的技术分析工具（在本节中是所有使用的工具，因为之前有条件说明没有带有额外图表的工具）
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]: # 如果使用且不需要额外图表，则调用相应的函数
+                    tech_func = getattr(self, tech) # 现在 tech_func 是当前 tech 所代表的技术分析的函数，并且绑定到 self。换句话说，它的应用类似于在 tech = sma 时应用 self.sma(...).
+                    tech_func(ax)
+        # 将图表保存为图片并返回其打开以便发送
+        fig.savefig(r"D:\Python files\!MoexApiBot\graphic.png")
+        opened_graphic = open(r"D:\Python files\!MoexApiBot\graphic.png", "rb")
+        return opened_graphic
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]: # 为每个所需的sma周期创建一个sma值列表并将其添加到图表中
+            if period <=  len(self.candles_dataframe.begin): # 因为否则在绘制图形时，x轴列表为空，而y轴不为空（因为那里有递归基础）
+                sma_list = [] # sma值列表（对应于数据框中的日期）
+                sma_list.append(sum(self.candles_dataframe.close[0: period])/period) # 使其递归，以避免每次计算大和。
+                for i in range(period, len(self.candles_dataframe.begin)): # 开始偏移，因为sma不早于period根蜡烛计算
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period])/period) # 将新蜡烛添加到之前的sma值中，并移除最旧的蜡烛。
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list) # 这里需要对x轴进行切片，以便振荡器从我们计算它的日期开始。
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <=  len(self.candles_dataframe.begin): # 因为否则在绘制图形时，x轴列表为空，而y轴不为空（因为那里有递归基础）
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period])/period) # 第一个ema值是相同周期的sma
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1)*ema_list[i - period] + 2 * self.candles_dataframe.close[i])/(period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+    def value(self, ax):
+        ax.bar(x = self.up.begin, height = self.up.value, width = self.width_big, color = "green")
+        ax.bar(x = self.down.begin, height = self.down.value, width = self.width_big, color = "red")
+        ax.set_title("Value", fontsize = 7)
+
+"""
+Тесты
+"""
+
+"""
+beb = ticker("SBER")
+beb.setattr_candles_dataframe("24", "2024-01-01", "2024-01-07")
+print(beb.candles_dataframe)
+"""
+
+"""
+beb.tech_dict["value"]["use"] = True
+beb.graphic("24", "2024-01-01", "2024-10-01")
+plt.show
+"""
+
+"""
+beb = ticker("SBER")
+beb.tech_dict["sma"]["use"] = True
+beb.tech_dict["sma"]["periods"] = [20, 10]
+beb.tech_dict["ema"]["use"] = True
+beb.tech_dict["ema"]["periods"] = [150, 250]
+beb.tech_dict["value"]["use"] = True
+beb.graphic("24", "2024-01-01", "2024-05-01")
+"""

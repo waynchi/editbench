@@ -1,0 +1,287 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Ścieżka do pliku JSON do przechowywania danych
+const DB_FILE = path.join(__dirname, "database.json");
+
+// Zainicjuj plik JSON, jeśli nie istnieje
+if (!fs.existsSync(DB_FILE)) {
+  fs.writeFileSync(DB_FILE, JSON.stringify({ appointments: [], reminders: [] }, null, 2));
+}
+
+// Funkcja pomocnicza do odczytywania danych z pliku JSON
+const readDatabase = () => {
+  const data = fs.readFileSync(DB_FILE, "utf-8");
+  return JSON.parse(data);
+};
+
+// Funkcja pomocnicza do zapisywania danych do pliku JSON
+const writeDatabase = (data) => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+};
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// // Trasy
+
+// Sprawdzenie stanu zdrowia
+app.get("/", (req, res) => {
+  res.status(200).send("API is working!");
+});
+
+// Middleware do okresowego czyszczenia wygasłych tokenów
+const tokenStore = {};
+setInterval(() => {
+  const now = Date.now();
+  for (const token in tokenStore) {
+    if (tokenStore[token].expiresAt < now) {
+      delete tokenStore[token]; // Usuń wygasły token
+    }
+  }
+}, 60000); // Uruchom czyszczenie co minutę
+
+// Funkcja pomocnicza do generowania 8-znakowego losowego tokena alfanumerycznego
+function generateSimpleToken() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  for (let i = 0; i < 8; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+// Zaktualizowano /generate-token
+app.get("/generate-token", (req, res) => {
+  const { phone, name, chat } = req.query;
+  if (!phone || !name || !chat) {
+    return res.status(400).json({ error: "Phone, Name, and Chatbot are required" });
+  }
+
+  try {
+    const token = generateSimpleToken(); // Wygeneruj token
+    const expiresAt = Date.now() + 15 * 60 * 1000; // Ustaw czas wygaśnięcia na 15 minut od teraz
+    tokenStore[token] = { phone, name, chat, expiresAt }; // Przechowaj token wraz z numerem telefonu i nazwą
+    res.json({ token });
+  } catch (error) {
+    console.error("Error generating token:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Zaktualizowano /validate-token
+app.get("/validate-token", (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: "Token is required" });
+
+  try {
+    const data = tokenStore[token];
+    if (!data) throw new Error("Token not found");
+
+    if (Date.now() > data.expiresAt) {
+      delete tokenStore[token]; // Usuń wygasły token
+      throw new Error("Token has expired");
+    }
+
+    res.json(data); // Odpowiedz z telefonem, imieniem i chatbotem
+  } catch (error) {
+    console.error("Invalid token:", error);
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+});
+
+// Sprawdź, czy numer telefonu istnieje
+app.get("/check-phone/:phone", (req, res) => {
+  const { phone } = req.params;
+  const { chatBotNumber } = req.query;
+
+  if (!chatBotNumber) {
+    return res.status(400).json({ error: "Chatbot number is required" });
+  }
+
+  const db = readDatabase();
+  const appointment = db.appointments.find(
+    (a) => a.phone === phone && a.chatBotNumber === chatBotNumber
+  );
+
+  if (appointment) {
+    res.json({ exists: true, appointment });
+  } else {
+    res.json({ exists: false });
+  }
+});
+
+// Dodaj lub zaktualizuj przypomnienie
+const addOrUpdateReminder = (appointment) => {
+  const db = readDatabase();
+  const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`);
+  const alertTime = new Date(appointmentDateTime.getTime() - 60 * 60 * 1000); // 1 godzina przed
+
+  const existingIndex = db.reminders.findIndex((r) => r.appointmentId === appointment.id);
+
+  if (existingIndex >= 0) {
+    // Zaktualizuj istniejące przypomnienie
+    db.reminders[existingIndex].alertTime = alertTime;
+    db.reminders[existingIndex].status = "pending";
+  } else {
+    // Dodaj nowe przypomnienie
+    db.reminders.push({
+      appointmentId: appointment.id,
+      alertTime,
+      status: "pending"
+    });
+  }
+
+  writeDatabase(db);
+};
+
+// Prześlij lub zaktualizuj rezerwację
+app.post("/submit-booking", (req, res) => {
+  const { name, phone, service, time, date, notes, token } = req.body;
+
+  if (!name || !phone || !service || !time || !date) {
+    return res.status(400).json({ error: "All fields are required!" });
+  }
+  
+  // Pobierz numer chatbota z tokena
+  const chatBotNumber = tokenStore[token]?.chat;
+  if (!chatBotNumber) {
+    return res.status(401).json({ error: "Invalid token or missing chatbot number" });
+  }
+
+  const db = readDatabase();
+  const existingIndex = db.appointments.findIndex((a) => a.phone === phone && a.chatBotNumber === chatBotNumber);
+
+  // Generuj unikalne ID wizyty używając znacznika czasu i losowego ciągu znaków
+  const appointmentId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  const appointment = {
+    id: appointmentId,
+    name,
+    phone,
+    service,
+    time,
+    date,
+    notes,
+    chatBotNumber: chatBotNumber
+  };
+
+  if (existingIndex >= 0) {
+    db.appointments[existingIndex] = appointment; // Zaktualizuj istniejące spotkanie
+  } else {
+    db.appointments.push(appointment); // Dodaj nowe spotkanie
+  }
+  writeDatabase(db);
+  addOrUpdateReminder(appointment);
+  delete tokenStore[token]; // Usuń token po użyciu
+
+  res.json({ message: "Appointment saved successfully!", appointment });
+});
+
+// Zmodyfikuj istniejącą wizytę
+app.post("/modify-appointment", (req, res) => {
+  const { phone, name, service, time, date, notes, token } = req.body;
+
+  // Pobierz numer chatbota z tokena
+  const chatBotNumber = tokenStore[token]?.chat;
+  if (!chatBotNumber) {
+    return res.status(401).json({ error: "Invalid token or missing chatbot number" });
+  }
+
+  const db = readDatabase();
+  const appointmentIndex = db.appointments.findIndex((a) => a.phone === phone && a.chatBotNumber === chatBotNumber);
+
+  if (appointmentIndex === -1) {
+    return res.status(404).json({ error: "Appointment not found!" });
+  }
+
+  const updatedAppointment = {
+    ...db.appointments[appointmentIndex],
+    name,
+    service,
+    time,
+    date,
+    notes,
+  };
+
+  db.appointments[appointmentIndex] = updatedAppointment;
+  addOrUpdateReminder(updatedAppointment);
+  writeDatabase(db);
+
+  delete tokenStore[token]; // Usuń token po pomyślnej modyfikacji
+
+  res.json({ message: "Appointment updated successfully!" });
+});
+
+// Endpoint do pobierania wizyty według numeru telefonu
+app.get("/appointment/:phone", (req, res) => {
+  const { phone } = req.params;
+  const { chatBotNumber } = req.query;
+
+  if (!chatBotNumber) {
+    return res.status(400).json({ error: "Chatbot number is required" });
+  }
+
+  const db = readDatabase();
+  const appointment = db.appointments.find(
+    (a) => a.phone === phone && a.chatBotNumber === chatBotNumber
+  );
+
+  if (appointment) {
+    res.status(200).json(appointment); // Zwróć szczegóły wizyty
+  } else {
+    res.status(404).json({ error: "Appointment not found!" }); // Obsłuż brak znalezienia
+  }
+});
+
+// Usuń przypomnienie
+const removeReminder = (phone) => {
+  const db = readDatabase();
+  db.reminders = db.reminders.filter((r) => r.appointmentId !== phone);
+  writeDatabase(db);
+};
+
+// Anuluj wizytę
+app.post("/cancel-appointment", (req, res) => {
+  const { phone, token } = req.body;
+
+  if (!tokenStore[token]?.chat) {
+    return res.status(401).json({ error: "Invalid token or missing chatbot number" });
+  }
+
+  const db = readDatabase();
+  const appointmentIndex = db.appointments.findIndex(
+    (a) => a.phone === phone && a.chatBotNumber === tokenStore[token].chat
+  );
+
+  if (appointmentIndex === -1) {
+    return res.status(404).json({ error: "Appointment not found!" });
+  }
+
+  db.appointments.splice(appointmentIndex, 1); // Usuń wizytę
+  writeDatabase(db);
+  removeReminder(phone);
+
+  delete tokenStore[token]; // Usuń token po pomyślnym anulowaniu
+  res.json({ message: "Appointment canceled successfully!" });
+});
+
+// Scentralizowany obsługiwacz błędów
+app.use((err, req, res, next) => {
+  console.error("Error occurred:", err.message);
+  res.status(500).json({ error: "Internal Server Error" });
+});
+
+// Uruchom serwer
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

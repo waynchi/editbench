@@ -1,0 +1,243 @@
+import pytest
+import yaml
+from collections import Counter
+import numpy as np
+from scipy import stats
+from fastapi.testclient import TestClient
+from app import fastapp  # Importuj istniejącą instancję aplikacji FastAPI
+from src.utils import get_settings
+
+
+@pytest.fixture(scope="session")
+def fast_app():
+    """Pobierz instancję FastAPIApp z istniejącej aplikacji"""
+    return fastapp
+
+
+@pytest.fixture(scope="session")
+def n_trials():
+    """Liczba prób do testowania rozkładu"""
+    return 300000
+
+
+def get_ground_truth_probabilities():
+    """Wyodrębnij rzeczywiste prawdopodobieństwa z pliku konfiguracyjnego YAML. Zwraca słownik z nazwami modeli i ich znormalizowanymi prawdopodobieństwami."""
+    # Odczytaj plik YAML
+    config = get_settings()
+
+    # Wyodrębnij wagi dla aktywnych modeli (nie zakomentowanych)
+    model_weights = {
+        model_name: model_info["weight"]
+        for model_name, model_info in config["models"].items()
+    }
+
+    # Oblicz całkowitą wagę do normalizacji
+    total_weight = sum(model_weights.values())
+
+    # Oblicz znormalizowane prawdopodobieństwa
+    probabilities = {
+        model_name: weight / total_weight
+        for model_name, weight in model_weights.items()
+    }
+
+    return probabilities
+
+
+def calculate_expected_paired_probabilities(ground_truth_probs):
+    """Oblicz oczekiwane prawdopodobieństwa przy próbkowaniu par bez zwracania.
+
+Dla każdego modelu M, jego całkowite prawdopodobieństwo to:
+P(M) = P(M wybrany pierwszy) + P(M wybrany drugi)
+= P(M pierwszy) + suma[P(inny pierwszy) * P(M drugi | inny pierwszy)]"""
+    models = list(ground_truth_probs.keys())
+    n_models = len(models)
+    adjusted_probs = {}
+
+    for model in models:
+        prob = 0
+        # Prawdopodobieństwo bycia wybranym jako pierwszy
+        prob_first = ground_truth_probs[model]
+
+        # Prawdopodobieństwo bycia wybranym jako drugi
+        for other_model in models:
+            if other_model != model:
+                # Jeśli other_model jest wybrany jako pierwszy (prob_first_other),
+                # wtedy prawdopodobieństwo wyboru modelu jako drugiego to jego waga podzielona przez
+                # suma wszystkich wag z wyjątkiem wagi other_model
+                prob_first_other = ground_truth_probs[other_model]
+                remaining_weight = sum(
+                    ground_truth_probs[m] for m in models if m != other_model
+                )
+                prob_second_given_first = ground_truth_probs[model] / remaining_weight
+                prob += prob_first_other * prob_second_given_first
+
+        # Całkowite prawdopodobieństwo to suma bycia wybranym jako pierwszy lub drugi
+        total_prob = prob_first + prob
+        adjusted_probs[model] = total_prob
+
+    # Normalizuj prawdopodobieństwa
+    total = sum(adjusted_probs.values())
+    return {model: prob / total for model, prob in adjusted_probs.items()}
+
+
+def test_model_distribution(fast_app, n_trials):
+    """Sprawdź, czy rozkład wyborów poszczególnych modeli odpowiada oczekiwanym prawdopodobieństwom"""
+    # Pobierz rzeczywiste prawdopodobieństwa z konfiguracji
+    ground_truth_probs = get_ground_truth_probabilities()
+
+    # Oblicz dostosowane prawdopodobieństwa dla próbkowania parami
+    expected_probs = calculate_expected_paired_probabilities(ground_truth_probs)
+
+    # Zbierz próbki - zlicz każdy model indywidualnie
+    selected_models = []
+    for _ in range(n_trials):
+        models, _, _ = fast_app.select_models(tags=[])
+        selected_models.extend(models)
+
+    # Zlicz wystąpienia każdego modelu
+    model_counts = Counter(selected_models)
+
+    # Oblicz całkowitą liczbę wyborów (2 modele na próbę)
+    total_selections = n_trials * 2
+
+    # Wydrukuj analizę
+    print("\nModel Distribution Analysis:")
+    print("\nProbability Comparison:")
+    print(
+        f"{'Model':<30} {'Original':<12} {'Adjusted':<12} {'Observed':<12} {'Diff %':<10}"
+    )
+    print("-" * 75)
+
+    # Przygotuj tablice do testu chi-kwadrat
+    observed_freqs = []
+    expected_freqs = []
+
+    for model in sorted(ground_truth_probs.keys()):
+        original_prob = ground_truth_probs[model]
+        expected_prob = expected_probs[model]
+        observed_count = model_counts[model]
+        observed_prob = observed_count / total_selections
+        diff_percent = ((observed_prob - expected_prob) / expected_prob) * 100
+
+        print(
+            f"{model:<30} {original_prob:>11.4f} {expected_prob:>11.4f} "
+            f"{observed_prob:>11.4f} {diff_percent:>+9.1f}%"
+        )
+
+        # Dodaj do tablic dla testu chi-kwadrat
+        expected_freqs.append(expected_prob * total_selections)
+        observed_freqs.append(observed_count)
+
+    # Przeprowadź test chi-kwadrat
+    chi2, p_value = stats.chisquare(observed_freqs, expected_freqs)
+
+    print("\nStatistical Analysis:")
+    print(f"Total selections: {total_selections}")
+    print(f"Chi-square statistic: {chi2:.4f}")
+    print(f"P-value: {p_value:.4f}")
+
+    # Sprawdź, czy wartość p jest powyżej progu
+    assert (
+        p_value > 0.05
+    ), f"Distribution of selected models differs significantly from expected (p={p_value:.4f})"
+
+
+def test_tag_filtering(fast_app):
+    """Testuj, czy wybór modelu respektuje filtrowanie tagów"""
+    # Test z konkretnym tagiem
+    test_tag = list(fast_app.tag_to_models.keys())[0]  # Pobierz pierwszy dostępny tag
+    tagged_models = fast_app.tag_to_models[test_tag]
+
+    # Próbkuj wielokrotnie z użyciem tagu
+    for _ in range(100):
+        models, client1, client2 = fast_app.select_models(tags=[test_tag])
+        # Sprawdź, czy wybrane modele mają wymagany tag
+        assert all(
+            model in tagged_models for model in models
+        ), f"Selected models {models} don't all have tag {test_tag}"
+
+
+def test_different_models(fast_app):
+    """Testuj, czy select_models zawsze zwraca dwa różne modele"""
+    for _ in range(100):
+        models, _, _ = fast_app.select_models(tags=[])
+        assert len(set(models)) == 2, f"Selected models {models} are not unique"
+
+
+def test_empty_tags_uses_all_models(fast_app):
+    """Testuj, czy pusta lista tagów używa wszystkich dostępnych modeli"""
+    all_models = set()
+    n_trials = 1000
+
+    # Przeprowadź wiele prób, aby upewnić się, że widzimy wszystkie możliwe modele
+    for _ in range(n_trials):
+        models, _, _ = fast_app.select_models(tags=[])
+        all_models.update(models)
+
+    # Sprawdź, czy widzieliśmy wszystkie dostępne modele
+    assert all_models == set(
+        fast_app.models
+    ), f"Not all models were selected. Missing: {set(fast_app.models) - all_models}"
+
+
+def test_model_client_mapping(fast_app):
+    """Sprawdź, czy zwróceni klienci odpowiadają wybranym modelom"""
+    for _ in range(100):
+        models, client1, client2 = fast_app.select_models(tags=[])
+
+        # Sprawdź, czy klienci pasują do swoich odpowiednich modeli
+        assert (
+            models[0] in client1.models
+        ), f"Client 1 doesn't support model {models[0]}"
+        assert (
+            models[1] in client2.models
+        ), f"Client 2 doesn't support model {models[1]}"
+
+
+def test_model_position_distribution(fast_app, n_trials):
+    """Testuj, czy każdy model pojawia się mniej więcej równie często na pierwszej i drugiej pozycji"""
+    # Śledź pozycje dla każdego modelu
+    position_counts = {}  # {model: [liczba_pierwszych_pozycji, liczba_drugich_pozycji]}
+
+    # Zbieraj próbki
+    for _ in range(n_trials):
+        models, _, _ = fast_app.select_models(tags=[])
+
+        # Zainicjuj liczniki dla nowych modeli
+        for model in models:
+            if model not in position_counts:
+                position_counts[model] = [0, 0]
+
+        # Zliczaj pozycje (indeks 0 dla pierwszej pozycji, 1 dla drugiej pozycji)
+        position_counts[models[0]][0] += 1
+        position_counts[models[1]][1] += 1
+
+    # Drukuj i analizuj wyniki
+    print("\nPosition Distribution Analysis:")
+    print(f"{'Model':<30} {'First Pos %':<12} {'Second Pos %':<12} {'Diff %':<10}")
+    print("-" * 65)
+
+    # Dla każdego modelu wykonaj analizę rozkładu pozycji
+    for model in sorted(position_counts.keys()):
+        first_count = position_counts[model][0]
+        second_count = position_counts[model][1]
+        total_count = first_count + second_count
+
+        if total_count == 0:
+            continue
+
+        first_percent = (first_count / total_count) * 100
+        second_percent = (second_count / total_count) * 100
+        diff_percent = first_percent - second_percent
+
+        print(
+            f"{model:<30} {first_percent:>11.1f} {second_percent:>11.1f} "
+            f"{diff_percent:>+9.1f}"
+        )
+
+        # Zamiast testu statystycznego, po prostu sprawdź, czy pierwszy procent jest w granicach 2% od 50%
+        assert abs(first_percent - 50) <= 2, (
+            f"Model {model} shows significant position bias "
+            f"(first position: {first_percent:.1f}%, second position: {second_percent:.1f}%). "
+            "Difference from 50% exceeds 2%."
+        )

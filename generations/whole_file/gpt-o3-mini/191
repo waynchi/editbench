@@ -1,0 +1,111 @@
+import os
+import json
+import sys
+import re
+from   tkinter import *
+from   tkinter import filedialog
+from   tkinter import messagebox as mb
+import eel
+import tasks
+import datetime
+
+@eel.expose
+def loadJSONFile(initialdir):
+    root = Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    file_path = filedialog.askopenfilename(title="Выберите JSON файл для загрузки",filetypes=[("JSON files", "*.json"), ("All files", "*.*")],initialdir=initialdir)
+    if file_path:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+            return data
+        except Exception as e:
+            print(f"Ошибка при загрузке JSON файла: {e}")
+            return None
+    else:
+        print("Файл не выбран.")
+        return None
+
+@eel.expose
+def saveJSONFile(json_data):
+    root = Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    file_path = filedialog.asksaveasfilename(title="Сохранить JSON файл как",defaultextension=".json",filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
+    if file_path:
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(json_data, file, ensure_ascii=False, indent=4)
+            print(f"JSON файл успешно сохранен: {file_path}")
+        except Exception as e:
+            print(f"Ошибка при сохранении JSON файла: {e}")
+    else:
+        print("Файл не выбран.")
+
+@eel.expose
+def select_file(title,patterns,initialdir):
+    patterns=patterns or ['*.*']
+    filetypes = [ [p,p.split('/')[-1]] for p in patterns]
+    regex     = [ p.split('/')[0] for p in patterns if len(p.split('/'))==2 ]
+    root = Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    while  True:
+        file     = filedialog.askopenfilename(filetypes=filetypes,title=title,initialdir=initialdir)
+        if not file or not regex: break
+        folder=file.replace('\\','/').split('/')[-2]
+        for r in regex:
+            if re.match(r, folder):
+                return file
+        mb.showerror("Ошибка",f"Папка не соответствует паттерну {','.join(regex)}. \nПовторите выбор файла")
+    return file
+
+@eel.expose
+def save_task(taskData,taskName,settings):
+    try:
+        return tasks.save_task(taskData,taskName,settings),0
+    except Exception as e:
+        return  0,str(e)
+
+# 编写 get_task_list 以从文件夹 settings['taskPath'] 中获取 *.xml 文件的名称列表。
+# 每个文件的第一行可选地记录一行：<!-- comment -->
+# 将答案表示为对象列表的格式 {fileName, comment, file_date_str}
+@eel.expose
+def get_task_list(settings):
+    task_list = []
+    path = settings.get('taskPath', '')
+    try:
+        # 获取目录中所有 .xml 文件的列表
+        for file in os.listdir(path):
+            if file.endswith('.xml'):
+                file_path = os.path.join(path, file)
+                comment = ""
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        first_line = f.readline().strip()
+                        if first_line.startswith("<!--") and first_line.endswith("-->"):
+                            comment = first_line[4:-3].strip()
+                except Exception as e:
+                    print(f"Ошибка при чтении файла {file_path}: {e}")
+                mod_time = os.path.getmtime(file_path)
+                file_date_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
+                task_list.append({
+                    'fileName': file,
+                    'comment': comment,
+                    'file_date_str': file_date_str
+                })
+        return task_list
+    except Exception as e:
+        print(f"Error getting task list: {e}")
+        return []
+
+
+if __name__ == "__main__":
+    options={'mode':'chrome'}
+    for i in range(2,len(sys.argv),2):
+        if sys.argv[i-1]=='mode':  options['mode']=sys.argv[i]
+
+    eel.init('web')
+    eel.start('index.html', **options) # , host='localhost', port=8000, size=(1280,800), cmdline_args=['--start-fullscreen'])
+    # eel.start('index.html', mode='chrome-app', host='localhost', port=8000,cmdline_args=['--start-fullscreen'])

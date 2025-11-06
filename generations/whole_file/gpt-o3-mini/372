@@ -1,0 +1,53 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+
+# Utwórz sesję Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Przykład danych (zastąp swoimi rzeczywistymi danymi)
+data = [
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+
+# Utwórz DataFrame z danych pobranych z API
+# Nie wiem, jak przychodzą dane, ponieważ pochodzą z API. Najpierw muszę je przeanalizować.
+# W tym przykładzie korzystamy z requests do pobrania danych z przykładowego API, a następnie tworzymy DataFrame.
+api_url = "https://example.com/api/data"  # Zastąp prawdziwym URL API
+try:
+    response = requests.get(api_url)
+    response.raise_for_status()
+    api_data = response.json()
+    # Analiza struktury danych
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print("Struktura danych z API:", list(api_data[0].keys()))
+    else:
+        print("Otrzymano dane nie w formie listy lub lista jest pusta. Używam przykładowych danych.")
+        api_data = data
+except Exception as e:
+    print("Błąd pobierania danych z API:", e)
+    print("Używam przykładowych danych.")
+    api_data = data
+
+df = spark.createDataFrame(api_data)
+
+# Skonfiguruj połączenie z ADL2 używając tożsamości Microsoft ID
+# Nie jest konieczne podawanie poświadczeń jawnie w notebooku Synapse
+# Spark użyje zarządzanej tożsamości notebooka do uwierzytelniania.
+
+# Określ ścieżkę do kontenera i folderu w ADL2
+container_name = "<your_container_name>"  # Zastąp nazwą swojego kontenera
+folder_path = "<your_folder_path>"  # Zastąp ścieżką do folderu w kontenerze
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Zapisać DataFrame w formacie parquet w ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcjonalnie: odczytać plik parquet w celu weryfikacji
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Zatrzymać sesję Spark
+spark.stop()

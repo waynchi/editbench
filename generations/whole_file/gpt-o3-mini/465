@@ -1,0 +1,53 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-10, max_iter=None):
+    """
+    Resuelve el sistema lineal Ax = b utilizando el método de gradientes conjugados.
+    
+    Parámetros:
+      A       : matriz simétrica y definida positiva (numpy.array)
+      b       : vector de términos independientes (numpy.array)
+      x0      : vector inicial (numpy.array). Por defecto se usa el vector cero.
+      tol     : tolerancia para la convergencia
+      max_iter: número máximo de iteraciones (por defecto, el tamaño de b)
+    
+    Retorna:
+      x       : solución aproximada de Ax = b
+    """
+    import numpy as np
+
+    n = len(b)
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    if max_iter is None:
+        max_iter = n
+
+    r = b - A.dot(x)
+    p = r.copy()
+    rsold = np.dot(r, r)
+
+    for i in range(max_iter):
+        Ap = A.dot(p)
+        alpha = rsold / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rsnew = np.dot(r, r)
+        if np.sqrt(rsnew) < tol:
+            break
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+
+    return x
+
+
+if __name__ == '__main__':
+    import numpy as np
+
+    # Ejemplo de uso:
+    # Se crea una matriz simétrica definida positiva A y un vector b.
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    
+    # Se llama a la función de gradientes conjugados para resolver Ax = b.
+    solution = conjugate_gradient(A, b)
+    print("La solución es:", solution)

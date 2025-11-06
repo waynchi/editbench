@@ -1,0 +1,81 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+def is_own_author(autor: str):
+    return autor == 'subidu'
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies(replies: Comment):
+    pass
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+
+# Modified highlighted section:
+posts_generator = d.get_discussions("created", q, limit=6000)
+hierarchical_dict = {}
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    children_count = post['children']
+    X += 1
+    post_key = f"{post_author}/{post_permlink}"
+    post_entry = {
+        "author": post_author,
+        "permlink": post_permlink,
+        "children_count": children_count,
+        "replies": [],
+        "match_count": 0,
+        "post_iteration": X,
+    }
+    if children_count > n_respuestas_minimas:
+        comment = Comment(authorperm=post_key)
+        replies_list = comment.get_replies()
+        for reply in replies_list:
+            reply_author = reply['author']
+            reply_body = reply['body']
+            
+            # Exclude replies by our own author or banned authors
+            if is_own_author(reply_author):
+                continue
+            if is_banned(reply_author):
+                continue
+            
+            match = False
+            if procesar(reply_body):
+                match = True
+                post_entry["match_count"] += 1
+            
+            reply_entry = {
+                "author": reply_author,
+                "permlink": reply['permlink'],
+                "body": reply_body,
+                "match": match
+            }
+            post_entry["replies"].append(reply_entry)
+    if post_entry["match_count"] > 3:
+        hierarchical_dict[post_key] = post_entry
+
+print(hierarchical_dict)

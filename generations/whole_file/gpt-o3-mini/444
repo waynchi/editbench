@@ -1,0 +1,16 @@
+from flask import Flask, render_template_string
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    # Se crea la aplicación Flask que muestra la fecha y hora actuales
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return render_template_string(
+        "<html><head><title>Fecha y Hora</title></head><body><h1>Fecha y Hora actuales: {{ time }}</h1></body></html>",
+        time=current_time
+    )
+
+if __name__ == '__main__':
+    app.run(debug=True)

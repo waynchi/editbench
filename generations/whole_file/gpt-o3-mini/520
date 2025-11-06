@@ -1,0 +1,90 @@
+import logging
+import os
+import asyncio
+import json
+from typing import Any, Dict, List
+from pydantic import BaseModel, Field
+from carvana_enzo_worker.models.session import Session
+from carvana_enzo_worker.enums.gpt_enums import GptModels, VertextAIModels
+from carvana_enzo_worker.providers.base.base_provider import BaseProvider
+from carvana_enzo_worker.providers.vertexai_claude_provider import VertexAIClaudeProvider
+from carvana_enzo_worker.providers.vertexai_gemini_provider import VertexAIGeminiProvider
+from carvana_enzo_worker.providers.azure_o1_provider import AzureOpenAIo1Provider
+from carvana_enzo_worker.providers.azure_gpt_provider import AzureOpenAIChatProvider
+
+# pylint: disable=W1203, C0415 [Usar formato %s en función de registro, importación fuera del nivel superior]
+
+logger = logging.getLogger(__name__)
+
+class LlmArenaTool(BaseModel):
+    """
+    A tool to generate and compare responses using multiple LLM's for a given prompt
+    """
+    query: List[str] = Field(..., description="The list of queries to generate responses for.")
+    models: List[str] = Field(..., description="A list of model names to use for generating chats.")
+    kwargs: Dict[str, Any] = Field({}, description="Additional keyword arguments for the LLMs.")
+
+    @staticmethod
+    async def generate_responses_for_models(queries: List[str], models: List[str], **kwargs: Any) -> List:
+        """
+        Use this tool to generate responses from multiple models for a given prompt, allowing you to compare and evaluate different outputs. 
+        It's ideal when a user wants to see how various models respond to the same input.
+
+        :param query: The list of queries to generate responses for
+        :param models: A list of model names to use for generating responses.
+        :param kwargs: Any additional arguments to pass to the function
+
+        :return: A list of generated responses.
+        """
+        event_id = kwargs.get("event_id", "")
+        session: Session = kwargs.get("session", None)
+
+        try:
+            if len(models) == 1:
+                # Agregar el modelo de asistente actual a la lista de modelos
+                assistant_model_info = session.assistant.get("model",{})
+                assistant_model_name = assistant_model_info.get("name") or assistant_model_info.get("model")
+                models.append(assistant_model_name)
+
+            providers = []
+            for model in models:
+                provider_for_model: BaseProvider = LlmArenaTool._get_provider_for_model(model, **kwargs)
+                providers.append(provider_for_model)
+
+            # combinar las consultas formando una sola cadena con números
+            questions = ". ".join(f"{i+1}. {query}" for i, query in enumerate(queries))
+
+            # Cargar el mensaje desde la sesión
+            prompt: List[Dict[str, str]] = json.loads(session.oai_prompt)
+            prompt[-1]["content"] = questions
+
+            responses: List = []
+            responses = await asyncio.gather(
+                *(provider.chat(event_id=event_id, messages=prompt, session=session, **session.oai_additional_args) for provider in providers),
+                return_exceptions=True
+            )
+
+            for i, response in enumerate(responses):
+                if isinstance(response, Exception):
+                    logger.error(f"Error generating response from {providers[i]}: {response}")
+                    responses[i] = f"Error generating response from {providers[i]}: {response}"
+            return responses
+        except Exception as e:
+            logger.error(f"An error occurred while generating responses: {e}")
+            return []
+    
+
+    @staticmethod
+    def _get_provider_for_model(model: str, **kwargs: Any) -> Any:
+        event_id = event_id = kwargs.get("event_id", "")
+
+        if model == VertextAIModels.CLAUDE_3_5_SONNET_V2.value:
+            return  VertexAIClaudeProvider(event_id=event_id, location=str(os.getenv("VERTEXAI_CLAUDE_REGION")), deployment_id=model)
+        
+        if model == VertextAIModels.GEMINI_2_0_FLASH_EXP.value:
+            return VertexAIGeminiProvider(event_id=event_id, location=str(os.getenv("VERTEXAI_GEMINI_REGION")), deployment_id=model)
+        
+        if model == GptModels.o1.value:
+            return AzureOpenAIo1Provider(event_id=event_id, deployment_id=model)
+        
+        return AzureOpenAIChatProvider(event_id=event_id, deployment_id=model)

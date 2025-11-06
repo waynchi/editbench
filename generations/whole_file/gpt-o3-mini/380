@@ -1,0 +1,133 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Tworzy macierz o rozmiarze rows x cols, wypełnioną wartością fill_value.
+    
+    Parametry:
+        rows (int): liczba wierszy.
+        cols (int): liczba kolumn.
+        fill_value (dowolny typ): wartość do wypełnienia macierzy.
+    
+    Zwraca:
+        list: macierz w postaci listy list.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Dodaje dwie macierze o tym samym rozmiarze.
+
+    Parametry:
+        matrix_a (list): pierwsza macierz.
+        matrix_b (list): druga macierz.
+    
+    Zwraca:
+        list: wynik dodawania macierzy.
+    """
+    rows = len(matrix_a)
+    cols = len(matrix_a[0])
+    result = create_matrix(rows, cols)
+    for i in range(rows):
+        for j in range(cols):
+            result[i][j] = matrix_a[i][j] + matrix_b[i][j]
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Mnoży wszystkie elementy macierzy przez skalar.
+
+    Parametry:
+        matrix (list): macierz źródłowa.
+        scalar (float): liczba, przez którą mnożone są elementy macierzy.
+    
+    Zwraca:
+        list: wynik mnożenia macierzy przez skalar.
+    """
+    rows = len(matrix)
+    cols = len(matrix[0])
+    result = create_matrix(rows, cols)
+    for i in range(rows):
+        for j in range(cols):
+            result[i][j] = matrix[i][j] * scalar
+    return result
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Mnoży dwie macierze.
+
+    Parametry:
+        matrix_a (list): pierwsza macierz.
+        matrix_b (list): druga macierz.
+    
+    Zwraca:
+        list: wynik mnożenia macierzy.
+    """
+    # Sprawdzenie możliwości mnożenia macierzy
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0])
+    rows_b = len(matrix_b)
+    cols_b = len(matrix_b[0])
+    
+    if cols_a != rows_b:
+        raise ValueError("Liczba kolumn w matrix_a musi być równa liczbie wierszy w matrix_b")
+
+    # Inicjalizacja wyniku
+    result = create_matrix(rows_a, cols_b, 0)
+    
+    # Mnożenie macierzy
+    for i in range(rows_a):
+        for j in range(cols_b):
+            sum_val = 0
+            for k in range(cols_a):
+                sum_val += matrix_a[i][k] * matrix_b[k][j]
+            result[i][j] = sum_val
+            
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Transponuje macierz.
+
+    Parametry:
+        matrix (list): macierz źródłowa.
+    
+    Zwraca:
+        list: macierz transponowana.
+    """
+    if not matrix or not matrix[0]:
+        return []
+        
+    rows = len(matrix)
+    cols = len(matrix[0])
+    result = create_matrix(cols, rows)
+    
+    for i in range(rows):
+        for j in range(cols):
+            result[j][i] = matrix[i][j]
+    return result
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Oblicza wyznacznik macierzy 3x3.
+
+    Parametry:
+        matrix (list): macierz źródłowa o rozmiarze 3x3.
+    
+    Zwraca:
+        float: wyznacznik macierzy.
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("Macierz musi mieć rozmiar 3x3")
+    
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+    
+    det = (a11 * (a22 * a33 - a23 * a32)
+           - a12 * (a21 * a33 - a23 * a31)
+           + a13 * (a21 * a32 - a22 * a31))
+    return det

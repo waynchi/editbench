@@ -1,0 +1,34 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    def is_digit(input: str, start_pos) -> bool:
+        '''Devuelve la posición final del token si la entrada es un token de entero válido, de lo contrario devuelve -1'''
+        DIGITS = set("0123456789")
+        # imprimir(DIGITS)
+
+        return input[start_pos] in DIGITS
+    
+def is_int(input: str, start_pos) -> int:
+    max_pos = len(input)
+    current_pos = start_pos
+    digit_found = False
+
+    # Usar el método incorporado isdigit() de Python en lugar de IntegerToken.is_digit
+    while current_pos < max_pos:
+        if not input[current_pos].isdigit():
+            break
+        digit_found = True
+        current_pos += 1
+
+    assert digit_found, "Not an integer"
+    return current_pos
+
+if __name__=="__main__":
+    # imprimir(IntegerToken.is_digit("1234", 0))
+    # print(IntegerToken.is_digit("a123", 0))
+    print(IntegerToken.is_int("1234", 0))
+    print(IntegerToken.is_int("a123", 0))

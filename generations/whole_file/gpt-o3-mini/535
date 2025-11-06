@@ -1,0 +1,47 @@
+from dataclasses import dataclass
+import numpy as np
+norm = np.random.normal
+
+
+
+@dataclass
+class NeuralNetwork:
+  # es lo mismo que __init__
+  inp: ... # nodos de entrada (número de neuronas en la entrada, es decir, número de entradas)
+  hid: ... # nodos ocultos (número de neuronas en el intermedio, es decir, cuántos números procesamos en el intermedio)
+  out: ... # nodos de salida (número de neuronas de salida, es decir, números en la salida)
+  lr:  ... # tasa de aprendizaje (coeficiente de suavizado alfa)
+  act: ... # función de activación (dependencia de la salida de la neurona de la entrada en la neurona)
+  epo: ... # épocas (número de épocas de las neuronas)
+
+  # método dataclass
+  def __post_init__(self): # generar pesos
+    self.wih = norm(0., 1.0/np.sqrt(self.inp), (self.hid, self.inp))
+    self.who = norm(0., 1.0/np.sqrt(self.hid), (self.out, self.hid))
+
+  def train(self, x, y):
+    x = np.array(x, ndmin=2).T
+    y = np.array(y, ndmin=2).T
+
+    ho = self.act(self.wih @ x)  # salidas ocultas
+    fo = self.act(self.who @ ho) # salidas finales
+    oe = y - fo            # errores de salida
+    he = self.who.T @ oe      # errores ocultos
+    self.who += self.lr * (oe * fo * (1. - fo)) @ ho.T
+    self.wih += self.lr * (he * ho * (1. - ho)) @ x.T
+
+  def query(self, x):
+    x = np.array(x, ndmin=2).T
+    return self.act(self.who @ self.act(self.wih @ x))
+
+  def fit(self, X, y):
+    for e in range(self.epo):
+      for i in range(len(y)):
+        self.train(X[i], y[i])
+
+  def predict(self, X):
+    return np.array([np.argmax(self.query(x)) for x in X])
+
+  def score(self, X, y):
+    y = np.array([np.argmax(i) for i in y])
+    return (self.predict(X) == y).mean()

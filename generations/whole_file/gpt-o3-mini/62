@@ -1,0 +1,79 @@
+import tkinter as tk
+from tkinter import ttk
+from tkinter import colorchooser
+
+def create_paint_canvas():
+    root = tk.Tk()
+    root.title("Painting Canvas")
+
+    # Create toolbar frame
+    toolbar = tk.Frame(root, bd=1, relief=tk.RAISED)
+    toolbar.pack(side=tk.TOP, fill=tk.X)
+
+    # Brush size control
+    size_label = tk.Label(toolbar, text="Brush Size:")
+    size_label.pack(side=tk.LEFT, padx=5)
+    brush_size = tk.Scale(toolbar, from_=1, to=20, orient=tk.HORIZONTAL)
+    brush_size.set(2)  # Default size
+    brush_size.pack(side=tk.LEFT, padx=5)
+
+    # Current color display and color picker
+    current_color = tk.StringVar(value="black")
+    color_display = tk.Label(toolbar, bg=current_color.get(), width=3)
+    color_display.pack(side=tk.LEFT, padx=5)
+
+    def choose_color():
+        color = colorchooser.askcolor(title="Choose brush color")[1]
+        if color:  # If a color was chosen (not cancelled)
+            current_color.set(color)
+            color_display.config(bg=color)
+
+    color_btn = tk.Button(toolbar, text="Choose Color", command=choose_color)
+    color_btn.pack(side=tk.LEFT, padx=5)
+
+    # Add this after the existing color picker button
+    bg_color = tk.StringVar(value="white")  # Store current background color
+    bg_display = tk.Label(toolbar, bg=bg_color.get(), width=3)
+    bg_display.pack(side=tk.LEFT, padx=5)
+
+    # Define ereaser function before using it
+    def ereaser():
+        current_color.set(bg_color.get())  # Set brush color to background color
+        color_display.config(bg=bg_color.get())
+
+    eraser_btn = tk.Button(toolbar, text="Eraser", command=ereaser)
+    eraser_btn.pack(side=tk.LEFT, padx=5)
+
+    def choose_background():
+        color = colorchooser.askcolor(title="Choose background color")[1]
+        if color:
+            bg_color.set(color)
+            bg_display.config(bg=color)
+            canvas.config(bg=color)
+
+    bg_btn = tk.Button(toolbar, text="Background Color", command=choose_background)
+    bg_btn.pack(side=tk.LEFT, padx=5)
+
+    # Create canvas
+    canvas = tk.Canvas(root, bg="white", width=800, height=600)
+    canvas.pack(expand=tk.YES, fill=tk.BOTH)
+
+    def clear_canvas():
+        canvas.delete("all")  # Removes all drawings from the canvas
+
+    # Clear canvas button
+    clear_btn = tk.Button(toolbar, text="Clear Canvas", command=clear_canvas)
+    clear_btn.pack(side=tk.LEFT, padx=5)
+
+    def paint(event):
+        size = brush_size.get()  # Get current brush size
+        x1, y1 = (event.x - size), (event.y - size)  # Calculate top-left corner of oval
+        x2, y2 = (event.x + size), (event.y + size)  # Calculate bottom-right corner of oval
+        canvas.create_oval(x1, y1, x2, y2, fill=current_color.get(), outline=current_color.get())  # Draw oval on canvas with current color
+
+    canvas.bind("<B1-Motion>", paint)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    create_paint_canvas()

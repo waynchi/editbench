@@ -1,0 +1,68 @@
+import React from 'react';
+import styles from './CharacterStatUI.module.css';
+import Sprite from '../sprite/Sprite';
+import SingleCharacterStatUI from '../single-character-stat-ui/SingleCharacterStatUI';
+import MockChild from '../mock-child/MockChild';
+
+const CharacterStatUI = ({ charName, level, wpn, hp, atk, spd, def, res }) => {
+    const characterStats = [
+        { characterStatType: 'NAME', characterStatValue: charName },
+        { characterStatType: 'LV', characterStatValue: level },
+        { characterStatType: 'WPN', characterStatValue: wpn },
+        { characterStatType: 'HP', characterStatValue: hp },
+        { characterStatType: 'ATK', characterStatValue: atk },
+        { characterStatType: 'SPD', characterStatValue: spd },
+        { characterStatType: 'DEF', characterStatValue: def },
+        { characterStatType: 'RES', characterStatValue: res },
+    ];
+
+    console.log('Character Stats:', {
+        charName,
+        level,
+        wpn,
+        hp,
+        atk,
+        spd,
+        def,
+        res
+    });
+
+    const characterStatsSlice1 = characterStats.slice(0, 4);
+    const characterStatsSlice2 = characterStats.slice(4);
+
+    return (
+        <div className={styles.characterTable}>
+            <div className={styles.characterCell}>
+                <MockChild componentName="CharacterStatPortrait" characterName="Alfonse">
+                    <Sprite spriteName="PortraitAlfonse" />
+                </MockChild>
+            </div>
+            <div className={styles.characterCell}>
+                {characterStatsSlice1.map((item, index) => (
+                    <SingleCharacterStatUI
+                        key={index}
+                        characterStatType={item.characterStatType}
+                        characterStatValue={item.characterStatValue}
+                        backgroundColor="white"
+                    />
+                ))}
+            </div>
+            <div className={styles.characterCell}>
+                {characterStatsSlice2.map((item, index) => (
+                    <SingleCharacterStatUI
+                        key={index}
+                        characterStatType={item.characterStatType}
+                        characterStatValue={item.characterStatValue}
+                        backgroundColor="white"
+                    />
+                ))}
+            </div>
+        </div>
+    );
+};
+
+export default CharacterStatUI;
+
+
+// 
+<Sprite spriteName="PortraitAlfonse" />

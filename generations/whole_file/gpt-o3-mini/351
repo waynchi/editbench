@@ -1,0 +1,43 @@
+import numpy as np
+
+# Choose one INPUT_FILE_PATH (the example file takes precedence)
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # Remove any empty lines and strip trailing whitespace.
+    lines = [line.strip() for line in lines if line.strip()]
+    # Split each line by three spaces and create a transposed NumPy array of integers.
+    try:
+        cols = [line.split("   ") for line in lines]
+        cols = np.array(cols).T.astype(int)
+    except Exception as e:
+        print("Error processing the input file:", e)
+        return
+
+    # Extract the two lists from the first two columns
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    # Instead of iteratively popping minimum elements, sort both lists
+    list_1.sort()
+    list_2.sort()
+
+    # Compute the total distance between corresponding pairs
+    total_distance = sum(abs(a - b) for a, b in zip(list_1, list_2))
+    print("Total distance:", total_distance)
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r', encoding='utf-8') as f:
+            lines = f.read().splitlines()
+        return lines
+    except FileNotFoundError:
+        print("Input file not found:", INPUT_FILE_PATH)
+        return []
+    except Exception as e:
+        print("Error reading the input file:", e)
+        return []
+
+if __name__ == "__main__":
+    main()

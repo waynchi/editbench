@@ -1,0 +1,108 @@
+class Table:
+    def __init__(self, data, types, copy_table=False):
+        assert set(map(type, data)) == {list}
+        assert len(set(data[0])) == len(data[0])
+        assert len(set(map(len, data))) == 1
+        assert len(data[0]) == len(types)
+        self.data = [line[:] for line in data] if copy_table else data
+        assert set(types.keys()) == set(self.data[0])
+        self.types = types
+    
+
+    def save_table(self, filename):
+        types = self.get_column_types()
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(str(self.data[0]) + "\n")
+            for row in self.data[1:]:
+                f.write(str([types[i](val) for i, val in enumerate(row)]) + "\n")
+            f.write(str([self.types[i] for i in self.data[0]]) + "\n")
+
+
+    def get_rows_by_number(self, start, stop=None, copy_table=False):
+        assert start > 0
+        if stop is None:
+            stop = start+1
+        else:
+            assert stop > start
+            stop += 1
+        return Table(self.data[:1] + self.data[start:stop], self.types)
+    
+
+    def get_rows_by_index(self, *vals, copy_table=False):
+        ids = self.get_values()
+        rows = [self.data[ids.index(val)+1] for val in vals]
+        return Table(self.data[:1] + rows, self.types, copy_table)
+    
+
+    def get_column_types(self, by_number=True):
+        if by_number:
+            return {i:self.types[val] for i, val in enumerate(self.data[0])}
+        else:
+            return self.types
+    
+
+    def set_column_types(self, types, by_number=True):
+        if by_number:
+            self.types = {self.data[0][i]: val for i, val in types.items()}
+        else:
+            self.types = types
+    
+
+    def get_values(self, column=0):
+        if not isinstance(column, int):
+            column = self.data[0].index(column)
+        return [self.get_column_types()[column](row[column]) for row in self.data[1:]]
+    
+
+    def get_value(self, column=0):
+        assert len(self.data) == 2
+        if not isinstance(column, int):
+            column = self.data[0].index(column)
+        return self.get_column_types()[column](self.data[1][column])
+    
+
+    def set_values(self, values, column=0):
+        if not isinstance(column, int):
+            column = self.data[0].index(column)
+        for i, value in enumerate(values):
+            self.data[i + 1][column] = value
+
+
+    def set_value(self, value, column=0):
+        assert len(self.data) == 2
+        if not isinstance(column, int):
+            column = self.data[0].index(column)
+        self.data[1][column] = value
+        
+
+    def concat(self, table):
+        assert self.data[0] == table.data[0]
+        assert self.types == table.types
+        data = self.data + table.data[1:]
+        return Table(data, self.types)
+    
+
+    def split(self, row_number):
+        return Table(self.data[:row_number], self.types), Table(self.data[:1] + self.data[row_number:], self.types)
+    
+
+    def add(self, col1, col2):
+        val1, val2 = self.get_values(col1), self.get_values(col2)
+        return [v1 + v2 for v1, v2 in zip(val1, val2)]
+    
+    def sub(self, col1, col2):
+        val1, val2 = self.get_values(col1), self.get_values(col2)
+        return [v1 - v2 for v1, v2 in zip(val1, val2)]
+    
+    def mul(self, col1, col2):
+        val1, val2 = self.get_values(col1), self.get_values(col2)
+        return [v1 * v2 for v1, v2 in zip(val1, val2)]
+    
+    def div(self, col1, col2):
+        val1, val2 = self.get_values(col1), self.get_values(col2)
+        return [v1 / v2 for v1, v2 in zip(val1, val2)]
+    
+    
+    def merge_tables(self, table, by_number=True):
+        data = [row+table[i if by_number else table.get_values().index(row[0])+1] for i, row in enumerate(self.data)]
+        return Table(data, {**self.types, **table.types})

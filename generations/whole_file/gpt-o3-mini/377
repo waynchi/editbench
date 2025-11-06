@@ -1,0 +1,39 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Pobierz katalog bieżącego skryptu
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Skonstruuj ścieżkę względną do chromedrivera
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+options.binary_location = chromedriver_path
+print("wde")
+# >>>>> Zmieniona sekcja <<<<<
+with uc.Chrome(options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # utwórz instancję ChromeOptions dla undetected_chromedriver
+    # zainicjalizuj niewykrywalny sterownik Chrome z określonymi opcjami
+    time.sleep(10)
+# <<<<< Koniec zmienionej sekcji <<<<<
+
+import time
+
+options = uc.ChromeOptions()
+options.binary_location = (
+    r"C:\Programming\Test\IP_Test\chromedriver-win64\chromedriver.exe"
+)
+print("wde")
+# >>>>> Zmieniona sekcja <<<<<
+with uc.Chrome(options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # utwórz instancję ChromeOptions dla undetected_chromedriver
+    # zainicjalizuj niewykrywalny sterownik Chrome z określonymi opcjami
+    time.sleep(10)
+# <<<<< Koniec zmienionej sekcji <<<<<

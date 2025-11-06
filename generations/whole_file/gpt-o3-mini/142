@@ -1,0 +1,26 @@
+import numpy as np
+from pathlib import Path
+from typing import List
+
+INPUT_FILE_PATH = Path('./input.txt')
+EXAMPLE_FILE_PATH = Path('./example_in.txt')
+
+def parse_input_file(file_path: Path) -> List[str]:
+    """读取并解析输入文件为字符串列表。"""
+    return file_path.read_text().splitlines()
+
+def calculate_distances(array1: np.ndarray, array2: np.ndarray) -> int:
+    """计算排序数组之间绝对差值的总和。"""
+    sorted1 = np.sort(array1)
+    sorted2 = np.sort(array2)
+    return np.sum(np.abs(sorted1 - sorted2))
+
+def main():
+    file_path = EXAMPLE_FILE_PATH
+    lines = parse_input_file(file_path)
+    cols = np.array([line.split("   ") for line in lines], dtype=int).T
+    result = calculate_distances(cols[0], cols[1])
+    print(f"Sum of distances: {result}")
+
+if __name__ == "__main__":
+    main()

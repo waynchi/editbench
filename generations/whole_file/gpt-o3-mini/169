@@ -1,0 +1,42 @@
+# 包含所有照片的文件夹/用于训练的照片文件夹
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# 读取目录名称，这些名称就是日食的类型
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# 用于验证的照片文件夹
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# 用于测试的照片文件夹
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# 验证集中图像的比例
+VAL_FRAC = 0.3
+
+# 为每种类型的日食创建验证集目录。
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # 读取图像样本。
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+
+    # 对图像进行排序以确保确定性
+    images_filename = sorted(os.listdir(eclipse_path))
+
+    # 提取部分图像用于验证
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+
+    # 使用 numpy 的随机生成器进行随机采样以确定验证图像
+    rng = np.random.default_rng(42)
+    indices = rng.choice(num_images, size=num_val, replace=False)
+    val_images = [images_filename[i] for i in indices]
+
+    print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+
+    # 保存验证集
+    for image_filename in val_images:
+        source = os.path.join(TRAIN_DIR, eclipse, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

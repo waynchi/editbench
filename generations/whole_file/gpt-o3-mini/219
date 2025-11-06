@@ -1,0 +1,97 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                              std=[0.229, 0.224, 0.225])
+        ])
+    def create_unrelated_pairs(self, image_text_pairs):
+        """通过打乱文本描述来创建不相关的图像-文本对"""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """使用释义数据集创建语义相似的文本对"""
+        dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+        textual_pairs = []
+        for item in dataset:
+            if item['is_duplicate'] == 1:
+                pair = (item['question1'], item['question2'])
+                textual_pairs.append(pair)
+        return textual_pairs[:self.sample_size]
+    def create_visual_pairs(self, image_text_pairs):
+        """创建增强的图像对，同时保持语义意义"""
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+        
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                augmented = augmentation_transforms(image)
+                visual_pairs.append((image, augmented))
+        return visual_pairs
+
+    def load_mscoco_dataset(self):
+        """加载和预处理 MSCOCO 数据集，并进行改进的过滤"""
+        dataset = load_dataset(
+            "shunk031/MSCOCO",
+            year=2014,
+            coco_task="captions",
+            split='train',
+            streaming=True
+        )
+        dataset = dataset.take(self.sample_size)
+
+        image_text_pairs = []
+        for item in dataset:
+            try:
+                # 根据长度选择最具描述性的标题
+                best_caption = max(item["captions"], key=len)
+                if len(best_caption.split()) >= 5:  # 过滤掉过短的标题
+                    image_text_pairs.append((item["image"], best_caption))
+            except FileNotFoundError as e:
+                print(f"Warning: {e}. Skipping this image.")
+                continue
+                
+        return image_text_pairs
+
+def main():
+    # 初始化数据集创建器
+    creator = AlignmentDatasetCreator(sample_size=100)
+    
+    # 加载和创建数据集
+    print("Loading MSCOCO dataset...")
+    image_text_pairs = creator.load_mscoco_dataset()
+    
+    print("Creating unrelated pairs...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+    
+    print("Creating textual pairs...")
+    textual_pairs = creator.create_textual_pairs()
+    
+    print("Creating visual pairs...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+    
+    # 从每个数据集中打印样本
+    print("Dataset Samples:")
+    print(f"Image-Text Pair: {image_text_pairs[0]}")
+    print(f"Unrelated Pair: {unrelated_pairs[0]}")
+    print(f"Textual Pair: {textual_pairs[0]}")
+    print(f"Visual Pair: {visual_pairs[0]}")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,41 @@
+# Folder ze wszystkimi zdjęciami / folder ze zdjęciami do treningu
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Odczytujemy nazwy katalogów, które są rodzajem zaćmienia
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# Folder ze zdjęciami do walidacji
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Folder z zdjęciami do testów
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Udział obrazów w walidacji
+VAL_FRAC = 0.3
+
+# Importujemy niezbędne narzędzie do losowego podziału zbioru
+from sklearn.model_selection import train_test_split
+
+# Tworzymy katalog z zestawem walidacyjnym dla każdego rodzaju zaćmienia.
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # Przetwarzamy zbiór obrazów.
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Sortujemy obrazy dla deterministyczności
+    images_filename = sorted(os.listdir(eclipse_path))
+    
+    # Dzielimy zbiór obrazów na train i val przy użyciu train_test_split
+    train_images, val_images = train_test_split(
+        images_filename, test_size=VAL_FRAC, random_state=42
+    )
+
+    print(f'{eclipse} | train images = {len(train_images)} | val images = {len(val_images)}')
+    
+    # Zapisujemy zbiór walidacyjny: kopiujemy obrazy walidacyjne i usuwamy je z zestawu treningowego.
+    for image_filename in val_images:
+        source = os.path.join(TRAIN_DIR, eclipse, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

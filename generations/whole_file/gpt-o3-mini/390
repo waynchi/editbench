@@ -1,0 +1,52 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, input_shape):  # Zmieniono argument na input_shape (np. (3, wysokość, szerokość))
+        super().__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.flatten = nn.Flatten()
+
+        # Oblicz rozmiar po spłaszczaniu automatycznie na podstawie input_shape
+        with torch.no_grad():
+            dummy = torch.zeros(1, *input_shape)
+            dummy = self.conv1(dummy)
+            dummy = self.conv2(dummy)
+            flattened_size = dummy.view(1, -1).size(1)
+
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+# Przykładowe użycie:
+if __name__ == "__main__":
+    # Przykładowy rozmiar wejściowego obrazu (3 kanały, 64x64 piksele)
+    input_shape = (3, 64, 64)
+    model = SimpleConvNet1(input_shape)
+    print(model)
+
+    # Test forward pass z losowym tensorem
+    x = torch.randn(1, *input_shape)
+    y = model(x)
+    print("Output shape:", y.shape)

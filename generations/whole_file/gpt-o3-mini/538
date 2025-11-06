@@ -1,0 +1,45 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # para l en lines:
+    # imprimir(l)
+    grid = np.array([list(line) for line in lines if line])
+    print(grid)
+    str_to_match = "XMAS"
+    count = 0
+    # Verificar horizontalmente
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Verificar verticalmente
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:,col])
+        count += col_str.count(str_to_match)
+
+    # Verificar diagonalmente (de arriba a la izquierda a abajo a la derecha)
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Comprobar diagonalmente (de arriba a la derecha a abajo a la izquierda)
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

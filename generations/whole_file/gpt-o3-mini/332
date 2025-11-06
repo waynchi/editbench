@@ -1,0 +1,323 @@
+import os
+import random
+import torch
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import precision_score, recall_score
+from torch.nn import functional as F
+from PIL import Image
+import matplotlib.pyplot as plt
+import seaborn as sns
+from colpali_engine.interpretability import (
+    get_similarity_maps_from_embeddings,
+    plot_all_similarity_maps,
+)
+
+
+# Путь к извлеченному набору данных Flickr8k
+FLICKR8K_IMAGES_PATH = "flickr8k/Images"
+FLICKR8K_CAPTIONS_PATH = "flickr8k/captions.txt"
+
+# Функция для загрузки пар изображение-текст из Flickr8k
+def load_flickr8k_data(images_path, captions_path, fraction=0.1):
+    # Прочитать файл с подписями
+    with open(captions_path, "r") as f:
+        captions_data = f.readlines()[1:]  # Пропустить заголовок
+
+    # Разобрать подписи
+    image_text_pairs = {}
+    for line in captions_data:
+        image_name, caption = line.strip().split(",", 1)
+        if image_name not in image_text_pairs:
+            image_text_pairs[image_name] = []
+        image_text_pairs[image_name].append(caption)
+
+    # Загрузить только часть набора данных
+    selected_images = random.sample(list(image_text_pairs.keys()), int(len(image_text_pairs) * fraction))
+    image_text_pairs = {k: image_text_pairs[k] for k in selected_images}
+
+    # Создать пары изображений и подписей
+    pairs = []
+    for image_name, captions in image_text_pairs.items():
+        image_path = os.path.join(images_path, image_name)
+        if os.path.exists(image_path):
+            pairs.append((Image.open(image_path), random.choice(captions)))
+    return pairs
+
+# Функция для создания несвязанных пар
+def create_unrelated_pairs(image_text_pairs):
+    """Создает несвязанные пары изображений и текстов, случайным образом перемешивая тексты.
+
+Аргументы:
+    image_text_pairs (list): Список кортежей, содержащих изображения и соответствующие им тексты.
+
+Возвращает:
+    list: Список кортежей, содержащих изображения и несвязанные тексты."""
+    images, texts = zip(*image_text_pairs)
+    unrelated_texts = random.sample(texts, len(texts))
+    return list(zip(images, unrelated_texts))
+
+
+def create_visual_pairs(image_text_pairs):
+    """Создает пары оригинальных и аугментированных изображений из пар изображение-текст.
+
+Эта функция принимает список пар изображение-текст и создает новые пары, состоящие из оригинальных изображений и их аугментированных версий. Аугментация, используемая в этой реализации, - это горизонтальное отражение.
+
+Аргументы:
+    image_text_pairs (list): Список кортежей, содержащих пары (изображение, текст), где изображения - это объекты PIL Image, а тексты - строки.
+
+Возвращает:
+    list: Список кортежей, содержащих пары (оригинальное изображение, аугментированное изображение), где оба элемента - это объекты PIL Image."""
+    from torchvision.transforms import ToTensor
+    images, _ = zip(*image_text_pairs)
+    augmented_images = [ToTensor()(image).flip(-1) for image in images]  # Пример аугментации: горизонтальное отражение
+    return list(zip(images, augmented_images))
+
+
+def get_embeddings(images, texts, model_id="google/siglip-base-patch16-224"):
+    """Получив списки изображений и текстов, возвращает нормализованные эмбеддинги для обоих."""
+    # Убедитесь, что texts является списком строк
+    if not all(isinstance(t, str) for t in texts):
+        raise ValueError("All text inputs must be strings.")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = AutoModel.from_pretrained(model_id, ignore_mismatched_sizes=True).to(device)
+    processor = AutoProcessor.from_pretrained(model_id)
+    
+    # Предобработка изображений и текстов
+    image_inputs = processor(images=images, return_tensors="pt").to(device)
+    text_inputs = processor(text=texts, return_tensors="pt", padding="max_length").to(device)
+    
+    with torch.no_grad():
+        image_embeds = model.get_image_features(**image_inputs)
+        text_embeds = model.get_text_features(**text_inputs)
+
+    # Нормализовать эмбеддинги
+    image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
+    text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+
+    return image_embeds, text_embeds
+
+
+def cosine_similarity_analysis(embeddings1, embeddings2, title):
+    """Вычисляет косинусное сходство для совпадающих и несвязанных пар и сравнивает распределения."""
+    similarities = cosine_similarity(embeddings1.cpu().numpy(), embeddings2.cpu().numpy())
+
+    # Совпадающие пары: диагональ матрицы сходства
+    matching_similarities = np.diag(similarities)
+
+    # Несвязанные пары: Вне диагональные сходства
+    unrelated_similarities = similarities[~np.eye(similarities.shape[0], dtype=bool)]
+
+    print(f"### {title} ###")
+    print(f"Mean Matching Similarity: {np.mean(matching_similarities):.4f}")
+    print(f"Mean Unrelated Similarity: {np.mean(unrelated_similarities):.4f}")
+    print()
+
+    # Построить распределения
+    plt.figure(figsize=(10, 6))
+    sns.histplot(matching_similarities, kde=True, label="Matching Pairs", color="blue", bins=30)
+    sns.histplot(unrelated_similarities, kde=True, label="Unrelated Pairs", color="red", bins=30)
+    plt.title(f"{title}: Cosine Similarity Distributions")
+    plt.xlabel("Cosine Similarity")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.show()
+
+# ## б. Извлечение ближайших соседей
+def retrieval_metrics(query_embeds, target_embeds, ground_truth_indices, k=5):
+    """Вычисляет Precision@k и Recall@k для поиска ближайших соседей.
+
+Эта функция оценивает эффективность поиска, вычисляя Precision@k и Recall@k. Precision@k измеряет точность топ-k найденных элементов, в то время как Recall@k измеряет способность найти релевантный элемент среди топ-k найденных элементов. Предполагается, что для каждого запроса существует только одно истинное совпадение.
+
+Аргументы:
+    query_embeds (torch.Tensor): Векторы запросов.
+    target_embeds (torch.Tensor): Векторы целевых данных (базы данных).
+    ground_truth_indices (list): Список индексов в целевых данных, представляющих истинные совпадения для каждого запроса.
+    k (int): Количество топовых результатов для рассмотрения.
+
+Возвращает:
+    tuple: Кортеж, содержащий средние значения Precision@k и Recall@k."""
+    similarities = cosine_similarity(query_embeds.cpu().numpy(), target_embeds.cpu().numpy())
+    sorted_indices = np.argsort(-similarities, axis=1)[:, :k]  # Индексы топ-k
+
+    # Вычислить метрики
+    precisions = []
+    recalls = []
+    for i, true_idx in enumerate(ground_truth_indices):
+        retrieved_indices = sorted_indices[i]
+        true_positives = int(true_idx in retrieved_indices)
+        precisions.append(true_positives / k)
+        recalls.append(true_positives / 1)  # Только одно истинное совпадение на запрос
+
+    mean_precision = np.mean(precisions)
+    mean_recall = np.mean(recalls)
+
+    return mean_precision, mean_recall
+
+def plot_query_token_importance(
+    pil_image,
+    similarity_maps,
+    query_tokens,
+    alpha: float = 0.5
+) -> None:
+    """Построить отдельную тепловую карту для каждого токена запроса в similarity_maps.
+
+Аргументы:
+    pil_image (PIL.Image.Image): Оригинальное изображение (например, загруженное через Image.open(...)).
+    similarity_maps (torch.Tensor): 
+        Форма = (num_query_tokens, n_patches_x, n_patches_y).
+    query_tokens (List[str]): Список строк для каждого токена в запросе.
+    alpha (float): Прозрачность для наложений тепловой карты (0=прозрачно, 1=непрозрачно)."""
+    # Преобразовать PIL в numpy
+    image_np = np.array(pil_image)
+    H, W = image_np.shape[:2]
+
+    num_tokens = similarity_maps.size(0)
+    assert num_tokens == len(query_tokens), (
+        f"The number of query tokens in similarity_maps ({num_tokens}) "
+        f"doesn't match the length of query_tokens list ({len(query_tokens)})."
+    )
+
+    fig, axs = plt.subplots(1, num_tokens, figsize=(5 * num_tokens, 5))
+    if num_tokens == 1:
+        # Если есть только один токен, axs не будет итерируемым объектом
+        axs = [axs]
+
+    for idx in range(num_tokens):
+        # Каждая карта сходства для одного токена запроса: форма = (n_patches_x, n_patches_y)
+        single_map = similarity_maps[idx]  # (количество_патчей_x, количество_патчей_y)
+
+        # Увеличить до полного размера изображения
+        single_map_4d = single_map.unsqueeze(0).unsqueeze(0)  # (1,1,n_patches_x, n_patches_y)
+        upsampled = F.interpolate(
+            single_map_4d,
+            size=(H, W),
+            mode='bilinear',
+            align_corners=False
+        )
+        
+        # .to(torch.float32) исправление, если ваша карта в формате bfloat16
+        heatmap = upsampled.squeeze().to(torch.float32).cpu().numpy()  # (H, W)
+
+        # При необходимости нормализуйте тепловую карту (раскомментируйте, если нужно)
+        # heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min() + 1e-8)
+
+        # Построить график
+        axs[idx].imshow(image_np, cmap=None if image_np.ndim == 3 else 'gray')
+        axs[idx].imshow(heatmap, cmap='jet', alpha=alpha)
+        axs[idx].set_title(f"Query: {query_tokens[idx]}")
+        axs[idx].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def get_maps_and_embeds(batch_images, batch_queries, model, processor, image, use_qwen=False):
+    """Получает карты сходства и эмбеддинги из пакетных изображений и запросов, используя заданную модель и процессор.
+
+Эта функция обрабатывает пакетные изображения и запросы через модель для получения эмбеддингов и карт сходства между ними. Она обрабатывает вычисление масок изображений и расчеты сходства на основе патчей.
+
+Аргументы:
+    batch_images: Пакетные входные изображения, обработанные процессором
+    batch_queries: Пакетные входные запросы, обработанные процессором  
+    model: Модель, используемая для вычисления эмбеддингов
+    processor: Процессор, используемый для предобработки изображений/текста
+
+Возвращает:
+    кортеж: Кортеж, содержащий:
+        - original_maps (torch.Tensor): Карты сходства между изображениями и запросами 
+            с формой (длина_запроса, n_pятен_x, n_пятен_y)
+        - original_image_embeddings: Эмбеддинги входных изображений
+        - original_query_embeddings: Эмбеддинги входных запросов"""
+    with torch.no_grad():
+        original_image_embeddings = model.forward(**batch_images)
+        original_query_embeddings = model.forward(**batch_queries)
+    if use_qwen:
+        n_patches = processor.get_n_patches(image_size=image.size, patch_size=model.patch_size, spatial_merge_size=model.spatial_merge_size)
+    else:
+        n_patches = processor.get_n_patches(image_size=image.size, patch_size=model.patch_size)
+    image_mask = processor.get_image_mask(batch_images)
+
+    # Вычислить исходные карты сходства
+    original_batched_maps = get_similarity_maps_from_embeddings(
+        image_embeddings=original_image_embeddings,
+        query_embeddings=original_query_embeddings,
+        n_patches=n_patches,
+        image_mask=image_mask,
+    )
+    original_maps = original_batched_maps[0]  # (длина_запроса, n_пятен_x, n_пятен_y)
+    return original_maps, original_image_embeddings, original_query_embeddings
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+import torch
+
+def visualize_token_map(image, original_maps, token_list, token_index=2, cmap="Greens"):
+    """Визуализировать исходное изображение, исходную карту и наложение изображения с измененной картой для определенного токена.
+
+Аргументы:
+    image (PIL.Image): Входное изображение.
+    original_maps (list или tensor): Коллекция карт для выбора.
+    token_list (list): Список токенов, соответствующих картам.
+    token_index (int, необязательно): Индекс токена для визуализации. По умолчанию 2.
+    cmap (str, необязательно): Цветовая карта для визуализации карты. По умолчанию "Greens"."""
+    # Преобразовать изображение в массив NumPy
+    image_np = np.array(image)
+
+    # Выберите карту, соответствующую токену
+    visual_map = original_maps[token_index]
+
+    # Преобразовать visual_map в массив NumPy, если это тензор
+    if isinstance(visual_map, torch.Tensor):
+        visual_map = visual_map.cpu().to(dtype=torch.float32).numpy()
+    elif not isinstance(visual_map, np.ndarray):
+        visual_map = np.array(visual_map)
+
+    # Преобразовать карту в изображение PIL
+    visual_map_pil = Image.fromarray(visual_map)
+
+    # Изменить размер с использованием NEAREST для сохранения «больших пикселей»
+    visual_map_pil = visual_map_pil.resize(
+        (image_np.shape[1], image_np.shape[0]),  # (ширина, высота)
+        resample=Image.NEAREST
+    )
+
+    # Преобразовать обратно в NumPy
+    resized_map = np.array(visual_map_pil)
+
+    # Создать фигуру с подграфиками
+    fig, axes = plt.subplots(1, 3, figsize=(15, 6))
+
+    # Отобразить необработанное изображение
+    axes[0].imshow(image_np)
+    axes[0].set_title("Raw Image")
+    axes[0].axis("off")
+
+    # Отобразить исходную карту с аннотациями значений на ней
+    im = axes[1].imshow(visual_map, cmap=cmap)
+    axes[1].set_title("Raw Map")
+    # Аннотировать каждую ячейку значением, округленным до двух знаков после запятой
+    for i in range(visual_map.shape[0]):
+        for j in range(visual_map.shape[1]):
+            axes[1].text(j, i, f"{visual_map[i, j]:.2f}", ha="center", va="center", color="white", fontsize=8)
+    axes[1].axis("off")
+
+    # Отобразить наложенный график
+    axes[2].imshow(image_np, alpha=1)
+    axes[2].imshow(resized_map, cmap=cmap, alpha=0.6)
+    axes[2].set_title("Overlay: Image + Map")
+    axes[2].axis("off")
+
+    # Добавить цветовую шкалу для наложения
+    cbar = fig.colorbar(plt.cm.ScalarMappable(cmap=cmap), ax=axes[2], shrink=0.8, orientation="vertical")
+    cbar.set_label("Map Intensity")
+
+    # Добавить заголовок с именем токена
+    plt.suptitle(f"Token: {token_list[token_index]}")
+
+    # Настроить компоновку и показать
+    plt.tight_layout()
+    plt.show()

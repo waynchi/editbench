@@ -1,0 +1,68 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def create_hierarchical_dict(posts_gen):
+    hierarchical = {}
+    X = 0
+    for post in posts_gen:
+        X += 1
+        post_author = post['author']
+        post_permlink = post['permlink']
+        hierarchical_key = f"{post_author}/{post_permlink}"
+        hierarchical[hierarchical_key] = {
+            "post": post,
+            "replies": []
+        }
+        post_replies_count = post['children']
+        cnt = 0
+        if post_replies_count > n_respuestas_minimas:
+            comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+            replies_list = comment.get_replies()
+            for reply in replies_list:
+                author = reply['author']
+                text = reply['body']
+                if is_own_author(author):
+                    # Reevaluate the comment
+                    break
+                if is_banned(author):
+                    break
+                if procesar(text):
+                    cnt += 1
+                hierarchical[hierarchical_key]["replies"].append(reply)
+        if cnt > 3:
+            print("Iterador: ", X)
+            if hierarchical[hierarchical_key]["replies"]:
+                last_reply = hierarchical[hierarchical_key]["replies"][-1]
+                print(last_reply['author'],'/', last_reply['permlink'])
+    return hierarchical
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+hierarchical_dict = create_hierarchical_dict(posts_generator)

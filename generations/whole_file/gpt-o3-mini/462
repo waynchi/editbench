@@ -1,0 +1,30 @@
+import random
+
+def obtener_palabras_por_longitud(n):
+    try:
+        with open('/usr/share/dict/words', 'r') as archivo:
+            palabras = [palabra.strip() for palabra in archivo if len(palabra.strip()) == n]
+    except IOError:
+        print("No se pudo abrir el diccionario.")
+        palabras = []
+    return palabras
+
+def main():
+    try:
+        n = int(input("Ingrese el número de caracteres: "))
+    except ValueError:
+        print("Entrada inválida. Debe ingresar un número entero.")
+        return
+
+    palabras_filtradas = obtener_palabras_por_longitud(n)
+    if not palabras_filtradas:
+        print(f"No se encontraron palabras de {n} caracteres en el diccionario.")
+        return
+
+    random.shuffle(palabras_filtradas)
+    print(f"\n10 palabras de {n} caracteres:")
+    for palabra in palabras_filtradas[:10]:
+        print(palabra)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,46 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self):  # 移除 flattened_size 参数，自动计算输出尺寸
+        super().__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.flatten = nn.Flatten()
+        # 用一个假输入来计算展平后特征的尺寸
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, 3, 32, 32)
+            out = self.conv1(dummy_input)
+            out = self.conv2(out)
+            flattened_size = out.view(1, -1).shape[1]
+
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == '__main__':
+    model = SimpleConvNet1()
+    print(model)
+    x = torch.randn(1, 3, 32, 32)
+    y = model(x)
+    print("Output shape:", y.shape)

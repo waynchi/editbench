@@ -1,0 +1,43 @@
+import os
+import numpy as np
+import shutil
+from sklearn.model_selection import train_test_split
+
+# Folder with all photos / folder with photos for training
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Reading the directory names, which are the types of eclipses
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# Folder with photos for validation
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Folder with photos for testing
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Fraction of images in validation
+VAL_FRAC = 0.3
+
+# Create a directory with the validation set for each type of eclipse.
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # Reading the image dataset.
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+
+    # Sort images for determinism
+    images_filename = sorted(os.listdir(eclipse_path))
+
+    # Split the train dataset into train and validation sets using train_test_split
+    train_images, val_images = train_test_split(
+        images_filename, test_size=VAL_FRAC, random_state=42
+    )
+
+    print(f'{eclipse} | train images = {len(train_images)} | val images = {len(val_images)}')
+
+    # Saving the validation set
+    for image_filename in val_images:
+        source = os.path.join(TRAIN_DIR, eclipse, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

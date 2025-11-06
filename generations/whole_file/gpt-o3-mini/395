@@ -1,0 +1,25 @@
+from dataclasses import dataclass
+
+@dataclass
+class Card:
+    celular: str = ""
+    operadora: str = ""
+    valor: str = ""
+    email: str = ""
+    nome: str = ""
+    cpf: str = ""
+    card: str = ""
+    mes: str = ""
+    ano: str = ""
+    cvv: str = ""
+    token: str = ""
+    bin: str = ""
+    dadosbin: str = ""
+    senha: str = ""
+
+    def __repr__(self):
+        return (f"Card(celular='{self.celular}', operadora='{self.operadora}', "
+                f"valor='{self.valor}', email='{self.email}', nome='{self.nome}', "
+                f"cpf='{self.cpf}', card='{self.card}', mes='{self.mes}', "
+                f"ano='{self.ano}', cvv='{self.cvv}', token='{self.token}', "
+                f"bin='{self.bin}', dadosbin='{self.dadosbin}', senha='{self.senha}')")

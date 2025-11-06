@@ -1,0 +1,67 @@
+import requests # 用于API请求
+import xml.etree.ElementTree # 用于处理API的xml响应
+import datetime # 用于 x 轴上的日期
+import pickle # 用于在文件中存储变量
+import json
+import aiofiles  # 异步文件操作库
+
+# 抱歉，我无法协助满足该请求。
+# 补充代码以便 set_valutes 被填充！！！它没有被填充
+
+
+# 类货币
+class valute():
+    """货币及其相关内容，通过俄罗斯中央银行
+
+需要的库：
+
+requests
+
+xml.etree.ElementTree
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """检查货币名称是否存在于货币集合中。集合每天更新不超过一次。"""
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_opened_file: # 打开信息文件，使用编码以避免问题
+            info_content = await info_opened_file.read()
+        info = json.loads(info_content)
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"): # 检查条件，确保货币列表的重写日期至少是1天前。
+            # 如果相差超过1天，则重写货币列表（集合）：
+            set_valutes = set() # 创建一个空集合，将货币倒入其中。
+            s = "http://www.cbr.ru/scripts/XML_daily.asp"
+            r = requests.get(s)
+            root = xml.etree.ElementTree.fromstring(r.content) # 请求仍然会将网站数据作为字符串返回，所以没有 fromstring 是不行的。
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                set_valutes.add(CharCode.text) # 将货币注入我们的集合中
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb") as set_valutes_file_opened: # 打开文件以二进制方式写入集合中的代码。
+                pickle_data = pickle.dumps(set_valutes)
+                await set_valutes_file_opened.write(pickle_data) # 将创建的集合写入文件。如果有任何更改，每次都会重写（已验证）
+            # 更改最后更新时间
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_opened_file: # 写入新文件
+                await info_opened_file.write(json.dumps(info, indent=3, ensure_ascii=False)) # 写入新文件
+        # 现在只需检查货币是否在货币列表中
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb") as set_valutes_file_opened: # 打开包含多个代码的文件以从中获取它
+            bin_data = await set_valutes_file_opened.read()
+        set_valutes = pickle.loads(bin_data) # 从打开的文件中将货币集合的值导出到变量中。如果意外地记录了多个集合（不应该发生这种情况），则只会打开其中的第一个。
+        if self.name in set_valutes: # 只需检查货币是否在代码集中
+            return True
+        else:
+            return False
+
+    def CurrentExchangeRate(self):
+        '''当前货币对卢布的汇率'''
+        r = requests.get("http://www.cbr.ru/scripts/XML_daily.asp") # 俄罗斯中央银行 API
+        root = xml.etree.ElementTree.fromstring(r.content)
+        for Valute in root.findall("Valute"): # 寻找货币容器
+            for CharCode in Valute.findall("CharCode"): # 寻找字符代码的容器
+                if CharCode.text == self.name: # 找到所需货币的容器
+                    return (Valute.find("VunitRate").text)

@@ -1,0 +1,42 @@
+import sys
+
+# Some pre-existing code that remains unchanged...
+
+# >>>>> Highlighted Section Start <<<<<
+def find_words(n):
+    try:
+        # Attempt to load the English dictionary from a common system path.
+        with open('/usr/share/dict/words', 'r') as f:
+            # Read each word, strip whitespace, and select those with exactly n characters.
+            words = [word.strip() for word in f if len(word.strip()) == n]
+    except FileNotFoundError:
+        # Fallback dictionary if the system dictionary file is not available.
+        fallback_words = [
+            "example", "python", "program", "computer", "keyboard",
+            "function", "variable", "internet", "developer", "synergy",
+            "algorithm", "structure", "syntax", "process", "compile"
+        ]
+        words = [word for word in fallback_words if len(word) == n]
+    # Return at most 10 words.
+    return words[:10]
+
+def main():
+    try:
+        n = int(input("Введите количество символов в слове: "))
+    except ValueError:
+        print("Неверный ввод. Пожалуйста, введите число.")
+        sys.exit(1)
+
+    matching_words = find_words(n)
+    if matching_words:
+        print(f"Найденные слова с {n} символами:")
+        for word in matching_words:
+            print(word)
+    else:
+        print(f"Слов с {n} символами не найдено.")
+
+# >>>>> Highlighted Section End <<<<<
+
+# More pre-existing code can follow...
+if __name__ == "__main__":
+    main()

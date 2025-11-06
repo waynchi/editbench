@@ -1,0 +1,61 @@
+function createTurnState(allyStates, foeStates) {
+  // Encontrar el turno actual basado en qué grupo todavía tiene unidades que pueden actuar
+  function findCurrentTurn() {
+    if (allyStates.some(unit => !unit.hasActed)) {
+      return 'player';
+    } else if (foeStates.some(unit => !unit.hasActed)) {
+      return 'cpu';
+    }
+    return 'player'; // Por defecto, si ninguna unidad queda por actuar
+  }
+  let currentTurn = findCurrentTurn();
+
+  let turnNumber = 1;
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    if (currentTurn === "player") {
+      currentTurn = "cpu";
+      // Lógica de la CPU aquí (por ejemplo, movimiento y acciones de IA)
+      allyStates.forEach(unit => unit.hasActed = true);
+      foeStates.forEach(unit => unit.hasActed = false);
+      cpuTurn();
+    } else {
+      currentTurn = "player";
+      foeStates.forEach(unit => unit.hasActed = true);
+      allyStates.forEach(unit => unit.hasActed = false);
+      turnNumber++; // Incremente el número de turno solo después del turno del jugador
+    }
+     // Restablecer la disponibilidad de acción para todas las unidades al inicio de un nuevo turno
+  }
+
+  function cpuTurn() {
+    // Ejemplo de comportamiento de la CPU (reemplazar con tu lógica de IA real)
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // Verificar si la unidad ya ha actuado en este turno
+        // Realizar acciones de la CPU (por ejemplo, movimiento, ataque)
+        // ... tu lógica de IA de CPU aquí ...
+
+        cpuUnit.hasActed = true; // Marcar la unidad como que ha actuado
+      }
+    }
+
+    // Después de que todas las unidades de la CPU hayan actuado (o decidido no hacerlo), termina el turno de la CPU
+    nextTurn(); // Cambiar automáticamente de nuevo al turno del jugador
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

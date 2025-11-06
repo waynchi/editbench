@@ -1,0 +1,46 @@
+import pygame
+import math
+
+# Inicializar Pygame
+pygame.init()
+
+# Configurar pantalla
+screen_width = 800
+screen_height = 800
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Flappy Bird Clone')
+
+# Propiedades del pájaro
+bird_x = 100
+bird_y = screen_height // 2
+bird_width = 40
+bird_height = 30
+bird_flap_height = 10
+gravity = 1
+bird_velocity = 0
+
+# Bucle principal
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                bird_velocity = -bird_flap_height
+
+    # Aplicar gravedad
+    bird_velocity += gravity
+    bird_y += bird_velocity
+
+    # Rellenar la pantalla con un color (por ejemplo, negro)
+    screen.fill((0, 0, 0))
+
+    # Dibujar el pájaro
+    pygame.draw.rect(screen, (255, 255, 0), (bird_x, bird_y, bird_width, bird_height))
+
+    # Actualizar la pantalla
+    pygame.display.flip()
+
+# Salir de Pygame
+pygame.quit()

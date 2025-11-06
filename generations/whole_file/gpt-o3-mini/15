@@ -1,0 +1,52 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+import time
+
+token = "TOKEN"
+bot = Bot(token=token)
+dp = Dispatcher(bot)
+id = 111111111
+time_time = 5
+
+b = bool(True)
+
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup = types.InlineKeyboardMarkup(inline_keuboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="stop"),
+         types.InlineKeyboardButton(text="Нет", callback_data="continue")]
+    ])
+    await bot.send_message(chat_id=id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query_handler(text="stop")
+async def stop(call: types.CallbackQuery):
+    global b
+    # b = False
+    # await bot.send_message(chat_id=call.message.chat.id, text="Молодец, лох")
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+
+@dp.callback_query_handler(text="continue")
+async def stop(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+
+@dp.message_handler(content_types=['text'])
+async def handle_all_messages(message: types.Message):
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=id, video=vid, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    while b:
+        await bot.send_message(chat_id=id, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=id, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(time_time)
+
+async def on_startup(dp):
+    print('Бот запущен!')
+    asyncio.create_task(send_periodic_messages())
+
+if __name__ == '__main__':
+    async def main():
+        await dp.start_polling(skip_updates=True, on_startup=on_startup)
+    asyncio.run(main())

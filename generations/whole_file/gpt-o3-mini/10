@@ -1,0 +1,40 @@
+import random
+
+def roll_dice(num_rolls):
+    """Rolls a six-sided die a specified number of times and returns the percentage of each outcome.
+
+    Args:
+        num_rolls: The number of times to roll the die.
+
+    Returns:
+        A dictionary where keys are the numbers 1-6 (representing the die faces) and values are the percentage occurrence of each face.
+        Returns an empty dictionary if num_rolls is not a positive integer.
+
+    Raises:
+        TypeError: if num_rolls is not an integer.
+        ValueError: if num_rolls is not positive.
+    """
+    if not isinstance(num_rolls, int):
+        raise TypeError("Number of rolls must be an integer.")
+    if num_rolls <= 0:
+        raise ValueError("Number of rolls must be positive.")
+
+    frequencies = {i: 0 for i in range(1, 7)}  # Initialize frequencies for each face (1-6)
+    for _ in range(num_rolls):
+        roll = random.randint(1, 6)  # Simulate a die roll
+        frequencies[roll] += 1
+
+    # Convert frequencies to percentages
+    percentages = {face: (count / num_rolls * 100) for face, count in frequencies.items()}
+    return percentages
+
+if __name__ == "__main__":
+    num_rolls = 10000
+    try:
+        results = roll_dice(num_rolls)
+        print(f"Percentage of die rolls after {num_rolls} rolls:")
+        for face, percentage in results.items():
+            print(f"Face {face}: {percentage:.2f}%")
+
+    except (TypeError, ValueError) as e:
+        print(f"Error: {e}")

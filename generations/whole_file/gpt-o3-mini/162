@@ -1,0 +1,92 @@
+import tkinter as tk
+from tkinter import ttk
+from tkinter import colorchooser
+import random  # 添加随机颜色所需的模块
+
+def create_paint_canvas():
+    root = tk.Tk()
+    root.title("Painting Canvas")
+
+    # 创建工具栏框架
+    toolbar = tk.Frame(root, bd=1, relief=tk.RAISED)
+    toolbar.pack(side=tk.TOP, fill=tk.X)
+
+    # 画笔大小控制
+    size_label = tk.Label(toolbar, text="Brush Size:")
+    size_label.pack(side=tk.LEFT, padx=5)
+    brush_size = tk.Scale(toolbar, from_=1, to=20, orient=tk.HORIZONTAL)
+    brush_size.set(2)  # 默认大小
+    brush_size.pack(side=tk.LEFT, padx=5)
+
+    # 当前颜色显示和颜色选择器
+    current_color = tk.StringVar(value="black")
+    color_display = tk.Label(toolbar, bg=current_color.get(), width=3)
+    color_display.pack(side=tk.LEFT, padx=5)
+
+    def choose_color():
+        color = colorchooser.askcolor(title="Choose brush color")[1]
+        if color:  # 如果选择了颜色（未取消）
+            current_color.set(color)
+            color_display.config(bg=color)
+
+    color_btn = tk.Button(toolbar, text="Choose Color", command=choose_color)
+    color_btn.pack(side=tk.LEFT, padx=5)
+
+    # 在现有的颜色选择按钮之后添加这个
+    bg_color = tk.StringVar(value="white")  # 存储当前背景颜色
+    bg_display = tk.Label(toolbar, bg=bg_color.get(), width=3)
+    bg_display.pack(side=tk.LEFT, padx=5)
+
+    def ereaser():
+        current_color.set(bg_color.get())  # 将画笔颜色设置为背景颜色
+        color_display.config(bg=bg_color.get())
+
+    # 橡皮擦按钮
+    eraser_btn = tk.Button(toolbar, text="Eraser", command=ereaser)
+    eraser_btn.pack(side=tk.LEFT, padx=5)
+
+    def choose_background():
+        color = colorchooser.askcolor(title="Choose background color")[1]
+        if color:
+            bg_color.set(color)
+            bg_display.config(bg=color)
+            canvas.config(bg=color)
+
+    bg_btn = tk.Button(toolbar, text="Background Color", command=choose_background)
+    bg_btn.pack(side=tk.LEFT, padx=5)
+
+    # --------------------- highlighted section ---------------------
+    def random_background():
+        # 生成随机颜色，格式为#RRGGBB
+        rand_color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+        bg_color.set(rand_color)
+        bg_display.config(bg=rand_color)
+        canvas.config(bg=rand_color)
+
+    random_bg_btn = tk.Button(toolbar, text="Random Background", command=random_background)
+    random_bg_btn.pack(side=tk.LEFT, padx=5)
+    # --------------------- end of highlighted section ---------------------
+
+    # 创建画布
+    canvas = tk.Canvas(root, bg="white", width=800, height=600)
+    canvas.pack(expand=tk.YES, fill=tk.BOTH)
+
+    def clear_canvas():
+        canvas.delete("all")  # 从画布中移除所有绘图
+
+    # 清除画布按钮
+    clear_btn = tk.Button(toolbar, text="Clear Canvas", command=clear_canvas)
+    clear_btn.pack(side=tk.LEFT, padx=5)
+
+    def paint(event):
+        size = brush_size.get()  # 获取当前画笔大小
+        x1, y1 = (event.x - size), (event.y - size)  # 计算椭圆的左上角位置
+        x2, y2 = (event.x + size), (event.y + size)  # 计算椭圆的右下角
+        canvas.create_oval(x1, y1, x2, y2, fill=current_color.get(), outline=current_color.get())  # 使用当前颜色在画布上绘制椭圆
+
+    canvas.bind("<B1-Motion>", paint)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    create_paint_canvas()

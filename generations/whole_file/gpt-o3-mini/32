@@ -1,0 +1,65 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+def is_own_author(autor: str):
+    return autor == 'subidu'
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies(replies: Comment):
+    pass
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+
+# Sección modificada: Creamos un diccionario jerárquico que asocia cada post con sus replies
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_id = f"{post_author}/{post_permlink}"
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    # Inicializamos la estructura jerárquica para este post
+    diccionario[post_id] = {"post": post, "replies": []}
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        replies_list = comment.get_replies()
+        
+        cnt = 0
+        for reply in replies_list:
+            author = reply['author']
+            text = reply['body']
+            if is_own_author(author):
+                # Reevaluar el comentario: se interrumpe el procesamiento de replies
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+            # Agregamos cada reply al diccionario jerárquico bajo su post
+            diccionario[post_id]["replies"].append(reply)
+    if cnt > 3:
+        print("Iterador: ", X)
+        if diccionario[post_id]["replies"]:
+            ultimo_reply = diccionario[post_id]["replies"][-1]
+            print(ultimo_reply['author'], '/', ultimo_reply['permlink'])

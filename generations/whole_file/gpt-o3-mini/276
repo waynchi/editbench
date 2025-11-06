@@ -1,0 +1,19 @@
+import pandas as pd
+import statsmodels.api as sm
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Выполнить анализ ANOVA с использованием python-стиля (без R-подобного синтаксиса формулы)
+X = pd.get_dummies(df['Brand'], drop_first=True)
+y = df['Cost']
+X = sm.add_constant(X)
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Вывести таблицу ANOVA
+print(anova_table)

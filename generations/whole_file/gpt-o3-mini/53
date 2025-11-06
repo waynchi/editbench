@@ -1,0 +1,555 @@
+import time
+import json
+import logging
+import os
+import shutil
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union, Callable, Awaitable
+from contextlib import asynccontextmanager
+import sqlite3
+import asyncio
+import gradio as gr
+import threading
+from functools import wraps
+from dotenv import load_dotenv
+from playwright.async_api import async_playwright
+
+SETTINGS_DB = 'settings.db'
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_WINDOW_WIDTH = 1280
+DEFAULT_WINDOW_HEIGHT = 720
+DEFAULT_MAX_STEPS = 10
+LOG_DIR = Path('./logs')
+TEMP_DIR = Path('./temp')
+
+def init_database():
+    """Initialize the settings database if it doesn't exist."""
+    with sqlite3.connect(SETTINGS_DB) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+class SettingsManager:
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._setup_pool()
+        return cls._instance
+
+    def _setup_pool(self):
+        self._pool = sqlite3.connect(
+            SETTINGS_DB,
+            check_same_thread=False,
+            timeout=30.0
+        )
+        with self._lock:
+            self._pool.row_factory = sqlite3.Row
+        
+        # Initialize cache
+        self._cache = {}
+
+    def get_cached(self, key: str) -> Any:
+        with self._lock:
+            if key in self._cache:
+                value, expires_at = self._cache[key]
+                if expires_at > time.time():
+                    return value
+                del self._cache[key]
+        return None
+
+    def set_cached(self, key: str, value: Any, ttl: int = 300):
+        with self._lock:
+            self._cache[key] = (value, time.time() + ttl)
+
+    def save_setting(self, key: str, value: Any):
+        with self._lock:
+            with self._pool:
+                self._pool.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                    (key, json.dumps(value))
+                )
+
+    def load_setting(self, key: str, default: Any = None) -> Any:
+        try:
+            with self._lock:
+                cursor = self._pool.execute(
+                    "SELECT value FROM settings WHERE key = ?",
+                    (key,)
+                )
+                result = cursor.fetchone()
+                return json.loads(result[0]) if result else default
+        except Exception as e:
+            logger.error(f"Error loading setting {key}: {e}")
+            return default
+
+    def close(self):
+        with self._lock:
+            if hasattr(self, '_pool'):
+                self._pool.close()
+
+class SecurityManager:
+    def __init__(self):
+        self.rate_limits = {}
+        self.max_requests = 100
+        self.time_window = 3600
+        self._lock = threading.Lock()
+
+    def check_rate_limit(self, key: str) -> bool:
+        now = time.time()
+        with self._lock:
+            if key not in self.rate_limits:
+                self.rate_limits[key] = []
+            self.rate_limits[key] = [t for t in self.rate_limits[key] if t > now - self.time_window]
+            if len(self.rate_limits[key]) >= self.max_requests:
+                return False
+            self.rate_limits[key].append(now)
+        return True
+
+def rate_limited(func: Callable[..., Awaitable]):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        if not SecurityManager().check_rate_limit(func.__name__):
+            raise Exception("Rate limit exceeded")
+        return await func(*args, **kwargs)
+    return wrapper
+
+@asynccontextmanager
+async def browser_session(config: "AgentConfig"):
+    runner = BrowserAgentRunner(config)
+    try:
+        yield runner
+    finally:
+        await runner.cleanup()
+
+class BrowserAgentRunner:
+    def __init__(self, config: "AgentConfig"):
+        self.config = config
+        self.playwright = None
+        self.browser_context = None
+        self.browser = None
+        self.resource_manager = ResourceManager()
+        self.security_manager = SecurityManager()
+        self._start_time = time.time()
+
+    @property
+    def execution_time(self) -> float:
+        return time.time() - self._start_time
+
+    async def run(self):
+        try:
+            logger.debug("Starting playwright session.")
+            async with async_playwright() as p:
+                logger.debug("Launching browser with headless=%s", self.config.headless)
+                self.browser = await p.chromium.launch(headless=self.config.headless)
+                logger.debug("Browser launched successfully.")
+                self.browser_context = await self.browser.new_context(
+                    viewport={'width': self.config.window_w, 'height': self.config.window_h}
+                )
+                logger.debug("New browser context created with viewport width=%d and height=%d", self.config.window_w, self.config.window_h)
+                page = await self.browser_context.new_page()
+                logger.debug("New page opened in browser context.")
+    
+                # Example task: Navigate to a given URL
+                logger.debug("Navigating to https://example.com")
+                await page.goto("https://example.com")
+                logger.debug("Navigation completed successfully.")
+    
+                logger.info("Task completed successfully.")
+                return "Task completed successfully", "", "", ""
+        except Exception as e:
+            logger.error(f"Detailed error during run: {e}", exc_info=True)
+            return "", str(e), "", ""
+        finally:
+            logger.debug("Cleaning up browser session after run.")
+            await self.cleanup()
+
+    async def cleanup(self):
+        logger.debug("Cleaning up browser session.")
+        try:
+            if self.browser_context:
+                await self.browser_context.close()
+                logger.debug("Browser context closed successfully.")
+                self.browser_context = None
+
+            if self.browser:
+                await self.browser.close()
+                logger.debug("Browser closed successfully.")
+                self.browser = None
+
+            await self.resource_manager.cleanup()
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
+class ProcessManager:
+    def __init__(self):
+        self.processes = []
+        self._lock = threading.Lock()
+
+    async def start_task(self, task):
+        with self._lock:
+            # Logic to start a task
+            pass
+
+    async def stop_task(self):
+        with self._lock:
+            # Logic to stop tasks
+            return "", ""
+
+    def cleanup(self):
+        with self._lock:
+            # Logic for cleanup after tasks
+            pass
+
+class GradioInterface:
+    def __init__(self):
+        self.theme = gr.themes.Soft()
+        self.settings_manager = SettingsManager()
+        self.process_manager = ProcessManager()
+        self.security_manager = SecurityManager()
+
+    @rate_limited
+    async def _run_with_manager(self, *args):
+        try:
+            logger.debug("Starting _run_with_manager...")
+            async with browser_session(AgentConfig(*args)) as runner:
+                final_result, errors, model_actions, model_thoughts = await runner.run()
+                logger.debug(f"Returning values: {final_result}, {errors}, {model_actions}, {model_thoughts}")
+                return final_result or "", errors or "", model_actions or "", model_thoughts or ""
+        except Exception as e:
+            logger.error(f"Error in _run_with_manager: {e}")
+            return str(e), str(e), "", ""
+
+    async def _stop_agent(self):
+        return await self.process_manager.stop_task()
+
+    def _load_saved_values(self) -> Dict[str, Any]:
+        return {
+            "agent_type": self.settings_manager.load_setting("agent_type", "custom"),
+            "max_steps": self.settings_manager.load_setting("max_steps", DEFAULT_MAX_STEPS),
+            "use_vision": self.settings_manager.load_setting("use_vision", True),
+            "llm_provider": self.settings_manager.load_setting("llm_provider", "gemini"),
+            "llm_model_name": self.settings_manager.load_setting("llm_model_name", "gemini-2.0-flash-exp"),
+            "llm_temperature": self.settings_manager.load_setting("llm_temperature", DEFAULT_TEMPERATURE),
+            "llm_base_url": self.settings_manager.load_setting("llm_base_url", ""),
+            "llm_api_key": self.settings_manager.load_setting("llm_api_key", ""),
+            "use_own_browser": self.settings_manager.load_setting("use_own_browser", False),
+            "headless": self.settings_manager.load_setting("headless", False),
+            "disable_security": self.settings_manager.load_setting("disable_security", False),
+            "window_w": self.settings_manager.load_setting("window_w", DEFAULT_WINDOW_WIDTH),
+            "window_h": self.settings_manager.load_setting("window_h", DEFAULT_WINDOW_HEIGHT),
+            "save_recording_path": self.settings_manager.load_setting("save_recording_path", "./tmp/record_videos"),
+            "task": self.settings_manager.load_setting("task", "go to google.com and type 'OpenAI' click search and give me the first url"),
+            "add_infos": self.settings_manager.load_setting("add_infos", "")
+        }
+
+    def create_ui(self) -> gr.Blocks:
+        saved_values = self._load_saved_values()
+
+        def save_value(key: str, value: Any):
+            self.settings_manager.save_setting(key, value)
+            return value
+
+        demo = gr.Blocks(title="Browser Use WebUI", theme=self.theme)
+
+        with demo:
+            gr.Markdown("<center><h1>Browser Use WebUI</h1></center>")
+
+            with gr.Accordion("Agent Settings", open=False):
+                with gr.Row():
+                    agent_type = gr.Radio(
+                        choices=["org", "custom"],
+                        label="Agent Type",
+                        value=saved_values["agent_type"],
+                        info="Select the type of agent to use"
+                    )
+                    agent_type.change(
+                        fn=lambda x: save_value("agent_type", x),
+                        inputs=agent_type
+                    )
+
+            with gr.Accordion("LLM Settings", open=False):
+                with gr.Row():
+                    llm_provider = gr.Dropdown(
+                        choices=["anthropic", "openai", "gemini", "azure_openai", "deepseek", "ollama"],
+                        label="LLM Provider",
+                        value=saved_values["llm_provider"],
+                        info="Select the LLM provider"
+                    )
+                    llm_provider.change(lambda x: save_value("llm_provider", x), inputs=llm_provider)
+
+                    llm_model_name = gr.Textbox(
+                        label="LLM Model Name",
+                        value=saved_values["llm_model_name"],
+                        info="Model name"
+                    )
+                    llm_model_name.change(lambda x: save_value("llm_model_name", x), inputs=llm_model_name)
+
+                    llm_temperature = gr.Slider(
+                        minimum=0.0,
+                        maximum=2.0,
+                        value=saved_values["llm_temperature"],
+                        label="LLM Temperature",
+                        info="Response randomness"
+                    )
+                    llm_temperature.change(lambda x: save_value("llm_temperature", x), inputs=llm_temperature)
+
+                with gr.Row():
+                    llm_base_url = gr.Textbox(
+                        label="LLM Base URL",
+                        value=saved_values["llm_base_url"],
+                        info="Custom API endpoint"
+                    )
+                    llm_base_url.change(lambda x: save_value("llm_base_url", x), inputs=llm_base_url)
+
+                    llm_api_key = gr.Textbox(
+                        label="LLM API Key",
+                        value=saved_values["llm_api_key"],
+                        type="password",
+                        info="API key"
+                    )
+                    llm_api_key.change(lambda x: save_value("llm_api_key", x), inputs=llm_api_key)
+
+            with gr.Accordion("Browser Settings", open=False):
+                with gr.Row():
+                    use_own_browser = gr.Checkbox(
+                        label="Use Own Browser",
+                        value=saved_values["use_own_browser"],
+                        info="Use local Chrome"
+                    )
+                    use_own_browser.change(lambda x: save_value("use_own_browser", x), inputs=use_own_browser)
+
+                    headless = gr.Checkbox(
+                        label="Headless",
+                        value=saved_values["headless"],
+                        info="Run without GUI"
+                    )
+                    headless.change(lambda x: save_value("headless", x), inputs=headless)
+
+                    disable_security = gr.Checkbox(
+                        label="Disable Security",
+                        value=saved_values["disable_security"],
+                        info="For trusted environments only"
+                    )
+                    disable_security.change(lambda x: save_value("disable_security", x), inputs=disable_security)
+
+                with gr.Row():
+                    window_w = gr.Number(
+                        label="Window Width",
+                        value=saved_values["window_w"],
+                        minimum=800,
+                        maximum=3840
+                    )
+                    window_w.change(lambda x: save_value("window_w", x), inputs=window_w)
+
+                    window_h = gr.Number(
+                        label="Window Height",
+                        value=saved_values["window_h"],
+                        minimum=600,
+                        maximum=2160
+                    )
+                    window_h.change(lambda x: save_value("window_h", x), inputs=window_h)
+
+            with gr.Accordion("Task Settings", open=True):
+                task = gr.Textbox(
+                    label="Task",
+                    lines=10,
+                    value=saved_values["task"],
+                    info="Task description"
+                )
+                task.change(lambda x: save_value("task", x), inputs=task)
+
+                add_infos = gr.Textbox(
+                    label="Additional Information",
+                    lines=5,
+                    value=saved_values["add_infos"],
+                    info="Extra context"
+                )
+                add_infos.change(lambda x: save_value("add_infos", x), inputs=add_infos)
+
+            save_recording_path = gr.Textbox(
+                label="Save Recording Path",
+                value=saved_values["save_recording_path"],
+                info="Recording directory"
+            )
+            save_recording_path.change(lambda x: save_value("save_recording_path", x), inputs=save_recording_path)
+
+            final_result_output = gr.Textbox(
+                label="Final Result",
+                lines=5
+            )
+            errors_output = gr.Textbox(label="Errors", lines=5)
+            model_actions_output = gr.Textbox(label="Model Actions", lines=5)
+            model_thoughts_output = gr.Textbox(label="Model Thoughts", lines=5)
+            run_button = gr.Button("Run Agent", variant="primary")
+            stop_button = gr.Button("Stop Agent", variant="stop")
+
+            run_button.click(
+                fn=self._run_with_manager,
+                inputs=[
+                    agent_type,
+                    llm_provider,
+                    llm_model_name,
+                    llm_temperature,
+                    llm_base_url,
+                    llm_api_key,
+                    use_own_browser,
+                    headless,
+                    disable_security,
+                    window_w,
+                    window_h,
+                    save_recording_path,
+                    task,
+                    add_infos
+                ],
+                outputs=[final_result_output, errors_output, model_actions_output, model_thoughts_output]
+            )
+
+            stop_button.click(
+                fn=self._stop_agent,
+                outputs=[final_result_output, errors_output]
+            )
+
+        return demo
+
+class ResourceManager:
+    def __init__(self):
+        self.temp_files: List[Path] = []
+        self.active_contexts: List[Union[None, Any]] = []
+        self._lock = threading.Lock()
+
+    async def cleanup(self) -> None:
+        errors = []
+        
+        
+        with self._lock:
+            # Clean up contexts
+            for context in self.active_contexts:
+                if context:
+                    try:
+                        await context.close()
+                    except Exception as e:
+                        error_msg = f"Failed to close context: {e}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+
+            # Clean up temp files
+            for file in self.temp_files:
+                try:
+                    if file.exists():
+                        if file.is_file():
+                            file.unlink(missing_ok=True)
+                        else:
+                            shutil.rmtree(file, ignore_errors=True)
+                except Exception as e:
+                    error_msg = f"Failed to remove {file}: {e}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+
+            # Clear the lists after cleanup
+            self.temp_files.clear()
+            self.active_contexts.clear()
+        if errors:
+            logger.error("Errors occurred during cleanup:\n" + "\n".join(errors))
+            raise Exception("Errors occurred during cleanup:\n" + "\n".join(errors))
+
+def setup_logging(log_path: Optional[str] = None) -> logging.Logger:
+    logger = logging.getLogger("browser_agent")
+    logger.setLevel(logging.INFO)
+
+    if not logger.handlers:
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+        if log_path:
+            file_handler = logging.FileHandler(log_path)
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+
+    return logger
+
+class BrowserError(Exception):
+    pass
+
+class ResourceError(Exception):
+    pass
+
+class ConfigError(Exception):
+    pass
+
+class SecurityError(Exception):
+    pass
+
+@dataclass
+class AgentConfig:
+    agent_type: str
+    llm_provider: str
+    llm_model_name: str
+    llm_temperature: float = DEFAULT_TEMPERATURE
+    llm_base_url: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    use_own_browser: bool = False
+    headless: bool = False
+    disable_security: bool = False
+    window_w: int = DEFAULT_WINDOW_WIDTH
+    window_h: int = DEFAULT_WINDOW_HEIGHT
+    save_recording_path: Optional[str] = None
+    task: str = ""
+    add_infos: str = ""
+    max_steps: int = DEFAULT_MAX_STEPS
+    use_vision: bool = True
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        if self.agent_type not in ["org", "custom"]:
+            raise ConfigError(f"Invalid agent type: {self.agent_type}")
+
+        if not self.llm_provider or not self.llm_model_name:
+            raise ConfigError("LLM provider and model name are required")
+
+        if self.llm_temperature < 0.0 or self.llm_temperature > 2.0:
+            raise ConfigError(f"Invalid temperature: {self.llm_temperature}")
+
+        if self.window_w <= 0 or self.window_h <= 0:
+            raise ConfigError(f"Invalid window dimensions: {self.window_w}x{self.window_h}")
+
+        if self.max_steps <= 0:
+            raise ConfigError(f"Invalid max steps: {self.max_steps}")
+
+if __name__ == "__main__":
+    # Create necessary directories
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Initialize logging
+    logger = setup_logging(LOG_DIR / 'browser_agent.log')
+    
+    # Initialize database
+    init_database()
+    
+    # Load environment variables
+    load_dotenv()
+    
+    # Create and launch the Gradio interface
+    gr_interface = GradioInterface()
+    demo = gr_interface.create_ui()
+    demo.launch()
