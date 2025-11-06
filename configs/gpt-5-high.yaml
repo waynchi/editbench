@@ -1,0 +1,4 @@
+prompt_file: prompts/whole_file.txt
+model: gpt-5-2025-08-07
+split: complete
+reasoning: high

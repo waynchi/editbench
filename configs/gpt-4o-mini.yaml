@@ -1,0 +1,3 @@
+prompt_file: prompts/whole_file.txt
+model: gpt-4o-mini-2024-07-18
+split: complete
