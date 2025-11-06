@@ -44,7 +44,7 @@ bash run_experiment.sh examples/run_gpt_o3_mini_tests.py
 ```
 You should see the results in `example_results/gpt-o3-mini.json`
 
-To generate gpt-4o-mini code solutions and run the tests in one command, use
+To generate gpt-4o-mini code solutions using the `prompts/whole_file.txt` prompt and run the tests in one command, use
 ```bash
 bash run_experiment.sh examples/run_gpt_4o_mini_experiment.py --should_generate
 ```
