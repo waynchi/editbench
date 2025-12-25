@@ -1,0 +1,123 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+author = 'subidu'  # Nombre de usuario del bot, necesario para is_own_author
+
+def procesar(texto: str) -> bool:
+    """Verifica si el texto contiene la frase clave (insensible a mayúsculas)."""
+    return "count me " in texto.lower()
+
+def is_own_author(autor_comentario: str) -> bool:
+    """Verifica si el autor del comentario es el propio bot."""
+    return autor_comentario == author
+
+def is_banned(autor_comentario: str) -> bool:
+    """Verifica si un autor está en la lista de baneados."""
+    list_banned = []
+    return autor_comentario in list_banned
+
+def generar_permlink_unico() -> str:
+    """Genera un permlink único para un nuevo comentario."""
+    return "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    """Función original, sin uso actual."""
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', body: str = 'Count me in ^^ @subidu') -> dict:
+    """Prepara la estructura de un comentario para ser publicado."""
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def agregar_a_diccionario_jerarquico(post: dict, replies_procesadas: list):
+    """
+    Añade un post y sus respuestas procesadas al diccionario global.
+    La estructura es jerárquica, con el 'authorperm' del post como clave principal.
+    """
+    post_key = f"@{post['author']}/{post['permlink']}"
+    
+    # Se extrae solo la información relevante de las respuestas para el diccionario
+    info_replies = [
+        {
+            'author': reply['author'],
+            'permlink': reply['permlink'],
+            'body': reply['body']
+        } 
+        for reply in replies_procesadas
+    ]
+    
+    diccionario[post_key] = {
+        'post_info': {
+            'author': post['author'],
+            'permlink': post['permlink'],
+            'title': post['title']
+        },
+        'replies_validas': info_replies
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    X += 1
+    post_author = post['author']
+    post_permlink = post['permlink']
+    
+    # Optimización: saltar posts con pocas respuestas o los propios antes de hacer la llamada a la API
+    if post['children'] <= n_respuestas_minimas or is_own_author(post_author):
+        continue
+
+    try:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies_list = comment.get_replies()
+        
+        replies_validas = []
+        bot_ya_ha_comentado = False
+        
+        for reply in post_replies_list:
+            reply_author = reply['author']
+            
+            # Si el bot ya ha comentado, se marca y se deja de analizar este post
+            if is_own_author(reply_author):
+                bot_ya_ha_comentado = True
+                break
+            
+            # Si el autor está baneado, se ignora su comentario y se continúa con el siguiente
+            if is_banned(reply_author):
+                continue
+            
+            # Si el cuerpo del comentario cumple la condición, se guarda como válido
+            if procesar(reply['body']):
+                replies_validas.append(reply)
+
+        # Si el bot no ha comentado y hay suficientes respuestas válidas, se procesa
+        if not bot_ya_ha_comentado and len(replies_validas) > 3:
+            print(f"Iterador: {X}")
+            print(f"Post encontrado: @{post_author}/{post_permlink} con {len(replies_validas)} respuestas válidas.")
+            
+            # Usar la nueva función para añadir la información al diccionario
+            agregar_a_diccionario_jerarquico(post, replies_validas)
+            
+    except Exception as e:
+        print(f"Error procesando el post @{post_author}/{post_permlink}: {e}")
+
+# Opcional: Imprimir el diccionario resultante para verificar la estructura
+print("\n--- Contenido del Diccionario Jerárquico Final ---")
+if diccionario:
+    import json
+    print(json.dumps(diccionario, indent=2, ensure_ascii=False))
+else:
+    print("El diccionario está vacío. No se encontraron posts que cumplieran los criterios.")

@@ -1,0 +1,42 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the relative path to the chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# Check if chromedriver exists
+if not os.path.exists(chromedriver_path):
+    print(f"ChromeDriver not found at: {chromedriver_path}")
+    exit(1)
+
+options = uc.ChromeOptions()
+options.binary_location = chromedriver_path
+print("wde")
+
+try:
+    with uc.Chrome(use_subprocess=True, options=options) as driver:
+        print("wde")
+        driver.get("https://lmarena.ai/")
+        print("wde")
+        # create an instance of ChromeOptions for undetected_chromedriver
+        # initialize the undetected Chrome driver with specified options
+        time.sleep(10)
+except Exception as e:
+    print(f"Error occurred: {e}")
+    print("Attempting to use default chromedriver...")
+    
+    # Fallback to default chromedriver
+    try:
+        options = uc.ChromeOptions()
+        print("wde")
+        with uc.Chrome(use_subprocess=True, options=options) as driver:
+            print("wde")
+            driver.get("https://lmarena.ai/")
+            print("wde")
+            time.sleep(10)
+    except Exception as fallback_error:
+        print(f"Fallback also failed: {fallback_error}")

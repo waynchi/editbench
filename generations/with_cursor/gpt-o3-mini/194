@@ -1,0 +1,30 @@
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Card:
+    celular: str = field(default="")
+    operadora: str = field(default="")
+    valor: str = field(default="")
+    email: str = field(default="")
+    nome: str = field(default="")
+    cpf: str = field(default="")
+    card: str = field(default="")
+    mes: str = field(default="")
+    ano: str = field(default="")
+    cvv: str = field(default="")
+    token: str = field(default="")
+    bin: str = field(default="")
+    dadosbin: str = field(default="")
+    senha: str = field(default="")
+
+    def __post_init__(self):
+        # 在此处可以添加初始化时的修复或校验逻辑
+        # 例如，可以验证字段是否为空或遵守预期格式
+        pass
+
+    def __repr__(self):
+        return (f"Card(celular='{self.celular}', operadora='{self.operadora}', valor='{self.valor}', "
+                f"email='{self.email}', nome='{self.nome}', cpf='{self.cpf}', card='{self.card}', "
+                f"mes='{self.mes}', ano='{self.ano}', cvv='{self.cvv}', token='{self.token}', "
+                f"bin='{self.bin}', dadosbin='{self.dadosbin}', senha='{self.senha}')")

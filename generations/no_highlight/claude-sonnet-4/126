@@ -1,0 +1,121 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_configs, n_clusters=2, clustering_method='kmeans'):
+    """Performs data clustering independently for specified sets of columns.
+
+    Args:
+        features_transformed (pandas.DataFrame): Transformed DataFrame with parameters.
+        cluster_configs (dict): Dictionary where keys are cluster column names and values are tuples of column names to cluster on.
+                               Example: {'Cluster1': ('column1', 'column2'), 'Cluster2': ('column3',)}
+        n_clusters (int): Number of clusters.
+        clustering_method (str): Clustering method ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame with added columns of cluster labels for each configuration."""
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+    
+    # Perform clustering for each configuration
+    for cluster_feature_name, columns in cluster_configs.items():
+        print(f"\nВыполняется кластеризация для '{cluster_feature_name}' с использованием столбцов: {columns}")
+        
+        # Check if all specified columns exist in the dataframe
+        missing_columns = [col for col in columns if col not in features_for_clustering.columns]
+        if missing_columns:
+            print(f"Ошибка: столбцы {missing_columns} не найдены в данных. Пропускаем кластеризацию для '{cluster_feature_name}'.")
+            continue
+        
+        # Select only the specified columns for this clustering
+        cluster_data_subset = features_for_clustering[list(columns)]
+        
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(cluster_data_subset)
+            
+            # Evaluation of clustering quality (e.g., using the silhouette coefficient)
+            if len(np.unique(cluster_labels)) > 1: # Check for the case when all points are assigned to one cluster
+                silhouette_avg = silhouette_score(cluster_data_subset, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров ({cluster_feature_name}): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера ({cluster_feature_name}) - все точки в одном кластере.")
+
+        else:
+            print("Неподдерживаемый метод кластеризации.")
+            return None
+
+        features_for_clustering[cluster_feature_name] = cluster_labels
+        print(f"Кластеризация выполнена для '{cluster_feature_name}'. Метки кластеров добавлены в столбец '{cluster_feature_name}'.")
+    
+    return features_for_clustering
+
+def visualize_clusters(features_transformed, cluster_configs):
+    """Visualize clustering results for each configuration."""
+    for cluster_feature_name, columns in cluster_configs.items():
+        if cluster_feature_name not in features_transformed.columns:
+            print(f"Столбец кластеров '{cluster_feature_name}' не найден. Пропускаем визуализацию.")
+            continue
+            
+        # Check if we have at least 2 numerical columns for visualization
+        numerical_columns = [col for col in columns if col in features_transformed.select_dtypes(include=np.number).columns]
+        
+        if len(numerical_columns) >= 2:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(features_transformed[numerical_columns[0]], 
+                       features_transformed[numerical_columns[1]], 
+                       c=features_transformed[cluster_feature_name], 
+                       cmap='viridis')
+            plt.xlabel(numerical_columns[0])
+            plt.ylabel(numerical_columns[1])
+            plt.title(f'Результаты кластеризации: {cluster_feature_name}')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+        elif len(numerical_columns) == 1:
+            plt.figure(figsize=(8, 6))
+            plt.hist([features_transformed[features_transformed[cluster_feature_name] == i][numerical_columns[0]] 
+                     for i in range(features_transformed[cluster_feature_name].nunique())], 
+                    alpha=0.7, label=[f'Кластер {i}' for i in range(features_transformed[cluster_feature_name].nunique())])
+            plt.xlabel(numerical_columns[0])
+            plt.ylabel('Частота')
+            plt.title(f'Распределение по кластерам: {cluster_feature_name}')
+            plt.legend()
+            plt.show()
+        else:
+            print(f"Недостаточно числовых признаков для визуализации кластеров '{cluster_feature_name}'.")
+
+# Clustering execution (after step 5 and before step 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Define clustering configurations
+    # Example: cluster_configs = {'Cluster1': ('column1', 'column2'), 'Cluster2': ('column3',)}
+    # You should replace this with your actual column names
+    numerical_features = features_transformed.select_dtypes(include=np.number)
+    
+    if numerical_features.shape[1] >= 2:
+        # Example configuration - modify according to your needs
+        cluster_configs = {
+            'cluster_main': tuple(numerical_features.columns[:2]),  # First two numerical columns
+        }
+        
+        # If there are more numerical columns, add another clustering configuration
+        if numerical_features.shape[1] >= 3:
+            cluster_configs['cluster_secondary'] = tuple(numerical_features.columns[2:3])  # Third column
+    else:
+        print("Недостаточно числовых признаков для кластеризации.")
+        cluster_configs = {}
+    
+    if cluster_configs:
+        n_clusters = 3  # Number of clusters (select the optimal value)
+        features_transformed = cluster_data(features_transformed, cluster_configs, n_clusters)
+        
+        # Visualization of clusters
+        if features_transformed is not None:
+            visualize_clusters(features_transformed, cluster_configs)
+    else:
+        print("Конфигурации кластеризации не определены.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

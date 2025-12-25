@@ -1,0 +1,77 @@
+const cameraService = require('./camera.service');
+
+const createCamera = async (req, res) => {
+  try {
+    // First, create the camera using the existing service function.
+    const camera = await cameraService.createCamera(req.body);
+
+    // After creation, as per the user's request, fetch the new camera's data along with
+    // the area_name by joining the 'cameras' and 'areas' tables. This is expected to be
+    // handled by a new service function that executes a raw query.
+    // 遵循用户指令：创建相机后，通过原始查询连接 cameras 和 areas 表，将 cameras 的所有字段和 areas 的 area_name 返回给 res。
+    const newCameraData = await cameraService.getJoinedCameraById(camera.id);
+
+    if (!newCameraData) {
+      // This is a fallback in case the newly created camera cannot be found, which is unlikely.
+      return res.status(404).json({ message: 'Could not retrieve details for the newly created camera.' });
+    }
+    
+    // Respond with the enriched camera data (all camera fields + area_name).
+    res.status(201).json(newCameraData);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAllCameras = async (req, res) => {
+  try {
+    const cameras = await cameraService.getAllCameras();
+    res.status(200).json(cameras);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getCameraById = async (req, res) => {
+  try {
+    const camera = await cameraService.getCameraById(req.params.id);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateCamera = async (req, res) => {
+  try {
+    const camera = await cameraService.updateCamera(req.params.id, req.body);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+     res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteCamera = async (req, res) => {
+  try {
+    const success = await cameraService.deleteCamera(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = {
+  createCamera,
+  getAllCameras,
+  getCameraById,
+  updateCamera,
+  deleteCamera,
+};

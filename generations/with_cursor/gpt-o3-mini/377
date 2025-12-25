@@ -1,0 +1,33 @@
+import os
+import time
+import undetected_chromedriver as uc
+from selenium.common.exceptions import SessionNotCreatedException
+
+# Determine the directory where this script is located
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the path to the chromedriver executable
+# Note: In undetected_chromedriver, you should pass the chromedriver executable using the
+# driver_executable_path parameter, not as the chrome binary.
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# Create instance of ChromeOptions.
+options = uc.ChromeOptions()
+# IMPORTANT: Do not set options.binary_location to the chromedriver executable.
+# If needed, specify the path to your Chrome (or Chromium) binary here.
+# For example:
+# options.binary_location = r"C:\Path\To\Chrome.exe"
+
+try:
+    # Initialize undetected_chromedriver by explicitly providing the chromedriver executable.
+    # Also, it is recommended to omit use_subprocess=True unless you have a specific need.
+    with uc.Chrome(driver_executable_path=chromedriver_path, options=options) as driver:
+        driver.get("https://lmarena.ai/")
+        print("Navigation successful. Waiting for 10 seconds before closing.")
+        time.sleep(10)
+except SessionNotCreatedException as e:
+    print("Session could not be created. Please check your Chrome binary and chromedriver compatibility.")
+    print("Error details:", e)
+except Exception as ex:
+    print("An error occurred while starting the browser:")
+    print(ex)

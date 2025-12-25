@@ -1,0 +1,90 @@
+import asyncio
+from aiogram import Bot, Dispatcher, F, types
+from aiogram.filters import Command
+from aiogram.types import FSInputFile
+
+# This implementation is updated for aiogram 3.x and does not use the deprecated 'executor'.
+
+token = "TOKEN"
+bot = Bot(token=token)
+dp = Dispatcher()
+id = 111111111
+time_time = 5
+
+b = bool(True)
+
+@dp.message(Command('start'))
+async def start(message: types.Message):
+    # Corrected typo 'inline_keuboard' -> 'inline_keyboard' and removed redundant assignment
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="stop"),
+         types.InlineKeyboardButton(text="Нет", callback_data="continue")]
+    ])
+    await bot.send_message(chat_id=id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query(F.data == "stop")
+async def stop_callback(call: types.CallbackQuery): # Renamed from 'stop' to avoid name collision
+    global b
+    b = False # This stops the periodic task loop. The original code had this commented out.
+    # await bot.send_message(chat_id=call.message.chat.id, text="干得好，傻瓜")
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+    await call.answer() # Good practice to answer callback queries
+
+@dp.callback_query(F.data == "continue")
+async def continue_callback(call: types.CallbackQuery): # Renamed from 'stop' to avoid name collision
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+    await call.answer() # Good practice to answer callback queries
+
+@dp.message(F.text)
+async def handle_all_messages(message: types.Message):
+    # Using FSInputFile is the modern, non-blocking way to send local files in aiogram 3
+    try:
+        vid = FSInputFile(r"D:\Python files\!MoexApiBot\censored.gif")
+        await bot.send_video(chat_id=id, video=vid, caption="Го <censor> ёр селф")
+    except Exception as e:
+        print(f"Error sending file: {e}")
+        await message.answer("File not found or error sending.")
+
+
+async def send_periodic_messages():
+    while b:
+        try:
+            await bot.send_message(chat_id=id, text="Лох лох")
+            # Using FSInputFile here as well
+            vid = FSInputFile(r"D:\Python files\!MoexApiBot\Shocked13.mp4")
+            await bot.send_video(chat_id=id, video=vid, caption="Ты проиграл")
+        except Exception as e:
+            print(f"Error in periodic task: {e}")
+        await asyncio.sleep(time_time)
+
+async def main():
+    # This logic replaces the old on_startup function
+    print('Бот запущен!')
+    asyncio.create_task(send_periodic_messages())
+
+    # This replaces executor.start_polling
+    # It starts the bot and listens for updates.
+    await dp.start_polling(bot, skip_updates=True)
+
+if __name__ == '__main__':
+    # This is the new standard way to run the main async function
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Бот остановлен.")
+
+
+# The following comments were in the original file and are preserved.
+# 对于 i 在范围(100)内：
+    # vid = open(r"D:\Python files\!MoexApiBot\d530f99f38bf98bbeb213cb32b53012b.mp4", "rb")
+    # 机器人发送消息(chat_id=444444444, text = f"你输了 {i} 次")
+    # bot.send_message(chat_id=444444444, text = f"您被入侵了 {i} 次")
+    # bot.send_message(chat_id=444444444, text = f"发送 {100*i} 卢布到账户 +55555555555")
+    # bot.send_video(chat_id=444444444, video=vid, caption="你输了")
+    # 关闭视频文件
+    # 暂停1秒
+# 555555555 名称_4
+# 444444444 好
+# 333333333 NAME_3
+# 222222222 NAME_2
+# 111111111 NAME_1

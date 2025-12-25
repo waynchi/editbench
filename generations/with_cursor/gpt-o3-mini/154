@@ -1,0 +1,49 @@
+import random
+
+def load_dictionary(path):
+    try:
+        with open(path, "r") as file:
+            words = [word.strip() for word in file.readlines()]
+        return words
+    except Exception as e:
+        print(f"无法打开字典文件: {e}")
+        return []
+
+def filter_words_by_length(words, length):
+    # 仅保留全部为字母的单词
+    return [word for word in words if len(word) == length and word.isalpha()]
+
+def main():
+    # 用户输入期望的单词字符数
+    try:
+        char_count = int(input("请输入单词字符数: "))
+    except ValueError:
+        print("请输入一个有效的整数。")
+        return
+
+    # 使用系统自带的英语词典文件（Linux下常见路径）
+    dictionary_path = "/usr/share/dict/words"
+    words = load_dictionary(dictionary_path)
+    
+    if not words:
+        print("字典加载失败。")
+        return
+
+    matching_words = filter_words_by_length(words, char_count)
+    
+    if not matching_words:
+        print(f"没有找到长度为 {char_count} 的单词。")
+        return
+
+    # 如果找到的单词数量大于等于10个，则随机选取10个，否则输出全部找到的单词
+    if len(matching_words) >= 10:
+        selected_words = random.sample(matching_words, 10)
+    else:
+        selected_words = matching_words
+
+    print(f"\n找到 {len(selected_words)} 个长度为 {char_count} 的单词：")
+    for word in selected_words:
+        print(word)
+
+if __name__ == '__main__':
+    main()

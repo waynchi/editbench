@@ -1,0 +1,66 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Uncomment if you want to use the example file
+
+def main():
+    lines = parse_input_file()
+    if not lines:
+        print("No input data found.")
+        return
+
+    # Convert each line into a list of characters ensuring a 2D grid.
+    grid = np.array([list(line.strip()) for line in lines if line.strip()])
+    
+    # If grid ends up being one-dimensional, try to fix it.
+    if grid.ndim == 1 and grid.size > 0:
+        grid = np.array([list(line) for line in grid])
+    
+    print("Grid:")
+    print(grid)
+
+    # Define the string we are looking for.
+    str_to_match = "XMAS"
+    count = 0
+
+    # Check horizontally across each row.
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Check vertically for each column.
+    # This loop will run only if grid is 2D and has at least one column.
+    if grid.ndim == 2 and grid.shape[1] > 0:
+        for col in range(grid.shape[1]):
+            col_str = ''.join(grid[:, col])
+            count += col_str.count(str_to_match)
+    else:
+        print("Warning: The grid does not have the correct 2D shape for vertical scanning.")
+
+    # Check diagonally (top-left to bottom-right).
+    for offset in range(-grid.shape[0] + 1, grid.shape[1]):
+        diag = np.diagonal(grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Check anti-diagonally (top-right to bottom-left).
+    flipped_grid = np.fliplr(grid)
+    for offset in range(-flipped_grid.shape[0] + 1, flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of '{str_to_match}'")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            # Use splitlines() to avoid empty string artefacts from trailing newlines.
+            lines = f.read().splitlines()
+        return lines
+    except FileNotFoundError:
+        print(f"Input file not found: {INPUT_FILE_PATH}")
+        return []
+
+if __name__ == "__main__":
+    main()

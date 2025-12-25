@@ -1,0 +1,47 @@
+import numpy as np
+
+# It's better practice to define constants at the top and not redefine them.
+# Consider using command-line arguments for more flexibility.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Main function to read data, calculate the sum of absolute differences
+    between sorted columns, and print the result.
+    """
+    try:
+        # Use numpy.loadtxt for efficient and robust parsing of numerical data.
+        # It handles variable whitespace and type conversion automatically.
+        data = np.loadtxt(INPUT_FILE_PATH, dtype=int)
+        
+        # Ensure the input data has two columns.
+        if data.ndim != 2 or data.shape[1] != 2:
+            print(f"Error: Input file '{INPUT_FILE_PATH}' must contain exactly two columns of numbers.")
+            return
+
+    except FileNotFoundError:
+        print(f"Error: Input file not found at '{INPUT_FILE_PATH}'")
+        return
+    except ValueError:
+        print(f"Error: Could not parse file. Ensure '{INPUT_FILE_PATH}' contains only numbers.")
+        return
+
+    # The original loop was an inefficient O(n^2) way to pair the smallest
+    # elements, then the second-smallest, and so on.
+    # A much more efficient O(n log n) approach is to sort both lists first.
+    
+    # Sort each column independently.
+    sorted_col1 = np.sort(data[:, 0])
+    sorted_col2 = np.sort(data[:, 1])
+
+    # Calculate the sum of absolute differences between the sorted columns.
+    # This is a vectorized operation in NumPy, which is very fast.
+    total_distance = np.sum(np.abs(sorted_col1 - sorted_col2))
+
+    print(total_distance)
+
+# The original parse_input_file function is no longer needed
+# as np.loadtxt is more suitable for this task.
+
+if __name__ == "__main__":
+    main()

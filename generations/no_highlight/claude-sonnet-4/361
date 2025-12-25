@@ -1,0 +1,88 @@
+def is_sum_of_four_nonzero_squares(n):
+    """
+    Sprawdza, czy liczba n może być wyrażona jako suma czterech niezerowych kwadratów.
+    """
+    # Sprawdzamy wszystkie możliwe kombinacje czterech niezerowych kwadratów
+    # Ograniczamy zakres do sqrt(n) dla każdego składnika
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        a_sq = a * a
+        if a_sq >= n:
+            break
+        for b in range(1, max_val):
+            b_sq = b * b
+            if a_sq + b_sq >= n:
+                break
+            for c in range(1, max_val):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq >= n:
+                    break
+                # Sprawdzamy czy pozostała część jest kwadratem doskonałym
+                remainder = n - a_sq - b_sq - c_sq
+                if remainder > 0:
+                    d = int(remainder**0.5)
+                    if d > 0 and d * d == remainder:
+                        return True, (a, b, c, d)
+    
+    return False, None
+
+def find_numbers_as_sum_of_four_squares(limit):
+    """
+    Znajduje wszystkie liczby do 'limit', które można wyrazić jako sumę czterech niezerowych kwadratów.
+    """
+    results = []
+    
+    for n in range(4, limit + 1):  # Minimalna suma to 1+1+1+1=4
+        is_valid, squares = is_sum_of_four_nonzero_squares(n)
+        if is_valid:
+            results.append((n, squares))
+    
+    return results
+
+def generate_sum_of_four_squares(a, b, c, d):
+    """
+    Generuje sumę czterech niezerowych kwadratów.
+    """
+    return a*a + b*b + c*c + d*d
+
+def main():
+    print("Liczby, które można wyrazić jako sumę czterech niezerowych kwadratów:")
+    print("=" * 60)
+    
+    # Znajdź liczby do 100, które można wyrazić jako sumę czterech niezerowych kwadratów
+    limit = 100
+    results = find_numbers_as_sum_of_four_squares(limit)
+    
+    print(f"Liczby od 4 do {limit}, które można wyrazić jako sumę czterech niezerowych kwadratów:\n")
+    
+    for number, squares in results[:20]:  # Pokaż pierwsze 20 wyników
+        a, b, c, d = squares
+        print(f"{number} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+    
+    print(f"\nZnaleziono {len(results)} liczb w zakresie 4-{limit}")
+    
+    # Przykłady konkretnych liczb
+    print("\n" + "="*60)
+    print("Sprawdzanie konkretnych liczb:")
+    
+    test_numbers = [20, 30, 50, 77, 100]
+    for num in test_numbers:
+        is_valid, squares = is_sum_of_four_nonzero_squares(num)
+        if is_valid:
+            a, b, c, d = squares
+            print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+        else:
+            print(f"{num} - nie można wyrazić jako suma czterech niezerowych kwadratów")
+    
+    # Generowanie przykładów
+    print("\n" + "="*60)
+    print("Generowanie sum czterech niezerowych kwadratów:")
+    
+    examples = [(1, 2, 3, 4), (2, 2, 2, 2), (1, 1, 1, 5), (3, 3, 4, 5)]
+    for a, b, c, d in examples:
+        result = generate_sum_of_four_squares(a, b, c, d)
+        print(f"{a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d} = {result}")
+
+if __name__ == "__main__":
+    main()

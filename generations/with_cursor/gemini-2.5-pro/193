@@ -1,0 +1,116 @@
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, clustering_specs, n_clusters=2, clustering_method='kmeans'):
+    """对指定的数据列子集执行独立的聚类。
+
+    参数:
+        features_transformed (pandas.DataFrame): 转换后的包含参数的DataFrame。
+        clustering_specs (dict): 一个字典，指定聚类任务。
+                                 键是新聚类列的名称（str）。
+                                 值是要用于聚类的列名元组/列表。
+                                 例如: {'cluster1': ('col1', 'col2'), 'cluster2': ('col3',)}
+        n_clusters (int): 用于所有聚类任务的聚类数量。
+        clustering_method (str): 聚类方法（目前仅支持 'kmeans'）。
+
+    返回:
+        pandas.DataFrame: 添加了新聚类标签列的DataFrame，如果出错则返回None。
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    result_df = features_transformed.copy()
+
+    if clustering_method != 'kmeans':
+        print("Неподдерживаемый метод кластеризации.")
+        return None
+
+    # Iterate over the clustering specifications provided in the dictionary
+    for cluster_name, columns_to_cluster in clustering_specs.items():
+        print(f"\n--- Выполнение кластеризации для '{cluster_name}' на столбцах: {list(columns_to_cluster)} ---")
+        
+        columns_to_cluster = list(columns_to_cluster)
+
+        # Check if all specified columns exist in the DataFrame
+        if not all(col in result_df.columns for col in columns_to_cluster):
+            print(f"Ошибка: Один или несколько столбцов из {columns_to_cluster} не найдены в DataFrame. Пропуск кластеризации для '{cluster_name}'.")
+            continue
+
+        features_for_clustering = result_df[columns_to_cluster]
+
+        if features_for_clustering.empty:
+            print(f"Нет данных для кластеризации для '{cluster_name}'. Пропуск.")
+            continue
+        
+        # KMeans requires at least n_clusters samples to work
+        if len(features_for_clustering) < n_clusters:
+            print(f"Недостаточно образцов ({len(features_for_clustering)}) для кластеризации на {n_clusters} кластеров для '{cluster_name}'. Пропуск.")
+            continue
+
+        model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        cluster_labels = model.fit_predict(features_for_clustering)
+        
+        # Evaluate clustering quality (e.g., using silhouette score)
+        if len(np.unique(cluster_labels)) > 1:
+            silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+            print(f"Коэффициент силуэта для {n_clusters} кластеров ('{cluster_name}'): {silhouette_avg:.4f}")
+        else:
+            print(f"Невозможно рассчитать коэффициент силуэта для '{cluster_name}' (все точки в одном кластере).")
+
+        result_df[cluster_name] = cluster_labels
+        print(f"Кластеризация для '{cluster_name}' выполнена. Метки кластеров добавлены в столбец '{cluster_name}'.")
+
+    return result_df
+
+# 执行聚类（在步骤5之后和步骤6之前）
+if 'features_transformed' in locals() and features_transformed is not None:
+    # 定义要执行的独立聚类任务
+    # 键是新的列名，值是用于聚类的列的元组
+    # 例如，假设 'features_transformed' 有 'feature_1', 'feature_2', 'feature_3'
+    # 我们将对 ('feature_1', 'feature_2') 和 ('feature_3') 分别进行聚类
+    
+    # Get a list of numerical features to create a dynamic example
+    numerical_features_list = features_transformed.select_dtypes(include=np.number).columns.tolist()
+    
+    clustering_specs = {}
+    if len(numerical_features_list) >= 3:
+        clustering_specs = {
+            'cluster_set_1': (numerical_features_list[0], numerical_features_list[1]),
+            'cluster_set_2': (numerical_features_list[2],)
+        }
+    elif len(numerical_features_list) >= 2:
+         clustering_specs = {
+            'cluster_set_1': (numerical_features_list[0], numerical_features_list[1])
+        }
+    else:
+        print("Недостаточно числовых признаков для примера кластеризации.")
+
+    if clustering_specs:
+        n_clusters = 3  # 簇的数量（为所有任务选择最佳值）
+        features_with_clusters = cluster_data(features_transformed, clustering_specs, n_clusters)
+        
+        # 可视化聚类结果
+        # 为每个创建的聚类生成一个图
+        if features_with_clusters is not None:
+            print("\n--- Визуализация результатов кластеризации ---")
+            for cluster_name, columns_used in clustering_specs.items():
+                # We can only create a 2D scatter plot if the clustering was based on exactly 2 features
+                if len(columns_used) == 2:
+                    plt.figure(figsize=(8, 6))
+                    plt.scatter(features_with_clusters[columns_used[0]], 
+                                features_with_clusters[columns_used[1]], 
+                                c=features_with_clusters[cluster_name], 
+                                cmap='viridis')
+                    plt.xlabel(columns_used[0])
+                    plt.ylabel(columns_used[1])
+                    plt.title(f'Результаты кластеризации для "{cluster_name}"')
+                    plt.colorbar(label='Номер кластера')
+                    plt.show()
+                else:
+                    print(f"Невозможно создать 2D-визуализацию для кластера '{cluster_name}', так как он не основан на 2 признаках (требуется 2, получено {len(columns_used)}).")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

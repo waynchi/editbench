@@ -1,0 +1,85 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+from typing import Optional, Dict, Any
+
+
+def generate_response_from_shap(
+    shap_json_path: str,
+    system_prompt_path: str,
+    model_name: str,
+    base_url: str,
+    client_kwargs: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Generates a response from a chat model based on SHAP values and a system prompt.
+
+    Args:
+        shap_json_path: Path to the JSON file containing SHAP values.
+        system_prompt_path: Path to the file containing the system prompt.
+        model_name: The name of the Ollama model to use.
+        base_url: The base URL of the Ollama service.
+        client_kwargs: Optional dictionary of keyword arguments for the Ollama client (e.g., for authentication).
+
+    Returns:
+        The content of the generated response as a string.
+    """
+    # Initialize the ChatOllama model
+    chat_model = ChatOllama(
+        model=model_name, base_url=base_url, client_kwargs=client_kwargs
+    )
+
+    # Load SHAP values from JSON file
+    with open(shap_json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Load system prompt from file
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Prepare the messages
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Prepare user input
+    user_input = json.dumps(shap_values_json)
+
+    # Create the chain
+    chain = prompt | chat_model
+
+    # Generate and return the response
+    response = chain.invoke({"user_input": user_input})
+    return response.content
+
+
+if __name__ == "__main__":
+    # Configuration for the local setup
+    local_config = {
+        "shap_json_path": "Vuori_Final_Approval_2024_09_24.json",
+        "system_prompt_path": "system.prompt",
+        "model_name": "llama3.2",
+        "base_url": "http://localhost:11434",
+        "client_kwargs": None,
+    }
+
+    # Example configuration for a remote, authenticated setup
+    # remote_config = {
+    #     "shap_json_path": "Vuori_Final_Approval_2024_09_24.json",
+    #     "system_prompt_path": "system.prompt",
+    #     "model_name": "llama3.1:70b",
+    #     "base_url": "http://ada-open-webui.serveo.net/ollama",
+    #     "client_kwargs": {"headers": {"authorization": "Bearer <MASKED>"}},
+    # }
+
+    # Generate and print the response using the local configuration
+    try:
+        response_content = generate_response_from_shap(**local_config)
+        print(response_content)
+    except FileNotFoundError as e:
+        print(f"Error: Could not find a required file. {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")

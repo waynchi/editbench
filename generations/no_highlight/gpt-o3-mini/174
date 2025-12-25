@@ -1,0 +1,29 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# 假设 brand_A, brand_B, brand_C 和 all_data 已经在其他地方定义
+# 构造数据字典
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+# 创建 DataFrame
+df = pd.DataFrame(data)
+
+# 将分类变量生成虚拟变量（不采用R风格的公式）
+# 注意：drop_first=True 是为了避免虚拟变量陷阱
+brand_dummies = pd.get_dummies(df['Brand'], drop_first=True)
+
+# 添加常数项，以建立截距
+X = sm.add_constant(brand_dummies)
+y = df['Cost']
+
+# 使用普通最小二乘法（OLS）拟合模型
+model = sm.OLS(y, X).fit()
+
+# 执行 ANOVA 分析，typ=2 表示使用第二型平方和
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# 打印 ANOVA 表格
+print(anova_table)

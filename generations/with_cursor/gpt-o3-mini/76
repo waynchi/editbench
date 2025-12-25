@@ -1,0 +1,53 @@
+import { messages } from "./messages.js";
+
+$(document).ready(function() {
+    // Cache jQuery selectors
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+
+    // Retrieve values from localStorage
+    const cachedData = localStorage.getItem('userData');
+    let userInfo = null, paymentInfo = null;
+
+    if (cachedData) {
+        try {
+            const parsedData = JSON.parse(cachedData);
+            userInfo = parsedData.userInfo;
+            paymentInfo = parsedData.paymentInfo;
+        } catch (error) {
+            console.error('Error parsing userData:', error);
+        }
+    }
+
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $('#generateTaxButton').on('click', function() {
+        $main.fadeOut(500, function() {
+            // After main fades out, show loading
+            setTimeout(function() {
+                $loading.css('display', 'flex');
+
+                let cumulativeDelay = 0;
+                const $loadMessages = $('#loading-messages');
+
+                // Iterate through each message and display them in sequence
+                messages.forEach(function(message) {
+                    cumulativeDelay += message.time;
+                    setTimeout(function() {
+                        $loadMessages.text(message.text);
+                    }, cumulativeDelay);
+                });
+
+                // After all the messages are displayed, show payment and info sections
+                setTimeout(function() {
+                    $loading.css('display', 'none');
+                    $payment.css('display', 'block');
+                    $info.css('display', 'block');
+                }, cumulativeDelay + 500);
+            }, 200);
+        });
+    });
+});

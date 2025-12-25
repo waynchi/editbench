@@ -1,0 +1,89 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_columns_dict, n_clusters=2, clustering_method='kmeans'):
+    """Performs data clustering on specified column sets independently.
+
+Args:
+    features_transformed (pandas.DataFrame): Transformed DataFrame with parameters.
+    cluster_columns_dict (dict): Dictionary where keys are new column names and values are tuples of column names to cluster.
+    n_clusters (int): Number of clusters.
+    clustering_method (str): Clustering method ('kmeans').
+
+Returns:
+    pandas.DataFrame: DataFrame with added columns of cluster labels."""
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+
+    for cluster_name, columns_to_cluster in cluster_columns_dict.items():
+        # Extract the specified columns for clustering
+        clustering_data = features_for_clustering[list(columns_to_cluster)]
+        
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(clustering_data)
+            
+            # Evaluation of clustering quality (e.g., using the silhouette coefficient)
+            if len(np.unique(cluster_labels)) > 1: # Check for the case when all points are assigned to one cluster
+                silhouette_avg = silhouette_score(clustering_data, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров ({cluster_name}): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера ({cluster_name}) - все точки в одном кластере.")
+
+        else:
+            print("Неподдерживаемый метод кластеризации.")
+            return None
+
+        features_transformed[cluster_name] = cluster_labels
+        print(f"Кластеризация выполнена для {columns_to_cluster}. Метки кластеров добавлены в столбец '{cluster_name}'.")
+
+    return features_transformed
+
+# Clustering execution (after step 5 and before step 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Define clustering sets: {new_column_name: (column1, column2, ...)}
+    cluster_columns_dict = {
+        'cluster_set1': ('feature1', 'feature2'),  # Cluster on these two columns
+        'cluster_set2': ('feature3',)              # Cluster on this single column
+    }
+    
+    n_clusters = 3  # Number of clusters (select the optimal value)
+    features_transformed = cluster_data(features_transformed, cluster_columns_dict, n_clusters)
+    
+    # Visualization of clusters for each cluster set (example for 2D visualization)
+    for cluster_name, columns_to_cluster in cluster_columns_dict.items():
+        clustering_data = features_transformed[list(columns_to_cluster)]
+        
+        if clustering_data.shape[1] >= 2:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(clustering_data.iloc[:, 0], clustering_data.iloc[:, 1], 
+                       c=features_transformed[cluster_name], cmap='viridis')
+            plt.xlabel(clustering_data.columns[0])
+            plt.ylabel(clustering_data.columns[1])
+            plt.title(f'Результаты кластеризации: {cluster_name}')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+        elif clustering_data.shape[1] == 1:
+            # 1D visualization for single column clustering
+            plt.figure(figsize=(10, 4))
+            unique_clusters = sorted(features_transformed[cluster_name].unique())
+            
+            for cluster_id in unique_clusters:
+                cluster_data = clustering_data[features_transformed[cluster_name] == cluster_id]
+                plt.scatter(cluster_data.iloc[:, 0], [cluster_id] * len(cluster_data), 
+                           alpha=0.6, label=f'Кластер {cluster_id}')
+            
+            plt.xlabel(clustering_data.columns[0])
+            plt.ylabel('Номер кластера')
+            plt.title(f'Результаты кластеризации: {cluster_name}')
+            plt.legend()
+            plt.show()
+        else:
+            print(f"Недостаточно числовых признаков для визуализации кластеров '{cluster_name}'.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

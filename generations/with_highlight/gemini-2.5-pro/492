@@ -1,0 +1,171 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import skew
+
+# def medcouple(datos):
+# data = np.sort(data)  # Ordenamos los datos
+# n = len(data)
+# mediana = np.median(data)
+
+# # Dividimos los datos en menores que la mediana y mayores que la mediana
+# izquierda = data[data <= mediana]
+# right = data[data >= median]
+
+# # Función núcleo h(xi, xj)
+# def h(xi, xj):
+# si xi != xj:
+# devuelve ((xj - mediana) - (mediana - xi)) / (xj - xi)
+# devuelve 0  # Aunque xi != xj debería excluir este caso
+
+# # Núcleo especial para casos con repeticiones de la mediana
+# def especial_h(i, j, k):
+# si i + j - 1 < k:
+# devuelve -1
+# elif i + j - 1 == k:
+# devolver 0
+# elif i + j - 1 > k:
+# retornar 1
+
+# # Generación de todos los posibles h(xi, xj)
+# valores_h = []
+# k = len(data[data == median])  # Cantidad de valores repetidos de la mediana
+# si k > 1:  # Manejo del caso con medianas coincidentes
+# para i, xi en enumerate(left):
+# para j, xj en enumerate(right):
+# si xi == xj == mediana:
+# h_values.append(special_h(i, j, k))
+# sino:
+# h_values.append(h(xi, xj))
+# de lo contrario:
+# para xi en izquierda:
+# para xj en la derecha:
+# h_values.append(h(xi, xj))
+
+# # Devolvemos la mediana de todos los valores h
+# devolver np.median(h_values)
+# Necesitamos acelerar y reescribir la función medcouple
+
+def medcouple(data):
+    data = np.sort(data)
+    median = np.median(data)
+
+    # Dividir los datos en izquierda y derecha de la mediana
+    left = data[data <= median]
+    right = data[data >= median]
+
+    # Conteo de valores medianos repetidos
+    k = len(data[data == median])
+
+    # Usar broadcasting de numpy para eficiencia
+    xi, xj = np.meshgrid(left, right, indexing='ij')
+
+    # Calcular la matriz de h(xi, xj) de forma vectorizada
+    numerator = (xj - median) - (median - xi)
+    denominator = xj - xi
+
+    # Inicializar h_matrix con 0, que es el valor para cuando xi == xj.
+    h_matrix = np.zeros_like(xi, dtype=float)
+    
+    # Crear una máscara para evitar la división por cero.
+    nonzero_mask = (denominator != 0)
+    
+    # Calcular h para todos los pares donde el denominador no es cero.
+    h_matrix[nonzero_mask] = numerator[nonzero_mask] / denominator[nonzero_mask]
+
+    # Si hay valores repetidos en la mediana, aplicar el núcleo especial de forma vectorizada.
+    if k > 1:
+        # Obtener los índices para los arreglos 'left' y 'right'.
+        left_indices = np.arange(len(left))
+        right_indices = np.arange(len(right))
+        i, j = np.meshgrid(left_indices, right_indices, indexing='ij')
+        
+        # Máscara para los casos donde tanto xi como xj son la mediana.
+        median_mask = (xi == median) & (xj == median)
+        
+        # El núcleo especial vectorizado usa np.sign, que es equivalente a la
+        # lógica if/elif/else original.
+        special_h_values = np.sign((i + j - 1) - k)
+        
+        # Actualizar h_matrix con los valores especiales.
+        h_matrix[median_mask] = special_h_values[median_mask]
+
+    # Aplana la matriz y calcula la mediana de los valores de h
+    return np.median(h_matrix.flatten())
+
+def adjusted_boxplot_bounds(data):
+    """Calcula los límites del diagrama de caja ajustado teniendo en cuenta las cercas ajustadas por asimetría."""
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    _medcouple = medcouple(data)
+
+    if _medcouple > 0:
+        lower_fence = q1 - 1.5 * np.exp(-4 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(3 * _medcouple) * iqr
+    else:
+        lower_fence = q1 - 1.5 * np.exp(-3 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(4 * _medcouple) * iqr
+
+    return lower_fence, upper_fence
+
+def normalize_column(data):
+    """Normalización utilizando boxplot ajustado."""
+    lower_fence, upper_fence = adjusted_boxplot_bounds(data)
+    print(lower_fence)
+    return (data - lower_fence) / (upper_fence - lower_fence)
+
+# Generación de datos
+np.random.seed(42)
+data_normal = np.random.normal(loc=50, scale=10, size=10000)
+data_skewed = np.random.exponential(scale=20, size=10000)
+data_skewed = np.concatenate([data_skewed[5:], [200, 250, 300, -100, -50]])
+data_with_outliers = np.concatenate([data_normal, [150, 160, 170]])
+
+# Normalización
+df = pd.DataFrame({
+    "Normal": data_normal,
+    "Skewed": data_skewed,
+    # Con_Outliers": data_with_outliers[3:],
+})
+
+normalized_df = df.apply(normalize_column)
+
+plt.figure(figsize=(16, 4), dpi=250)
+
+bins = np.linspace(-5, 200, 206)
+bin_width = bins[1] - bins[0]  # Ancho de un bin
+
+for col in df.columns:
+    # plt.hist(df[col], bins=50, alpha=0.5, label=f'{col} - Original')
+    # Calculamos histogramas sin graficar
+    hist, _ = np.histogram(df[col], bins=bins)
+
+    # Posiciones de las barras para cada histograma
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    # Desplazamiento para cada conjunto de datos
+    offset = bin_width / 4
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', alpha=0.2, label=f'{col}')
+    plt.legend()
+    plt.title(f"Histogram Before Normalization")
+plt.xlim(-10, 200)
+plt.show()
+
+bins = np.linspace(-2, 2, 101)
+bin_width = bins[1] - bins[0]  # Ancho de un bin
+
+
+plt.figure(figsize=(16, 4), dpi=250)
+for col in normalized_df.columns:
+    # plt.hist(normalized_df[col], bins=50, alpha=0.5, label=f'{col} - Normalizado')
+    hist, _ = np.histogram(normalized_df[col], bins=bins)
+
+    # Posiciones de las barras para cada histograma
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    # Desplazamiento para cada conjunto de datos
+    offset = bin_width / 2
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', label=f'{col}', alpha=0.2)
+    plt.legend()
+    plt.title(f"Histogram After Normalization")
+plt.show()

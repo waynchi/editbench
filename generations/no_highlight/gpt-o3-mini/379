@@ -1,0 +1,17 @@
+import requests
+
+def registerKey(key: str, user: str):
+    print(f'chave: {key}\nnome: {user}')
+    try:
+        # Wykonaj żądanie POST, wysyłając dane jako JSON
+        response = requests.post('http://127.0.0.1:5000/register', json={'key': key, 'user': user})
+        response_json = response.json()
+        
+        if response.status_code == 200 and response_json.get('valid'):
+            return True
+        
+        return False
+
+    except requests.RequestException as e:
+        print(f"Erro de conexão: {e}")
+        return False

@@ -1,0 +1,87 @@
+import requests # 用于API请求
+import xml.etree.ElementTree # 用于处理 API 的 xml 响应
+import matplotlib.pyplot as plt # 用于绘制图表
+import pandas as pd # 用于创建数据框并将所有蜡烛分为两种类型：收盘和开盘
+import datetime # 用于x轴的日期
+import pickle # 用于在文件中存储变量
+import json
+
+# “货币类”
+class valute():
+    """货币及其相关内容，通过俄罗斯央行
+
+所需库：
+
+requests
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json
+    此外，该实现使用 aiohttp 和 aiofiles 来实现异步网络与文件 I/O操作。"""
+    # 内部导入必要的异步库
+    import aiohttp
+    import aiofiles
+    import asyncio
+
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """检查货币名称是否存在于货币集合中。集合每天更新不超过一次。"""
+        info_path = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+        set_valutes_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+
+        # 读取信息文件
+        async with self.aiofiles.open(info_path, "r", encoding="utf-8") as info_file:
+            info_data = await info_file.read()
+        info = json.loads(info_data)
+
+        last_check = datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            # 如果相差超过1天，则重写货币列表（集合）：
+            set_valutes = set()
+            s = "http://www.cbr.ru/scripts/XML_daily.asp"
+            async with self.aiohttp.ClientSession() as session:
+                async with session.get(s) as response:
+                    content = await response.read()
+            root = xml.etree.ElementTree.fromstring(content)
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                set_valutes.add(CharCode.text)
+            # 将集合序列化后写入二进制文件
+            binary_data = pickle.dumps(set_valutes)
+            async with self.aiofiles.open(set_valutes_path, "wb") as bin_file:
+                await bin_file.write(binary_data)
+            # 更改最后更新时间
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with self.aiofiles.open(info_path, "w", encoding="utf-8") as info_file:
+                formatted_json = json.dumps(info, indent=3, ensure_ascii=False)
+                await info_file.write(formatted_json)
+        # 现在只需检查货币是否在货币列表中
+        async with self.aiofiles.open(set_valutes_path, "rb") as bin_file:
+            binary_data = await bin_file.read()
+        set_valutes = pickle.loads(binary_data)
+        if self.name in set_valutes:
+            return True
+        else:
+            return False
+
+    async def CurrentExchangeRate(self):
+        '''当前货币兑换卢布的汇率'''
+        s = "http://www.cbr.ru/scripts/XML_daily.asp"
+        async with self.aiohttp.ClientSession() as session:
+            async with session.get(s) as response:
+                content = await response.read()
+        root = xml.etree.ElementTree.fromstring(content)
+        for Valute in root.findall("Valute"):
+            for CharCode in Valute.findall("CharCode"):
+                if CharCode.text == self.name:
+                    return Valute.find("VunitRate").text

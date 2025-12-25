@@ -1,0 +1,75 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Check if a number can be expressed as sum of four non-zero squares.
+    Returns True if possible, False otherwise.
+    """
+    # Check all combinations of four non-zero squares
+    # We only need to check up to sqrt(n/4) for each square
+    # since we need at least 4 squares and each must be at least 1
+    max_val = int((n // 4) ** 0.5) + 1
+    
+    for a in range(1, max_val + 1):
+        a_sq = a * a
+        if a_sq >= n:
+            break
+        for b in range(1, int(((n - a_sq) // 3) ** 0.5) + 1):
+            b_sq = b * b
+            if a_sq + b_sq >= n:
+                break
+            for c in range(1, int(((n - a_sq - b_sq) // 2) ** 0.5) + 1):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq >= n:
+                    break
+                d_sq = n - a_sq - b_sq - c_sq
+                d = int(d_sq ** 0.5)
+                if d > 0 and d * d == d_sq:
+                    return True
+    return False
+
+def find_numbers_sum_four_squares(limit):
+    """
+    Find all numbers up to limit that can be expressed as sum of four non-zero squares.
+    """
+    result = []
+    for i in range(4, limit + 1):  # Start from 4 since minimum is 1²+1²+1²+1²=4
+        if can_be_sum_of_four_nonzero_squares(i):
+            result.append(i)
+    return result
+
+# Example usage
+if __name__ == "__main__":
+    limit = 50
+    numbers = find_numbers_sum_four_squares(limit)
+    print(f"Numbers up to {limit} that can be expressed as sum of four non-zero squares:")
+    print(numbers)
+    
+    # Show some examples with their decompositions
+    print("\nExamples with decompositions:")
+    for num in numbers[:10]:  # Show first 10 examples
+        # Find one valid decomposition
+        max_val = int((num // 4) ** 0.5) + 1
+        found = False
+        for a in range(1, max_val + 1):
+            if found:
+                break
+            a_sq = a * a
+            if a_sq >= num:
+                break
+            for b in range(1, int(((num - a_sq) // 3) ** 0.5) + 1):
+                if found:
+                    break
+                b_sq = b * b
+                if a_sq + b_sq >= num:
+                    break
+                for c in range(1, int(((num - a_sq - b_sq) // 2) ** 0.5) + 1):
+                    if found:
+                        break
+                    c_sq = c * c
+                    if a_sq + b_sq + c_sq >= num:
+                        break
+                    d_sq = num - a_sq - b_sq - c_sq
+                    d = int(d_sq ** 0.5)
+                    if d > 0 and d * d == d_sq:
+                        print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a_sq} + {b_sq} + {c_sq} + {d_sq}")
+                        found = True
+                        break

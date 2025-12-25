@@ -1,0 +1,54 @@
+import numpy as np
+from pathlib import Path
+
+# Use pathlib for better path handling
+INPUT_FILE_PATH = Path('./example_in.txt')
+
+def main():
+    """Main function to calculate sum of distances between sorted pairs."""
+    try:
+        lines = parse_input_file()
+        
+        # Filter out empty lines
+        lines = [line for line in lines if line.strip()]
+        
+        if not lines:
+            print("No data found in input file")
+            return
+            
+        # Parse the data more efficiently
+        pairs = [line.split() for line in lines]
+        
+        # Validate data format
+        if not all(len(pair) == 2 for pair in pairs):
+            raise ValueError("Each line must contain exactly 2 numbers")
+            
+        # Convert to numpy array and transpose in one step
+        data = np.array(pairs, dtype=int).T
+        list_1, list_2 = data[0], data[1]
+        
+        # Sort both arrays (much more efficient than repeatedly finding minimums)
+        sorted_1 = np.sort(list_1)
+        sorted_2 = np.sort(list_2)
+        
+        # Calculate all distances at once using vectorized operations
+        distances = np.abs(sorted_1 - sorted_2)
+        total_distance = np.sum(distances)
+        
+        print(f"Total distance: {total_distance}")
+        
+    except FileNotFoundError:
+        print(f"Error: File '{INPUT_FILE_PATH}' not found")
+    except ValueError as e:
+        print(f"Error parsing data: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+def parse_input_file():
+    """Parse input file and return lines as a list."""
+    with open(INPUT_FILE_PATH, 'r', encoding='utf-8') as f:
+        lines = f.read().strip().split('\n')
+    return lines
+
+if __name__ == "__main__":
+    main()

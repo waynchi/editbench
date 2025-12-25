@@ -1,0 +1,76 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+
+  function getCurrentTurn() {
+    // Проверяем, есть ли у союзников юниты, которые могут действовать
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    
+    // Проверяем, есть ли у противников юниты, которые могут действовать
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    // Если у союзников есть юниты, которые могут действовать
+    if (allyCanAct) {
+      return "player";
+    }
+    // Если у противников есть юниты, которые могут действовать
+    else if (foeCanAct) {
+      return "cpu";
+    }
+    // Если никто не может действовать, начинаем новый ход с игрока
+    else {
+      return "player";
+    }
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    const currentTurn = getCurrentTurn();
+    
+    if (currentTurn === "player") {
+      // Проверяем, остались ли у игрока юниты, которые могут действовать
+      const allyCanAct = allyStates.some(unit => !unit.hasActed);
+      
+      if (!allyCanAct) {
+        // Если у игрока нет юнитов для действия, переходим к CPU
+        foeStates.forEach(unit => unit.hasActed = false);
+        cpuTurn();
+      }
+    } else {
+      // Проверяем, остались ли у CPU юниты, которые могут действовать
+      const foeCanAct = foeStates.some(unit => !unit.hasActed);
+      
+      if (!foeCanAct) {
+        // Если у CPU нет юнитов для действия, переходим к новому ходу игрока
+        foeStates.forEach(unit => unit.hasActed = true);
+        allyStates.forEach(unit => unit.hasActed = false);
+        turnNumber++; // Увеличивать номер хода только после завершения полного цикла
+      }
+    }
+  }
+
+  function cpuTurn() {
+    // Пример поведения процессора (замените на вашу фактическую логику ИИ)
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // Проверить, действовал ли юнит в этом ходу
+        // Выполнить действия процессора (например, движение, атака)
+        // ... ваша логика ИИ для процессора здесь ...
+
+        cpuUnit.hasActed = true; // Отметить, что юнит уже действовал
+      }
+    }
+
+    // После того как все CPU-единицы совершили действие, проверяем следующий ход
+    nextTurn();
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

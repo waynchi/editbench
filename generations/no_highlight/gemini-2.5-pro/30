@@ -1,0 +1,75 @@
+def find_sums_of_four_non_zero_squares(upper_limit: int):
+    """
+    Gera uma lista de números inteiros, até um determinado limite, que podem ser
+    expressos como a soma de quatro quadrados não nulos.
+
+    Um número n está na lista se n = a² + b² + c² + d² para inteiros a, b, c, d ≥ 1.
+
+    Args:
+        upper_limit: O número máximo a ser verificado no resultado.
+
+    Returns:
+        Uma lista ordenada de números que satisfazem a condição.
+    """
+    sums_set = set()
+
+    # O valor máximo que 'a' pode ter é quando b, c, d são mínimos (iguais a 1).
+    # a² + 1² + 1² + 1² <= upper_limit  =>  a² <= upper_limit - 3
+    # Portanto, a <= sqrt(upper_limit - 3). Adicionamos 1 para o range de busca.
+    # Usamos upper_limit direto para simplificar, pois a busca é limitada internamente.
+    max_search_val = int(upper_limit**0.5) + 1
+
+    # Usamos laços aninhados para testar todas as combinações de a, b, c, d.
+    # Para evitar duplicatas e permutações (ex: 1²+1²+1²+2² e 1²+1²+2²+1²),
+    # garantimos a restrição de que a <= b <= c <= d.
+    for a in range(1, max_search_val):
+        a_sq = a * a
+        # Otimização: se 4*a² já ultrapassa o limite, não há necessidade de continuar com este 'a'.
+        if 4 * a_sq > upper_limit:
+            break
+        for b in range(a, max_search_val):
+            b_sq = b * b
+            # Otimização: se a soma com os menores quadrados possíveis a partir de 'b'
+            # já ultrapassa o limite, podemos seguir para o próximo 'a'.
+            if a_sq + 3 * b_sq > upper_limit:
+                break
+            for c in range(b, max_search_val):
+                c_sq = c * c
+                # Otimização similar para 'c'.
+                if a_sq + b_sq + 2 * c_sq > upper_limit:
+                    break
+                for d in range(c, max_search_val):
+                    d_sq = d * d
+                    current_sum = a_sq + b_sq + c_sq + d_sq
+
+                    if current_sum <= upper_limit:
+                        sums_set.add(current_sum)
+                    else:
+                        # Como 'd' está em ordem crescente, qualquer valor subsequente
+                        # também excederá o limite. Podemos quebrar o laço mais interno.
+                        break
+
+    return sorted(list(sums_set))
+
+
+if __name__ == "__main__":
+    # Define o limite superior para a geração dos números
+    LIMIT = 100
+
+    print(
+        f"Números até {LIMIT} que podem ser expressos como "
+        "a soma de quatro quadrados não nulos:"
+    )
+
+    # Gera e imprime a lista de números
+    numbers = find_sums_of_four_non_zero_squares(LIMIT)
+    print("Os números gerados são:")
+    print(numbers)
+
+    # Verificação de alguns números específicos
+    print("\nExemplos de decomposição:")
+    print("4 = 1² + 1² + 1² + 1²")
+    print("7 = 2² + 1² + 1² + 1²")
+    print("12 = 2² + 2² + 2² + 2²")
+    print("20 = 3² + 3² + 1² + 1²")
+    print("100 = 5² + 5² + 5² + 5²")

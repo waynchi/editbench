@@ -1,0 +1,47 @@
+import numpy as np
+
+# Use the intended input file path.
+INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file(file_path):
+    """
+    Reads the file from the provided file_path and returns a list of non-empty lines.
+    """
+    with open(file_path, 'r') as f:
+        # Using splitlines to avoid any trailing empty strings.
+        lines = f.read().splitlines()
+    return [line for line in lines if line.strip()]
+
+def main():
+    lines = parse_input_file(INPUT_FILE_PATH)
+    if not lines:
+        print("Input file is empty or does not exist.")
+        return
+
+    try:
+        # Each line is expected to include two numbers separated by whitespace.
+        # Replace the fixed split with split() to handle one or more spaces.
+        data = np.array([list(map(int, line.split())) for line in lines], dtype=int)
+    except ValueError as e:
+        print("Error processing input file:", e)
+        return
+
+    # Validate that we have exactly two columns.
+    if data.ndim != 2 or data.shape[1] != 2:
+        print("The input file does not have exactly two columns of integers.")
+        return
+
+    # Separate columns.
+    list_1 = data[:, 0]
+    list_2 = data[:, 1]
+
+    # Instead of iteratively removing the minimum elements, sort both arrays.
+    sorted_1 = np.sort(list_1)
+    sorted_2 = np.sort(list_2)
+
+    # Compute the sum of absolute differences between paired elements.
+    total_distance = np.sum(np.abs(sorted_1 - sorted_2))
+    print("Total distance:", total_distance)
+
+if __name__ == "__main__":
+    main()

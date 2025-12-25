@@ -1,0 +1,18 @@
+import pandas as pd
+
+def create_column(df):
+    # Создаем новый столбец 'Frequency' с начальным значением NaN для всех строк
+    df['Frequency'] = pd.NA
+    # В каждой строке, где столбец 'EventId' равен 'E16',
+    # присваиваем значение 117 в столбец 'Frequency'
+    df.loc[df['EventId'] == 'E16', 'Frequency'] = 117
+    return df
+
+if __name__ == '__main__':
+    # Пример использования функции
+    data = {
+        'EventId': ['E15', 'E16', 'E17', 'E16', 'E18']
+    }
+    df = pd.DataFrame(data)
+    df = create_column(df)
+    print(df)

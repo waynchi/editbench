@@ -1,0 +1,25 @@
+from flask import Flask, render_template
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def show_datetime():
+    current_datetime = datetime.now()
+    return render_template('datetime.html', datetime=current_datetime)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+Note: This implementation requires a templates directory with a datetime.html file. Here's the basic template structure you'd need in templates/datetime.html:
+html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Current Date and Time</title>
+</head>
+<body>
+    <h1>Current Date and Time</h1>
+    <p>{{ datetime.strftime("%Y-%m-%d %H:%M:%S") }}</p>
+</body>
+</html>

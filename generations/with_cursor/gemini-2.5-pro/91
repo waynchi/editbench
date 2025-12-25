@@ -1,0 +1,34 @@
+import os
+import hashlib
+import base64
+
+project_name = "CheckerKMV"
+
+
+def createLicense(secretKey: str) -> None:
+    # The main issue was attempting to write a string (secretKey) to a file
+    # opened in binary write mode ('wb'), which causes a TypeError. The string
+    # must be encoded to bytes first.
+    #
+    # This implementation also improves security by storing a hash of the
+    # secret key instead of the plain text key, using the originally
+    # commented-out libraries.
+
+    # Correctly point to the AppData/Local folder as suggested by the original comment.
+    # Fallback to APPDATA (Roaming) if LOCALAPPDATA is not available.
+    appdata_path = os.path.join(os.environ.get("LOCALAPPDATA", os.environ["APPDATA"]), project_name)
+
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+
+    # Encode the string into bytes for hashing.
+    key_bytes = secretKey.encode('utf-8')
+
+    # Create a SHA-256 hash of the key.
+    hashed_key = hashlib.sha256(key_bytes).digest()
+
+    # Base64 encode the binary hash to get the final license data.
+    license_data = base64.b64encode(hashed_key)
+
+    with open(os.path.join(appdata_path, "license.dat"), "wb") as f:
+        f.write(license_data)

@@ -1,0 +1,83 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Crear diccionario jerárquico para almacenar posts y sus replies
+hierarchy_dict = {}
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    
+    # Almacenar información del post principal en el diccionario
+    hierarchy_dict[post_permlink] = {
+        'post_author': post_author,
+        'post_title': post.get('title', ''),
+        'created': post.get('created', ''),
+        'total_replies': post_replies,
+        'replies': {}
+    }
+    
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies_list = comment.get_replies()
+        
+        cnt = 0
+        for reply in post_replies_list:
+            author = reply['author']
+            text = reply['body']
+            reply_permlink = reply['permlink']
+            
+            # Almacenar información de cada reply en el diccionario jerárquico
+            hierarchy_dict[post_permlink]['replies'][reply_permlink] = {
+                'author': author,
+                'body': text,
+                'processed': False
+            }
+            
+            if is_own_author(author):
+                # Reevaluar el comentario
+                hierarchy_dict[post_permlink]['replies'][reply_permlink]['processed'] = 'own_author'
+                break
+            if is_banned(author):
+                hierarchy_dict[post_permlink]['replies'][reply_permlink]['processed'] = 'banned'
+                break
+            if procesar(text):
+                cnt += 1
+                hierarchy_dict[post_permlink]['replies'][reply_permlink]['processed'] = 'matched'
+    
+    if cnt > 3:
+        print("Iterador: ",X)
+        print(reply['author'],'/',reply['permlink'])

@@ -1,0 +1,72 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_analysis(shap_values_file="Vuori_Final_Approval_2024_09_24.json", 
+                          system_prompt_file="system.prompt",
+                          model="llama3.2", 
+                          base_url="http://localhost:11434",
+                          client_kwargs=None):
+    """
+    Generate analysis of SHAP values using the ChatOllama model.
+    
+    Args:
+        shap_values_file (str): Path to JSON file containing SHAP values
+        system_prompt_file (str): Path to system prompt file
+        model (str): Ollama model name
+        base_url (str): Base URL for Ollama API
+        client_kwargs (dict): Additional client keyword arguments
+    
+    Returns:
+        str: The generated analysis response content
+    """
+    # Initialize the ChatOllama model
+    if client_kwargs:
+        chat_model = ChatOllama(
+            model=model,
+            base_url=base_url,
+            client_kwargs=client_kwargs
+        )
+    else:
+        chat_model = ChatOllama(model=model, base_url=base_url)
+    
+    # Load SHAP values from JSON file
+    with open(shap_values_file, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Load system prompt from file
+    with open(system_prompt_file, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Prepare the messages
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Generate the response
+    user_input = json.dumps(shap_values_json)  # Prepare user input
+    chain = prompt | chat_model
+    response = chain.invoke(user_input)
+    
+    return response.content
+
+# Example usage
+if __name__ == "__main__":
+    # Basic usage
+    result = generate_shap_analysis()
+    print(result)
+    
+    # Advanced usage with custom parameters
+    # result = generate_shap_analysis(
+    #     shap_values_file="custom_shap_values.json",
+    #     system_prompt_file="custom_prompt.txt",
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     }
+    # )
+    # print(result)

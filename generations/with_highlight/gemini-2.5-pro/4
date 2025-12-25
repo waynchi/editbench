@@ -1,0 +1,28 @@
+from flask import Flask
+import datetime
+
+# 1. Create a Flask application instance
+app = Flask(__name__)
+
+# 2. Define a route and a view function
+@app.route('/')
+def current_time():
+    """
+    This function is called when a user accesses the root URL '/'.
+    It returns the current date and time.
+    """
+    # Get the current time using the datetime module
+    now = datetime.datetime.now()
+    
+    # Format the time into a user-friendly string
+    time_string = now.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Return the string to be displayed in the browser
+    return f"<h1>The current date and time is: {time_string}</h1>"
+
+# 3. Run the Flask application
+if __name__ == '__main__':
+    # The app.run() method starts the development server.
+    # debug=True enables debug mode, which provides helpful error messages
+    # and automatically reloads the server when code changes are detected.
+    app.run(debug=True)

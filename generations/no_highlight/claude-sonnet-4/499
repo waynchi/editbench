@@ -1,0 +1,122 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_configs, n_clusters=2, clustering_method='kmeans'):
+    """Realiza la agrupación de datos de manera independiente para conjuntos de columnas especificados.
+
+    Args:
+        features_transformed (pandas.DataFrame): DataFrame transformado con parámetros.
+        cluster_configs (dict): Diccionario donde las claves son nombres de columnas de clústeres 
+                               y los valores son tuplas con nombres de columnas para agrupar.
+                               Ejemplo: {'Cluster1': ('columna1', 'columna2'), 'Cluster2': ('columna3',)}
+        n_clusters (int): Número de clústeres.
+        clustering_method (str): Método de agrupación ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame con las columnas de etiquetas de clústeres añadidas.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+
+    for cluster_feature_name, columns_to_cluster in cluster_configs.items():
+        print(f"\nВыполняется кластеризация для столбцов {columns_to_cluster} -> '{cluster_feature_name}'")
+        
+        # Verificar que las columnas existen en el DataFrame
+        missing_columns = [col for col in columns_to_cluster if col not in features_for_clustering.columns]
+        if missing_columns:
+            print(f"Ошибка: столбцы {missing_columns} не найдены в данных. Пропускаем кластеризацию для '{cluster_feature_name}'.")
+            continue
+        
+        # Seleccionar solo las columnas especificadas para este clúster
+        subset_data = features_for_clustering[list(columns_to_cluster)]
+        
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(subset_data)
+            
+            # Evaluación de la calidad de la agrupación
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(subset_data, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров ({cluster_feature_name}): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера ({cluster_feature_name}) - все точки в одном кластере.")
+
+        else:
+            print("Неподдерживаемый метод кластеризации.")
+            return None
+
+        features_for_clustering[cluster_feature_name] = cluster_labels
+        print(f"Кластеризация выполнена для '{cluster_feature_name}' с использованием столбцов {columns_to_cluster}.")
+
+    return features_for_clustering
+
+def visualize_clusters(features_transformed, cluster_configs):
+    """Visualiza los resultados de clusterización para cada configuración.
+    
+    Args:
+        features_transformed (pandas.DataFrame): DataFrame con resultados de clusterización.
+        cluster_configs (dict): Configuraciones de clústeres utilizadas.
+    """
+    for cluster_feature_name, columns_to_cluster in cluster_configs.items():
+        if cluster_feature_name not in features_transformed.columns:
+            continue
+            
+        subset_data = features_transformed[list(columns_to_cluster)]
+        
+        if len(columns_to_cluster) == 1:
+            # Visualización 1D
+            plt.figure(figsize=(10, 4))
+            plt.scatter(range(len(subset_data)), subset_data.iloc[:, 0], 
+                       c=features_transformed[cluster_feature_name], cmap='viridis')
+            plt.xlabel('Índice de muestra')
+            plt.ylabel(columns_to_cluster[0])
+            plt.title(f'Результаты кластеризации - {cluster_feature_name}')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+            
+        elif len(columns_to_cluster) >= 2:
+            # Visualización 2D (usando las primeras dos columnas)
+            plt.figure(figsize=(8, 6))
+            plt.scatter(subset_data.iloc[:, 0], subset_data.iloc[:, 1], 
+                       c=features_transformed[cluster_feature_name], cmap='viridis')
+            plt.xlabel(columns_to_cluster[0])
+            plt.ylabel(columns_to_cluster[1])
+            plt.title(f'Результаты кластеризации - {cluster_feature_name}')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+
+# Ejecución de la clusterización (después de la etapa 5 y antes de la etapa 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Configuración de clústeres - especificar qué columnas usar para cada clúster
+    cluster_configs = {
+        'Cluster1': ('columna1', 'columna2'),  # Clusterización usando columna1 y columna2
+        'Cluster2': ('columna3',),             # Clusterización usando solo columna3
+        # Agregar más configuraciones según sea necesario
+    }
+    
+    n_clusters = 3  # Cantidad de clústeres
+    
+    # Realizar clusterización
+    features_transformed = cluster_data(features_transformed, cluster_configs, n_clusters)
+    
+    if features_transformed is not None:
+        # Visualización de los clústeres
+        visualize_clusters(features_transformed, cluster_configs)
+        
+        # Mostrar información sobre las columnas de clústeres creadas
+        cluster_columns = list(cluster_configs.keys())
+        print(f"\nСозданы следующие столбцы кластеров: {cluster_columns}")
+        
+        # Mostrar distribución de clústeres para cada configuración
+        for cluster_name in cluster_columns:
+            if cluster_name in features_transformed.columns:
+                print(f"\nРаспределение кластеров для '{cluster_name}':")
+                print(features_transformed[cluster_name].value_counts().sort_index())
+    
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

@@ -1,0 +1,47 @@
+from dataclasses import dataclass
+
+@dataclass
+class Card:
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str
+
+    def __repr__(self):
+        return (
+            f"Card(celular='{self.celular}', operadora='{self.operadora}', valor='{self.valor}', "
+            f"email='{self.email}', nome='{self.nome}', cpf='{self.cpf}', card='{self.card}', "
+            f"mes='{self.mes}', ano='{self.ano}', cvv='{self.cvv}', token='{self.token}', "
+            f"bin='{self.bin}', dadosbin='{self.dadosbin}', senha='{self.senha}')"
+        )
+
+if __name__ == '__main__':
+    # Exemplo de inicialização da classe Card
+    card_instance = Card(
+        celular="123456789",
+        operadora="OperadoraX",
+        valor="100",
+        email="usuario@example.com",
+        nome="João da Silva",
+        cpf="11122233344",
+        card="4111111111111111",
+        mes="12",
+        ano="2030",
+        cvv="123",
+        token="token_exemplo",
+        bin="411111",
+        dadosbin="dados_example",
+        senha="senha123"
+    )
+    
+    print(card_instance)

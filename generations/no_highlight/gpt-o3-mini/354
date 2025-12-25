@@ -1,0 +1,59 @@
+import random
+import sys
+
+def load_dictionary(filepath="/usr/share/dict/words"):
+    """
+    Wczytuje słowa z pliku słownika.
+    Domyślnie używany jest systemowy słownik znajdujący się w /usr/share/dict/words.
+    """
+    try:
+        with open(filepath, "r") as file:
+            words = [word.strip() for word in file if word.strip()]
+        return words
+    except Exception as e:
+        print("Nie udało się wczytać słownika:", e)
+        sys.exit(1)
+
+def filter_words_by_length(words, length):
+    """
+    Zwraca listę słów, które mają dokładnie 'length' znaków.
+    """
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Wczytanie słownika
+    words = load_dictionary()
+
+    # Pobranie liczby znaków od użytkownika
+    while True:
+        try:
+            user_input = input("Podaj liczbę znaków dla szukanego słowa: ")
+            num_chars = int(user_input)
+            if num_chars <= 0:
+                print("Liczba musi być większa od 0. Spróbuj ponownie.")
+                continue
+            break
+        except ValueError:
+            print("Nieprawidłowy input. Wprowadź liczbę całkowitą.")
+
+    # Filtrowanie słów o wymaganej długości
+    matching_words = filter_words_by_length(words, num_chars)
+    
+    if not matching_words:
+        print("Nie znaleziono słów o długości", num_chars, "znaków.")
+        return
+
+    # Wybieramy 10 słów losowo spośród pasujących. Jeśli jest mniej niż 10, to wyświetlamy wszystkie.
+    if len(matching_words) < 10:
+        print(f"Znaleziono tylko {len(matching_words)} słów o długości {num_chars} znaków:")
+        words_to_display = matching_words
+    else:
+        words_to_display = random.sample(matching_words, 10)
+        print(f"Oto 10 słów o długości {num_chars} znaków:")
+
+    # Wyświetlenie słów
+    for word in words_to_display:
+        print(word)
+
+if __name__ == "__main__":
+    main()

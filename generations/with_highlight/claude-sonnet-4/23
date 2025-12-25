@@ -1,0 +1,77 @@
+import requests
+import random
+
+def get_words_with_n_characters(n):
+    """
+    Function to get words with exactly n characters from an online dictionary
+    """
+    try:
+        # Using a word list API or local word list
+        # For this example, I'll use a simple word list
+        url = "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+        response = requests.get(url)
+        
+        if response.status_code == 200:
+            words = response.text.strip().split('\n')
+        else:
+            # Fallback to a basic word list if API fails
+            words = [
+                "apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew",
+                "kiwi", "lemon", "mango", "orange", "papaya", "quince", "raspberry", "strawberry",
+                "tangerine", "watermelon", "blueberry", "coconut", "dragonfruit", "grapefruit",
+                "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "man", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "its", "let", "put", "say", "she", "too", "use",
+                "house", "world", "about", "after", "again", "air", "all", "along", "also", "an", "and", "another", "any", "are", "around", "as", "at", "away", "back", "be", "because", "been", "before", "below", "between", "both", "but", "by", "came", "can", "come", "could", "did", "do", "each", "end", "even", "every", "for", "from", "get", "got", "had", "has", "have", "he", "her", "here", "him", "his", "how", "i", "if", "in", "into", "is", "it", "its", "just", "like", "made", "make", "many", "may", "me", "more", "most", "my", "no", "not", "now", "of", "on", "one", "only", "or", "other", "our", "out", "over", "said", "same", "see", "she", "should", "since", "some", "still", "such", "take", "than", "that", "the", "their", "them", "there", "these", "they", "this", "those", "through", "time", "to", "too", "two", "up", "use", "very", "want", "water", "way", "we", "well", "were", "what", "when", "where", "which", "while", "who", "will", "with", "would", "you", "your"
+            ]
+        
+        # Filter words with exactly n characters
+        filtered_words = [word.lower() for word in words if len(word) == n and word.isalpha()]
+        
+        # Remove duplicates
+        filtered_words = list(set(filtered_words))
+        
+        # Return up to 10 random words
+        if len(filtered_words) >= 10:
+            return random.sample(filtered_words, 10)
+        else:
+            return filtered_words
+            
+    except Exception as e:
+        print(f"Error fetching words: {e}")
+        return []
+
+def main():
+    print("English Dictionary Word Lookup")
+    print("=" * 30)
+    
+    while True:
+        try:
+            n = input("\nEnter the number of characters (or 'quit' to exit): ").strip()
+            
+            if n.lower() == 'quit':
+                print("Goodbye!")
+                break
+            
+            n = int(n)
+            
+            if n <= 0:
+                print("Please enter a positive number.")
+                continue
+            
+            print(f"\nLooking for words with {n} characters...")
+            words = get_words_with_n_characters(n)
+            
+            if words:
+                print(f"\nFound {len(words)} word(s) with {n} characters:")
+                for i, word in enumerate(words, 1):
+                    print(f"{i:2d}. {word}")
+            else:
+                print(f"No words found with exactly {n} characters.")
+                
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

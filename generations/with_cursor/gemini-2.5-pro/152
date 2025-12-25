@@ -1,0 +1,44 @@
+from pathlib import Path
+import shutil
+
+target_folder = 'F:/Maverick/desktop/Windows/temp/'
+
+def get_content_delivery_path():
+    """获取 Windows 内容传递的路径"""
+    # Use Path.home() to be user-independent instead of a hardcoded path
+    path = Path.home() / 'AppData/Local/Packages/'
+    matched = path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    if result := next(matched, None):
+        suffix = 'LocalState/Assets/'
+        return result / suffix
+    else:
+        raise Exception('ContentDeliveryManager Not Found')
+    
+
+def jpeg(source_folder: Path, target_folder: str):
+    """将文件从源文件夹复制到目标文件夹并添加.jpeg后缀"""
+    target_path = Path(target_folder)
+    # Ensure the target directory exists, create it if not
+    target_path.mkdir(parents=True, exist_ok=True)
+    
+    copied_count = 0
+    # Iterate over all files in the source directory
+    for source_file in source_folder.iterdir():
+        # Filter for files and by size to get potential wallpapers (e.g., > 200KB)
+        if source_file.is_file() and source_file.stat().st_size > 200 * 1024:
+            # Create the destination path by appending .jpeg to the original name
+            destination_file = target_path / (source_file.name + '.jpeg')
+            # Copy the file, preserving metadata
+            shutil.copy2(source_file, destination_file)
+            copied_count += 1
+            
+    print(f"Copied {copied_count} files to {target_path}")
+
+    
+if __name__ == '__main__':
+    try:
+        source_folder = get_content_delivery_path()
+        print(f"Windows Content Delivery path: {source_folder}")
+        jpeg(source_folder, target_folder)
+    except Exception as e:
+        print(f"An error occurred: {e}")

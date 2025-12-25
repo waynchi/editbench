@@ -1,0 +1,268 @@
+import pandas as pd
+
+class Stock:
+    def __init__(self, filename, name):
+        self.filename = filename
+        try:
+            self.data = pd.read_csv(self.filename, index_col=0, parse_dates=True)
+        except Exception as e:
+            print(f"Unable to read file {self.filename}")
+            raise e
+        self.data.index.name = 'time'
+        self.name = name
+        self.attrs = {}
+
+    def get_attr(self, key):
+        try:
+            return self.attrs[key]
+        except KeyError:
+            return None
+
+    def set_attr(self, key, value):
+        self.attrs[key] = value
+
+    def get(self, i):
+        return self.data.iloc[i]
+
+    def get_range(self, s, t):
+        return self.data.iloc[s:t+1]
+
+    def __len__(self):
+        return len(self.data)
+
+class Transaction:
+    def __init__(self, num, price):
+        self.num = num
+        self.price = price
+        self.date = None
+
+    def set_date(self, date):
+        self.date = date
+
+class Trade:
+    def __init__(self, stock, long=True, num=0, price=0.0):
+        self.stock = stock
+        self.num = 0
+        self.profit = 0
+        self.closed = False
+        self.long = long
+
+        self.opens = []
+        self.closes = []
+
+        if num != 0:
+            self.open(num, price)
+
+    def close(self, num, price):
+        if num > self.num:
+            raise ValueError(f"ERR: Trying to close {num} of {self.stock.name} but only {self.num} available")
+        self.num -= num
+        self.closes.append(Transaction(num, price))
+
+        if self.long:
+            self.profit = self.get_num_closed() * (self.get_avg_close_price() - self.get_avg_open_price())
+        else:
+            self.profit = self.get_num_closed() * (self.get_avg_open_price() - self.get_avg_close_price())
+
+        if self.num == 0:
+            self.closed = True
+
+    def open(self, num, price):
+        self.num += num
+        self.opens.append(Transaction(num, price))
+
+    def get_equity(self, i):
+        current_price = self.stock.get(i)["close"]
+        if self.long:
+            return self.num * current_price
+        else:
+            # Для коротких сделок капитал может отражать потенциальные затраты на закрытие позиции
+            return self.num * (self.get_avg_open_price() - current_price)
+
+    def set_date(self, date):
+        [transaction.set_date(date) for transaction in self.opens if transaction.date is None]
+        [transaction.set_date(date) for transaction in self.closes if transaction.date is None]
+
+    def get_avg_open_price(self):
+        total_price = sum(transaction.price * transaction.num for transaction in self.opens)
+        total_num = sum(transaction.num for transaction in self.opens)
+        return total_price / total_num if total_num else 0
+
+    def get_avg_close_price(self):
+        total_price = sum(transaction.price * transaction.num for transaction in self.closes)
+        total_num = sum(transaction.num for transaction in self.closes)
+        return total_price / total_num if total_num else 0
+
+    def get_num_opened(self):
+        return sum(transaction.num for transaction in self.opens)
+
+    def get_num_closed(self):
+        return sum(transaction.num for transaction in self.closes)
+
+class Strategy:
+    def __init__(self):
+        self.stocks = []
+        self.starting_money = 100000.0
+        self.money = self.starting_money
+        self.closed_trades = []
+        self.open_trades = []
+        self.attrs = {}
+        self.analyzers = []
+
+    def get_attr(self, key):
+        return self.attrs.get(key, None)
+
+    def set_attr(self, key, value):
+        self.attrs[key] = value
+
+    def add_analyzer(self, analyzer):
+        analyzer.strategy = self
+        self.analyzers.append(analyzer)
+
+    def has_open_trade(self, stock):
+        for trade in self.open_trades:
+            if stock is trade.stock:
+                return True
+        return False
+
+    def get_open_trade(self, stock):
+        for trade in self.open_trades:
+            if trade.stock is stock:
+                return trade
+        raise ValueError("No open trade on stock " + str(stock.name))
+
+    def open_trade(self, stock, num, price):
+        current_day = stock.get(self.get_attr("i")).name
+        if self.money < num * price:
+            raise ValueError("Insufficient funds: have $" + str(self.money) +
+                             " available and trying to open " + str(num) +
+                             " of " + str(stock.name) + " at $" + str(price) +
+                             " on " + str(current_day))
+
+        if self.has_open_trade(stock):
+            trade = self.get_open_trade(stock)
+            trade.open(num, price)
+            trade.set_date(current_day)
+        else:
+            new_trade = Trade(stock, True, num, price)
+            new_trade.set_date(current_day)
+            self.open_trades.append(new_trade)
+
+        self.money -= num * price
+
+    def sell(self, stock, num, price):
+        if self.has_open_trade(stock):
+            trade = self.get_open_trade(stock)
+            trade.close(num, price)
+            trade.set_date(stock.get(self.get_attr("i")).name)
+            if trade.closed:
+                self.open_trades.remove(trade)
+                self.closed_trades.append(trade)
+        else:
+            raise ValueError("No position to close in " + str(stock.name))
+
+        self.money += num * price
+
+    def get_equity(self, i):
+        res = self.money
+        for trade in self.open_trades:
+            res += trade.get_equity(i)
+        return res
+
+    def next(self, i):
+        # Placeholder for the strategy logic for each sample
+        pass
+
+class Computer:
+    def __init__(self):
+        self.stocks = []
+        self.strategies = []
+        # Number of intra-candle samples for simulating the forming candle.
+        self.samples_per_candle = 5
+
+    def add_stock(self, stock):
+        if type(stock) is not Stock:
+            exit("ERR: called 'add_stock' on type: " + str(type(stock)))
+        self.stocks.append(stock)
+
+    def add_strategy(self, strategy):
+        if not isinstance(strategy, Strategy):
+            exit("ERR: called 'add_strategy' on type: " + str(type(strategy)))
+        self.strategies.append(strategy)
+
+    def run(self):
+        # Перебор стратегий и акций
+        for strategy in self.strategies:
+            stock_counter = 1
+            for stock in self.stocks:
+                strategy.stocks = [stock]
+                print(f"Processing stock #{stock_counter}/{len(self.stocks)}")
+                stock_counter += 1
+
+                n = len(stock)
+                # Обрабатываем все свечи, кроме последней, как завершённые.
+                for i in range(n - 1):
+                    strategy.set_attr("i", i)
+                    strategy.next(i)
+                    for analyzer in strategy.analyzers:
+                        analyzer.next(i)
+
+                # Обработка последней свечи как находящейся в процессе формирования.
+                i_last = n - 1
+                # Сохраняем оригинальные данные закрытой свечи.
+                candle_index = stock.data.index[i_last]
+                original_candle = stock.data.loc[candle_index].copy()
+
+                # Симуляция вариаций внутри последней свечи.
+                for sample in range(self.samples_per_candle):
+                    # Пример простой модели: значения изменяются линейно от значения открытия
+                    # до финальных (закрытых) значений.
+                    # Извлекаем базовые цены: open, high, low, close, volume
+                    o = original_candle.get("open", None)
+                    h = original_candle.get("high", None)
+                    l = original_candle.get("low", None)
+                    c = original_candle.get("close", None)
+                    vol = original_candle.get("volume", None)
+                    if None in (o, h, l, c, vol):
+                        raise ValueError("Не все необходимые колонки присутствуют в данных акции.")
+
+                    # Рассчёт прогрессии от открытия (t=0) к закрытию (t=1)
+                    t = (sample + 1) / self.samples_per_candle  # t от (1/samples) до 1
+                    temp_close = o + (c - o) * t
+                    # High и Low могут меняться по-разному. Здесь мы моделируем их как тоже интерполированные,
+                    # но с сохранением экстремума.
+                    temp_high = o + (h - o) * t
+                    temp_low = o + (l - o) * t
+                    temp_volume = vol * t
+
+                    # Обновляем строку текущей свечи с промежуточными данными
+                    new_values = {
+                        "open": o,         # Открытие остаётся неизменным
+                        "high": temp_high,
+                        "low": temp_low,
+                        "close": temp_close,
+                        "volume": temp_volume
+                    }
+                    stock.data.loc[candle_index] = new_values
+
+                    # Запуск стратегии и анализаторов для данного образца
+                    strategy.set_attr("i", i_last)
+                    strategy.next(i_last)
+                    for analyzer in strategy.analyzers:
+                        analyzer.next(i_last)
+
+                # После симуляции восстанавливаем оригинальные данные свечи (завершённые значения)
+                stock.data.loc[candle_index] = original_candle
+
+                # Завершение торгов: закрытие всех открытых сделок, если остались в конце дня
+                # Используем закрывающую цену из восстановленной свечи.
+                final_close = original_candle["close"]
+                for strat in self.strategies:
+                    # Продолжаем закрывать сделки, пока есть открытые позиции в стратегии
+                    while len(strat.open_trades) > 0:
+                        trade = strat.open_trades[0]
+                        strat.sell(trade.stock, trade.num, final_close)
+
+        # Очистка стратегий от привязанных акций
+        for strategy in self.strategies:
+            strategy.stocks = []

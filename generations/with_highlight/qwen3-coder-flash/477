@@ -1,0 +1,27 @@
+import pygame
+import math
+
+# Inicializar Pygame
+pygame.init()
+
+# Configurar pantalla
+screen_width = 800
+screen_height = 600
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Basic Screen')
+
+# Bucle principal
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+            
+    # Rellenar la pantalla con un color (por ejemplo, negro)
+    screen.fill((0, 0, 0))
+    
+    # Actualizar la pantalla
+    pygame.display.flip()
+
+# Salir de Pygame
+pygame.quit()

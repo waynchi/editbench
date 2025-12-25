@@ -1,0 +1,75 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import logging
+
+token = "TOKEN"
+bot = Bot(token=token)
+dp = Dispatcher()
+id = 111111111
+time_time = 5
+
+b = bool(True)
+
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Да", callback_data="stop"),
+        InlineKeyboardButton(text="Нет", callback_data="continue")]
+        ])
+    await bot.send_message(chat_id=id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query(lambda c: c.data == "stop")
+async def stop(call: types.CallbackQuery):
+    global b
+    # b = False
+    # await bot.send_message(chat_id=call.message.chat.id, text="Brawo, frajerze")
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+
+@dp.callback_query(lambda c: c.data == "continue")
+async def continue_handler(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+
+@dp.message()
+async def handle_all_messages(message: types.Message):
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=id, video=vid, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    while b:
+        await bot.send_message(chat_id=id, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=id, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(time_time)
+
+async def main():
+    print('Бот запущен!')
+    
+    # Создаем задачу для периодических сообщений
+    periodic_task = asyncio.create_task(send_periodic_messages())
+    
+    # Запускаем polling
+    try:
+        await dp.start_polling(bot, skip_updates=True)
+    finally:
+        periodic_task.cancel()
+        await bot.session.close()
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())
+
+# for i in range(100):
+    # vid = open(r"D:\Python files\!MoexApiBot\d530f99f38bf98bbeb213cb32b53012b.mp4", "rb")
+    # bot.send_message(chat_id=444444444, text = f"Przegrałeś {i} razy")
+    # bot.send_message(chat_id=444444444, text = f"Zostałeś zhakowany {i} razy")
+    # bot.send_message(chat_id=444444444, text = f"Wyślij {100*i} rubli na konto +55555555555)
+    # bot.send_video(chat_id=444444444, video=vid, caption="Przegrałeś")
+    # vid.close()
+    # time.sleep(1)
+# 555555555 NAZWA_4
+# 444444444 Dobr
+# 333333333 NAME_3
+# 222222222 NAME_2
+# 111111111 NAZWA_1

@@ -1,0 +1,55 @@
+# Números que podem ser expressos como a soma de quatro quadrados não nulos
+
+def eh_soma_quatro_quadrados_nao_nulos(n):
+    """
+    Verifica se um número pode ser expresso como soma de quatro quadrados não nulos
+    """
+    if n < 4:
+        return False
+    
+    # Testa todas as combinações possíveis de quatro quadrados não nulos
+    # Limitamos o limite superior para otimização
+    limite = int(n**0.5) + 1
+    
+    for a in range(1, limite):
+        if a*a > n:
+            break
+        for b in range(a, limite):
+            if a*a + b*b > n:
+                break
+            for c in range(b, limite):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, limite):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+                    if a*a + b*b + c*c + d*d > n:
+                        break
+    return False
+
+def encontrar_numeros(numeros):
+    """
+    Encontra números que podem ser expressos como soma de quatro quadrados não nulos
+    """
+    resultado = []
+    for num in numeros:
+        if eh_soma_quatro_quadrados_nao_nulos(num):
+            resultado.append(num)
+    return resultado
+
+# Exemplo de uso
+if __name__ == "__main__":
+    # Testando alguns números
+    testes = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    
+    print("Números que podem ser expressos como soma de quatro quadrados não nulos:")
+    for num in testes:
+        if eh_soma_quatro_quadrados_nao_nulos(num):
+            print(f"{num}: possível")
+        else:
+            print(f"{num}: não possível")
+    
+    # Encontrar todos os números até 100 que satisfazem a condição
+    numeros_validos = encontrar_numeros(range(4, 101))
+    print(f"\nNúmeros de 4 a 100 que podem ser expressos como soma de quatro quadrados não nulos:")
+    print(numeros_validos)

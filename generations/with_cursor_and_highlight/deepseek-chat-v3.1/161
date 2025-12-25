@@ -1,0 +1,31 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    判断一个数字是否可以表示为四个非零平方数的和。
+    
+    参数:
+    n: 要判断的正整数
+    
+    返回:
+    bool: 如果可以表示为四个非零平方数的和，返回True，否则返回False
+    """
+    # 检查n是否小于4（最小的四个非零平方和是1+1+1+1=4）
+    if n < 4:
+        return False
+    
+    # 遍历所有可能的四个非零平方数的组合
+    max_square = int(n**0.5) + 1
+    for a in range(1, max_square):
+        for b in range(1, max_square):
+            for c in range(1, max_square):
+                for d in range(1, max_square):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+    return False
+
+# 测试函数
+if __name__ == "__main__":
+    # 测试一些示例数字
+    test_numbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+    for num in test_numbers:
+        result = can_be_sum_of_four_nonzero_squares(num)
+        print(f"{num}: {result}")

@@ -1,0 +1,29 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Obtener el directorio del script actual
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construir la ruta relativa al chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# Se elimina options.binary_location ya que debe apuntar al ejecutable del navegador y no al chromedriver.
+print("wde")
+with uc.Chrome(use_subprocess=True, driver_executable_path=chromedriver_path, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)
+
+time.sleep(1)
+
+options = uc.ChromeOptions()
+alternative_chromedriver_path = r"C:\Programming\Test\IP_Test\chromedriver-win64\chromedriver.exe"
+print("wde")
+with uc.Chrome(use_subprocess=True, driver_executable_path=alternative_chromedriver_path, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)

@@ -1,0 +1,62 @@
+import { messages } from "./messages.js";
+
+// Use $(document).ready() to ensure the DOM is fully loaded before executing scripts.
+// This is the standard and recommended practice with jQuery.
+$(document).ready(() => {
+    // Cache jQuery objects for better performance and readability.
+    // Using a '$' prefix is a common convention for variables holding jQuery objects.
+    const $main = $('.main');
+    const $loadingContainer = $('.container-loading');
+    const $paymentSection = $('.payment-section');
+    const $userInfo = $('.user-info');
+    const $loadingMessages = $('#loading-messages');
+    const $generateTaxButton = $('#generateTaxButton');
+
+    // Retrieve data from localStorage, providing a default empty object to prevent errors
+    // if 'userData' is not present.
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Log the retrieved data for debugging purposes.
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    // Attach a click event handler using .on() which is the recommended method.
+    $generateTaxButton.on('click', () => {
+        // Use the callback of fadeOut to chain actions that should happen after the animation completes.
+        // This creates a more reliable and readable sequence of events.
+        $main.fadeOut(500, () => {
+            // Show the loading container. Using .css() is correct for setting 'display: flex'.
+            $loadingContainer.css('display', 'flex');
+
+            // --- Animate Loading Messages ---
+
+            // Correctly calculate the total duration for all messages.
+            // This is determined by the `time` of the last message in the sequence.
+            // Math.max is a robust way to find the latest time, even if the array is not sorted.
+            const totalDuration = messages.length > 0
+                ? Math.max(...messages.map(message => message.time))
+                : 0;
+
+            console.log(`Total message animation duration will be: ${totalDuration}ms`);
+
+            // Iterate over the messages and schedule each one to appear using setTimeout.
+            messages.forEach(message => {
+                setTimeout(() => {
+                    $loadingMessages.text(message.text);
+                }, message.time);
+            });
+
+            // --- Transition to Payment Section ---
+
+            // After the total duration of the message animation has passed, plus a small buffer,
+            // hide the loading screen and show the final sections.
+            setTimeout(() => {
+                console.log('Switching to payment view.');
+                $loadingContainer.hide();
+                $paymentSection.show();
+                $userInfo.show();
+            }, totalDuration + 500); // 500ms buffer after the last message
+        });
+    });
+});

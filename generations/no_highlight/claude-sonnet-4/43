@@ -1,0 +1,63 @@
+import pandas as pd
+import numpy as np
+from scipy import stats
+from sklearn.preprocessing import LabelEncoder
+
+# Assuming brand_A, brand_B, brand_C, and all_data are defined elsewhere
+# For demonstration, creating sample data
+brand_A = [10, 12, 11, 13, 14]
+brand_B = [15, 17, 16, 18, 19]
+brand_C = [20, 22, 21, 23, 24]
+all_data = brand_A + brand_B + brand_C
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Python-style ANOVA analysis
+le = LabelEncoder()
+df['Brand_encoded'] = le.fit_transform(df['Brand'])
+
+# Group data by brand
+groups = [df[df['Brand'] == brand]['Cost'].values for brand in df['Brand'].unique()]
+
+# Perform one-way ANOVA
+f_statistic, p_value = stats.f_oneway(*groups)
+
+# Calculate additional statistics
+n_total = len(df)
+n_groups = len(df['Brand'].unique())
+df_between = n_groups - 1
+df_within = n_total - n_groups
+
+# Calculate means
+overall_mean = df['Cost'].mean()
+group_means = df.groupby('Brand')['Cost'].mean()
+group_sizes = df.groupby('Brand')['Cost'].count()
+
+# Calculate sum of squares
+ss_between = sum(group_sizes * (group_means - overall_mean)**2)
+ss_within = sum((df[df['Brand'] == brand]['Cost'] - group_means[brand])**2 
+                for brand in df['Brand'].unique())
+ss_total = ss_between + ss_within
+
+# Calculate mean squares
+ms_between = ss_between / df_between
+ms_within = ss_within / df_within
+
+# Create ANOVA table
+anova_results = pd.DataFrame({
+    'sum_sq': [ss_between, ss_within],
+    'df': [df_between, df_within],
+    'mean_sq': [ms_between, ms_within],
+    'F': [f_statistic, np.nan],
+    'PR(>F)': [p_value, np.nan]
+}, index=['Brand', 'Residual'])
+
+# Print the ANOVA table
+print(anova_results)
+print(f"\nF-statistic: {f_statistic:.4f}")
+print(f"p-value: {p_value:.4f}")

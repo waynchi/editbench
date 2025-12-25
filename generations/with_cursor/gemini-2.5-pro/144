@@ -1,0 +1,47 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """使用 Ollama API 与本地 LLM 交互。
+
+:param prompt: LLM 的输入提示。
+:param base_url: Ollama API 的基础 URL。
+:return: 来自 LLM 的响应。"""
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # 替换为您的模型名称
+        "prompt": prompt,
+        # "stream": True is the default, which causes the "Extra data" error
+        # if not handled correctly.
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    full_response = []
+    try:
+        # The "Extra data" error occurs because the API streams the response as
+        # multiple JSON objects, but the original code tried to parse it as a single object.
+        # The fix is to process the response as a stream, line by line.
+        with requests.post(endpoint, json=payload, headers=headers, stream=True) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    # Each line is a separate JSON object
+                    part = json.loads(line.decode('utf-8'))
+                    full_response.append(part.get('response', ''))
+        
+        return "".join(full_response)
+
+    except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+        print(f"An error occurred: {e}")
+        return None
+
+# 示例用法
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")
+    else:
+        print("Failed to get a response from the LLM.")

@@ -1,0 +1,27 @@
+import pygame
+import math
+
+# 初始化 Pygame
+pygame.init()
+
+# 设置显示器
+screen_width = 800
+screen_height = 600
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Basic Screen')
+
+# 主循环
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # 用一种颜色填充屏幕（例如，黑色）
+    screen.fill((0, 0, 0))
+
+    # 更新显示器
+    pygame.display.flip()
+
+# 退出 Pygame
+pygame.quit()

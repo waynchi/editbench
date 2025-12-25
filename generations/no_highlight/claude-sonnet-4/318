@@ -1,0 +1,75 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_explanation(
+    json_file_path="Vuori_Final_Approval_2024_09_24.json",
+    system_prompt_path="system.prompt",
+    model="llama3.2",
+    base_url="http://localhost:11434",
+    client_kwargs=None
+):
+    """
+    Генерирует объяснение на основе значений SHAP с использованием ChatOllama.
+    
+    Args:
+        json_file_path (str): Путь к JSON файлу с значениями SHAP
+        system_prompt_path (str): Путь к файлу с системным промптом
+        model (str): Название модели для ChatOllama
+        base_url (str): URL для подключения к Ollama
+        client_kwargs (dict): Дополнительные параметры клиента (например, headers)
+    
+    Returns:
+        str: Ответ модели
+    """
+    
+    # Инициализировать модель ChatOllama
+    if client_kwargs:
+        chat_model = ChatOllama(
+            model=model,
+            base_url=base_url,
+            client_kwargs=client_kwargs
+        )
+    else:
+        chat_model = ChatOllama(model=model, base_url=base_url)
+    
+    # Загрузить значения SHAP из файла JSON
+    with open(json_file_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Загрузить системный запрос из файла
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Подготовить сообщения
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Подготовить ввод пользователя
+    user_input = json.dumps(shap_values_json)
+    
+    # Создать цепочку и получить ответ
+    chain = prompt | chat_model
+    response = chain.invoke({"user_input": user_input})
+    
+    return response.content
+
+# Пример использования функции
+if __name__ == "__main__":
+    # Базовое использование
+    result = generate_shap_explanation()
+    print(result)
+    
+    # Использование с альтернативной моделью
+    # result = generate_shap_explanation(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     }
+    # )
+    # print(result)

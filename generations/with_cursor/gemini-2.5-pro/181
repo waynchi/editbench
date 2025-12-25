@@ -1,0 +1,38 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+def is_int(input: str, start_pos) -> int:
+    """
+    If the input string contains an integer at start_pos,
+    return the end position of the integer.
+    Otherwise, an AssertionError is raised.
+    """
+    max_pos = len(input)
+    current_pos = start_pos
+    digit_found = False
+
+    while current_pos < max_pos:
+        # Use Python's built-in str.isdigit() to check for a digit
+        if not input[current_pos].isdigit():
+            break
+        digit_found = True
+        current_pos += 1
+
+    assert digit_found, "Not an integer"
+    return current_pos
+
+if __name__=="__main__":
+    # The original code had a bug calling is_int as a method. 
+    # It is a standalone function.
+    print(is_int("1234", 0))
+    
+    # The following call will raise an AssertionError because 'a' is not a digit.
+    # We wrap it in a try-except block to show the expected error.
+    try:
+        is_int("a123", 0)
+    except AssertionError as e:
+        print(e)

@@ -1,0 +1,27 @@
+# Escribir búsqueda binaria
+
+def binary_search(arr, item):
+    """
+    Realiza una búsqueda binaria en una lista ordenada.
+
+    Args:
+        arr (list): La lista ordenada en la que se buscará.
+        item: El elemento a buscar.
+
+    Returns:
+        int: El índice del elemento si se encuentra, de lo contrario None.
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        guess = arr[mid]
+        if guess == item:
+            return mid
+        if guess > item:
+            high = mid - 1
+        else:
+            low = mid + 1
+
+    return None

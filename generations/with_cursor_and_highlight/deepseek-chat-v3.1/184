@@ -1,0 +1,239 @@
+import time
+import json
+import logging
+import os
+import shutil
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union, Callable, Awaitable
+from contextlib import asynccontextmanager
+import sqlite3
+import asyncio
+import gradio as gr
+import threading
+from functools import wraps
+from dotenv import load_dotenv
+from playwright.async_api import async_playwright
+
+SETTINGS_DB = 'settings.db'
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_WINDOW_WIDTH = 1280
+DEFAULT_WINDOW_HEIGHT = 720
+DEFAULT_MAX_STEPS = 10
+LOG_DIR = Path('./logs')
+TEMP_DIR = Path('./temp')
+
+def init_database():
+    """Initialize the settings database if it doesn't exist."""
+    with sqlite3.connect(SETTINGS_DB) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+class SettingsManager:
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._setup_pool()
+        return cls._instance
+
+    def _setup_pool(self):
+        self._pool = sqlite3.connect(
+            SETTINGS_DB,
+            check_same_thread=False,
+            timeout=30.0
+        )
+        with self._lock:
+            self._pool.row_factory = sqlite3.Row
+        
+        # 初始化缓存
+        self._cache = {}
+
+    def get_cached(self, key: str) -> Any:
+        with self._lock:
+            if key in self._cache:
+                value, expires_at = self._cache[key]
+                if expires_at > time.time():
+                    return value
+                del self._cache[key]
+        return None
+
+    def set_cached(self, key: str, value: Any, ttl: int = 300):
+        with self._lock:
+            self._cache[key] = (value, time.time() + ttl)
+
+    def save_setting(self, key: str, value: Any):
+        with self._lock:
+            with self._pool:
+                self._pool.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                    (key, json.dumps(value))
+                )
+
+    def load_setting(self, key: str, default: Any = None) -> Any:
+        try:
+            with self._lock:
+                cursor = self._pool.execute(
+                    "SELECT value FROM settings WHERE key = ?",
+                    (key,)
+                )
+                result = cursor.fetchone()
+                return json.loads(result[0]) if result else default
+        except Exception as e:
+            logger.error(f"Error loading setting {key}: {e}")
+            return default
+
+    def close(self):
+        with self._lock:
+            if hasattr(self, '_pool'):
+                self._pool.close()
+
+class SecurityManager:
+    def __init__(self):
+        self.rate_limits = {}
+        self.max_requests = 100
+        self.time_window = 3600
+        self._lock = threading.Lock()
+
+    def check_rate_limit(self, key: str) -> bool:
+        now = time.time()
+        with self._lock:
+            if key not in self.rate_limits:
+                self.rate_limits[key] = []
+            self.rate_limits[key] = [t for t in self.rate_limits[key] if t > now - self.time_window]
+            if len(self.rate_limits[key]) >= self.max_requests:
+                return False
+            self.rate_limits[key].append(now)
+        return True
+
+def rate_limited(func: Callable[..., Awaitable]):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        if not SecurityManager().check_rate_limit(func.__name__):
+            raise Exception("Rate limit exceeded")
+        return await func(*args, **kwargs)
+    return wrapper
+
+@asynccontextmanager
+async def browser_session(config: "AgentConfig"):
+    runner = BrowserAgentRunner(config)
+    try:
+        yield runner
+    finally:
+        await runner.cleanup()
+
+class BrowserAgentRunner:
+    def __init__(self, config: "AgentConfig"):
+        self.config = config
+        self.playwright = None
+        self.browser_context = None
+        self.browser = None
+        self.resource_manager = ResourceManager()
+        self.security_manager = SecurityManager()
+        self._start_time = time.time()
+
+    @property
+    def execution_time(self) -> float:
+        return time.time() - self._start_time
+
+    async def run(self):
+        try:
+            async with async_playwright() as p:
+                self.browser = await p.chromium.launch(headless=self.config.headless)
+                self.browser_context = await self.browser.new_context(
+                    viewport={'width': self.config.window_w, 'height': self.config.window_h}
+                )
+                page = await self.browser_context.new_page()
+    
+                # 示例任务：导航到给定的URL
+                await page.goto("https://example.com")
+                # 根据任务在此执行更多操作
+    
+                return "Task completed successfully", "", "", ""
+        except Exception as e:
+            logger.error(f"Detailed error during run: {e}")
+            return "", str(e), "", ""
+        finally:
+            await self.cleanup()
+
+    async def cleanup(self):
+        logger.debug("Cleaning up browser session.")
+        try:
+            if self.browser_context:
+                await self.browser_context.close()
+                logger.debug("Browser context closed successfully.")
+                self.browser_context = None
+
+            if self.browser:
+                await self.browser.close()
+                logger.debug("Browser closed successfully.")
+                self.browser = None
+
+            await self.resource_manager.cleanup()
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
+class ProcessManager:
+    def __init__(self):
+        self.processes = []
+        self._lock = threading.Lock()
+
+    async def start_task(self, task):
+        with self._lock:
+            # 启动任务的逻辑
+            pass
+
+    async def stop_task(self):
+        with self._lock:
+            # 停止任务的逻辑
+            return "", ""
+
+    def cleanup(self):
+        with self._lock:
+            # 任务完成后的清理逻辑
+            pass
+
+class GradioInterface:
+    def __init__(self):
+        self.theme = gr.themes.Soft()
+        self.settings_manager = SettingsManager()
+        self.process_manager = ProcessManager()
+        self.security_manager = SecurityManager()
+
+    @rate_limited
+    async def _run_with_manager(self, *args):
+        try:
+            logger.debug("Starting _run_with_manager...")
+            async with browser_session(AgentConfig(*args)) as runner:
+                final_result, errors, model_actions, model_thoughts = await runner.run()
+                logger.debug(f"Returning values: {final_result}, {errors}, {model_actions}, {model_thoughts}")
+                return final_result or "", errors or "", model_actions or "", model_thoughts or ""
+        except Exception as e:
+            logger.error(f"Error in _run_with_manager: {e}")
+            return str(e), str(e), "", ""
+
+    async def _stop_agent(self):
+        return await self.process_manager.stop_task()
+
+    def _load_saved_values极狐GitLab 是一个一体化的 DevOps 平台，提供从项目规划、代码管理到 CI/CD、监控等全生命周期的 DevOps 功能。它基于 GitLab 企业版，并针对中国用户进行了优化，提供了本地化部署和服务支持。
+
+极狐GitLab 的主要特点包括：
+
+1. **代码管理**：支持 Git 代码托管、代码审查、分支管理等。
+2. **CI/CD**：内置强大的 CI/CD 功能，支持自动化构建、测试和部署。
+3. **项目管理**：提供问题跟踪、Wiki、看板等功能，方便团队协作。
+4. **安全扫描**：集成安全扫描工具，帮助发现代码中的安全漏洞。
+5. **监控**：提供性能监控和错误跟踪功能。
+6. **容器注册表**：内置容器注册表，方便管理 Docker 镜像。
+7. **多种部署方式**：支持云原生部署、本地部署等多种方式。
+
+极狐GitLab 适用于各种规模的企业，帮助团队提高开发效率、保证代码质量、加速交付流程。

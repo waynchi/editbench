@@ -1,0 +1,52 @@
+import math
+
+def numeros_soma_quatro_quadrados(max_num):
+    """
+    Retorna uma lista ordenada de números menores ou iguais a max_num que podem ser 
+    expressos como a soma de quatro quadrados não nulos.
+    Cada quadrado é o quadrado de um inteiro positivo (a, b, c, d >= 1).
+    """
+    representaveis = set()
+    # O menor quadrado não nulo é 1^2, logo, a soma mínima possível é 1+1+1+1 = 4.
+    # Para que a^2 <= max_num, o maior valor possível de a é int(sqrt(max_num)).
+    limite = int(math.sqrt(max_num))
+    
+    for a in range(1, limite + 1):
+        A = a * a
+        # Se a soma mínima considerando b=c=d=1 ultrapassar max_num, não há necessidade de continuar
+        if A + 1 + 1 + 1 > max_num:
+            break
+        for b in range(1, limite + 1):
+            B = b * b
+            if A + B + 1 + 1 > max_num:  # considerando c=d=1
+                break
+            for c in range(1, limite + 1):
+                C = c * c
+                if A + B + C + 1 > max_num:  # considerando d=1
+                    break
+                for d in range(1, limite + 1):
+                    D = d * d
+                    soma = A + B + C + D
+                    if soma > max_num:
+                        # Como d aumenta, não haverá soma menor se continuarmos
+                        break
+                    representaveis.add(soma)
+    return sorted(representaveis)
+
+def main():
+    try:
+        max_num = int(input("Digite o número máximo: "))
+    except ValueError:
+        print("Entrada inválida! Por favor, digite um número inteiro.")
+        return
+
+    if max_num < 4:
+        print("Nenhum número pode ser expresso como a soma de quatro quadrados não nulos para esse valor.")
+        return
+
+    numeros = numeros_soma_quatro_quadrados(max_num)
+    print(f"Números que podem ser expressos como a soma de quatro quadrados não nulos até {max_num}:")
+    print(numeros)
+
+if __name__ == "__main__":
+    main()

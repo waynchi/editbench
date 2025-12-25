@@ -1,0 +1,133 @@
+import random
+
+# English dictionary with words of various lengths
+english_words = [
+    # 3-letter words
+    "cat", "dog", "run", "sun", "car", "bat", "hat", "rat", "mat", "sat",
+    "pen", "ten", "men", "hen", "den", "red", "bed", "led", "fed", "wed",
+    
+    # 4-letter words
+    "book", "tree", "home", "love", "time", "work", "play", "good", "help", "hand",
+    "word", "life", "year", "make", "take", "come", "give", "find", "know", "look",
+    
+    # 5-letter words
+    "house", "world", "water", "light", "music", "happy", "green", "black", "white", "small",
+    "great", "right", "place", "think", "where", "every", "first", "never", "after", "other",
+    
+    # 6-letter words
+    "people", "family", "friend", "school", "mother", "father", "sister", "brother", "window", "garden",
+    "animal", "flower", "summer", "winter", "spring", "autumn", "coffee", "dinner", "morning", "evening",
+    
+    # 7-letter words
+    "morning", "evening", "kitchen", "bedroom", "library", "picture", "weather", "holiday", "weekend", "problem",
+    "company", "country", "history", "science", "student", "teacher", "manager", "project", "meeting", "service",
+    
+    # 8-letter words
+    "computer", "internet", "keyboard", "birthday", "sandwich", "umbrella", "elephant", "mountain", "hospital", "building",
+    "magazine", "language", "question", "business", "children", "football", "swimming", "shopping", "vacation", "medicine",
+    
+    # 9-letter words
+    "beautiful", "wonderful", "important", "different", "education", "community", "adventure", "chocolate", "telephone", "apartment",
+    "breakfast", "newspaper", "interview", "restaurant", "vegetable", "Christmas", "Halloween", "valentine", "celebrate", "furniture",
+    
+    # 10-letter words
+    "basketball", "playground", "strawberry", "watermelon", "motorcycle", "helicopter", "television", "refrigerator", "university", "technology",
+    "photograph", "dictionary", "calculator", "skateboard", "toothbrush", "smartphone", "headphones", "sunglasses", "flashlight", "backpack"
+]
+
+def find_words_by_length(word_list, length, count=10):
+    """
+    Find words with specific length from the word list
+    
+    Args:
+        word_list: List of words to search in
+        length: Required word length
+        count: Number of words to return (default 10)
+    
+    Returns:
+        List of words with the specified length
+    """
+    # Filter words by length
+    filtered_words = [word for word in word_list if len(word) == length]
+    
+    # If we have fewer words than requested, return all available
+    if len(filtered_words) <= count:
+        return filtered_words
+    
+    # Randomly select the requested number of words
+    return random.sample(filtered_words, count)
+
+def main():
+    """
+    Main program function
+    """
+    print("=== ПОИСК СЛОВ ПО ДЛИНЕ ===")
+    print("Программа найдет английские слова с заданным количеством символов")
+    print()
+    
+    while True:
+        try:
+            # Get user input
+            user_input = input("Введите количество символов (или 'выход' для завершения): ")
+            
+            # Check if user wants to exit
+            if user_input.lower() in ['выход', 'exit', 'quit', 'q']:
+                print("До свидания!")
+                break
+            
+            # Convert input to integer
+            n = int(user_input)
+            
+            # Validate input
+            if n <= 0:
+                print("Пожалуйста, введите положительное число.")
+                continue
+            
+            # Find words with N characters
+            found_words = find_words_by_length(english_words, n)
+            
+            # Display results
+            if found_words:
+                print(f"\nНайдено слов с {n} символами: {len(found_words)}")
+                print("Вот слова:")
+                for i, word in enumerate(found_words, 1):
+                    print(f"{i:2d}. {word}")
+            else:
+                print(f"\nК сожалению, слов с {n} символами не найдено в словаре.")
+            
+            print("-" * 40)
+            
+        except ValueError:
+            print("Ошибка: Пожалуйста, введите корректное число.")
+        except KeyboardInterrupt:
+            print("\n\nПрограмма прервана пользователем. До свидания!")
+            break
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
+def show_dictionary_stats():
+    """
+    Show statistics about the dictionary
+    """
+    print("\n=== СТАТИСТИКА СЛОВАРЯ ===")
+    
+    # Count words by length
+    length_counts = {}
+    for word in english_words:
+        length = len(word)
+        length_counts[length] = length_counts.get(length, 0) + 1
+    
+    print(f"Общее количество слов в словаре: {len(english_words)}")
+    print("\nРаспределение по длине:")
+    
+    for length in sorted(length_counts.keys()):
+        count = length_counts[length]
+        print(f"Слова из {length} символов: {count}")
+
+if __name__ == "__main__":
+    # Show dictionary statistics
+    show_dictionary_stats()
+    print()
+    
+    # Run main program
+    main()

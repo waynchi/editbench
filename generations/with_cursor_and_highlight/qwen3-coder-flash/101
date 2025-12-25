@@ -1,0 +1,17 @@
+export default function getProducts(items) {
+    return items.map(product => {
+        return `
+<div class="produto-card">
+                <div class="desconto">${product.desconto}%OFF</div>
+                <img src="${product.imagem}" alt="${product.nome}">
+                <h3>${product.nome}</h3>
+                <div class="price">
+                    <span class="preco-original">R$ ${product.preco.toFixed(2)}</span>
+                    <span class="preco-final">R$ ${product.precoFinal.toFixed(2)}</span>
+                </div>
+                <div class="parcelas">10x de R$ ${product.parcelas.toFixed(2)}</div>
+                <button class="favorito" onclick="if (!this.classList.contains('active')) showNotification()">❤</button>
+            </div>
+        `;
+    }).join('')
+};

@@ -1,0 +1,39 @@
+import pandas as pd
+from main13 import knn, mlp
+
+# Define the expected one-hot columns for "Embarked"
+expected_embarked_cols = ["Embarked_C", "Embarked_Q", "Embarked_S"]
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Создаём DataFrame с нужными значениями.
+            data = {
+                "Pclass": [pclass],
+                "Name": [24],   # Здесь 24 используется как пример значения для столбца Name
+                "Sex": [0],     # 0 может означать, например, мужской пол
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            }
+            my_df = pd.DataFrame(data)
+            
+            # Выполняем one-hot кодирование для колонки "Embarked"
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Если каких-либо столбцов one-hot не оказалось, добавляем их с нулевыми значениями.
+            for col in expected_embarked_cols:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Переставляем столбцы в определённом порядке (если модели ожидают фиксированное расположение признаков)
+            feature_order = ["Pclass", "Name", "Sex", "Age", "SibSp", "Parch", "Fare"] + expected_embarked_cols
+            my_df = my_df[feature_order]
+            
+            # Выводим результаты предсказания для каждого набора параметров
+            print("-------------------------------------------------------")
+            print("Параметры: класс {}, плата {}, embarked {}".format(pclass, fare, embarked))
+            print("По knn: {}".format(knn.predict(my_df)))
+            print("По mlp: {}".format(mlp.predict(my_df)))

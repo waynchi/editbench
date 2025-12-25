@@ -1,0 +1,30 @@
+def binary_search(sorted_list, target):
+    """
+    Funkcja wyszukuje binarnie element 'target' w posortowanej liście 'sorted_list'.
+    Zwraca indeks szukanego elementu, jeśli zostanie znaleziony, lub -1 w przeciwnym przypadku.
+    """
+    left = 0
+    right = len(sorted_list) - 1
+
+    while left <= right:
+        mid = (left + right) // 2
+        if sorted_list[mid] == target:
+            return mid
+        elif sorted_list[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return -1
+
+if __name__ == '__main__':
+    # Przykładowa posortowana lista oraz szukany element
+    liczby = [1, 3, 5, 7, 9, 11, 13, 15]
+    szukana = 7
+    
+    indeks = binary_search(liczby, szukana)
+    
+    if indeks != -1:
+        print(f"Element {szukana} został znaleziony na indeksie {indeks}.")
+    else:
+        print(f"Element {szukana} nie został znaleziony w liście.")

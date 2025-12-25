@@ -1,0 +1,40 @@
+import random
+
+# Sample English dictionary
+english_dictionary = [
+    "apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew",
+    "iceberg", "juice", "kiwi", "lemon", "mango", "nectarine", "orange", "papaya",
+    "quince", "raspberry", "strawberry", "tangerine", "watermelon", "blueberry",
+    "cantaloupe", "dragonfruit", "grapefruit", "jackfruit", "lime", "mango", "nectar",
+    "olive", "pear", "pineapple", "plum", "pomegranate", "apricot", "avocado", "blackberry"
+]
+
+def search_words_by_length(length):
+    """Search for words with specified number of characters"""
+    matching_words = [word for word in english_dictionary if len(word) == length]
+    return matching_words[:10]  # Return maximum 10 words
+
+def main():
+    print("Angielski słownik - Wyszukiwarka słów")
+    print("Proszę podać liczbę znaków, których szukasz:")
+    
+    try:
+        n = int(input())
+        if n <= 0:
+            print("Proszę wpisać dodatnią liczbę znaków.")
+            return
+        
+        found_words = search_words_by_length(n)
+        
+        if found_words:
+            print(f"\nSłowa z {n} znakami:")
+            for i, word in enumerate(found_words, 1):
+                print(f"{i}. {word}")
+        else:
+            print(f"Nie znaleziono słów z {n} znakami.")
+            
+    except ValueError:
+        print("Proszę wpisać poprawną liczbę.")
+
+if __name__ == "__main__":
+    main()

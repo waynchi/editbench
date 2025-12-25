@@ -1,0 +1,27 @@
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class Card():
+    celular: Optional[str] = None
+    operadora: Optional[str] = None
+    valor: Optional[str] = None
+    email: Optional[str] = None
+    nome: Optional[str] = None
+    cpf: Optional[str] = None
+    card: Optional[str] = None
+    mes: Optional[str] = None
+    ano: Optional[str] = None
+    cvv: Optional[str] = None
+    token: Optional[str] = None
+    bin: Optional[str] = None
+    dadosbin: Optional[str] = None
+    senha: Optional[str] = None
+
+    def __repr__(self):
+        return (f"Card(celular='{self.celular}', operadora='{self.operadora}', "
+                f"valor='{self.valor}', email='{self.email}', nome='{self.nome}', "
+                f"cpf='{self.cpf}', card='{self.card}', mes='{self.mes}', "
+                f"ano='{self.ano}', cvv='{self.cvv}', token='{self.token}', "
+                f"bin='{self.bin}', dadosbin='{self.dadosbin}', senha='{self.senha}')")

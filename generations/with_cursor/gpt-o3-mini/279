@@ -1,0 +1,36 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+def main():
+    # Get the directory where the script is running
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Build the absolute path to your chromedriver executable.
+    # NOTE: This should be the chromedriver executable, not the Chrome browser.
+    chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+    
+    # Create Chrome options for undetected_chromedriver.
+    options = uc.ChromeOptions()
+    
+    # If your Chrome browser is installed in a non-default location, you can specify it here.
+    # For example:
+    # options.binary_location = r"C:\Path\To\Google\Chrome\Application\chrome.exe"
+    #
+    # IMPORTANT: Do not set options.binary_location to the chromedriver path.
+    
+    try:
+        # Start undetected_chromedriver with the given driver executable.
+        # Note: 'driver_executable_path' is used to point to your chromedriver binary.
+        with uc.Chrome(driver_executable_path=chromedriver_path, use_subprocess=True, options=options) as driver:
+            print("Navigating to https://lmarena.ai/ ...")
+            driver.get("https://lmarena.ai/")
+            
+            # Let the page load for 10 seconds.
+            time.sleep(10)
+    
+    except Exception as e:
+        print("Error occurred:", e)
+
+if __name__ == '__main__':
+    main()

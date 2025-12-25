@@ -1,0 +1,48 @@
+import nltk
+from nltk.corpus import words
+
+def main():
+    # Download the words corpus if not already present
+    try:
+        word_list = words.words()
+    except:
+        nltk.download('words')
+        word_list = words.words()
+    
+    print("English Dictionary Word Finder")
+    print("=" * 30)
+    
+    while True:
+        try:
+            num_chars = int(input("\nEnter the number of characters for words (or 0 to exit): "))
+            
+            if num_chars == 0:
+                print("Goodbye!")
+                break
+            elif num_chars < 1:
+                print("Please enter a positive number.")
+                continue
+            
+            # Filter words with exactly num_chars characters and are alphabetic
+            matching_words = [word.lower() for word in word_list 
+                            if len(word) == num_chars and word.isalpha()]
+            
+            if not matching_words:
+                print(f"No words found with {num_chars} characters.")
+                continue
+            
+            # Display up to 10 matching words
+            print(f"\nWords with {num_chars} characters (showing up to 10):")
+            for i, word in enumerate(matching_words[:10], 1):
+                print(f"{i}. {word}")
+                
+            print(f"\nTotal words found: {len(matching_words)}")
+            
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\n\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,55 @@
+import numpy as np
+
+# File path for the input data. The duplicate definition has been removed.
+# Consider making this a command-line argument for more flexibility.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Reads two columns of integers from a file, sorts each column independently,
+    and calculates the sum of the absolute differences between the corresponding
+    elements of the sorted columns.
+    """
+    # np.loadtxt is a robust and efficient way to read numerical data from a text file.
+    # It handles various whitespace separators and directly creates a NumPy array.
+    # This replaces the original parse_input_file and manual splitting/conversion.
+    try:
+        # Assuming the file contains two columns of integers separated by whitespace.
+        data = np.loadtxt(INPUT_FILE_PATH, dtype=int)
+    except FileNotFoundError:
+        print(f"Error: The file at '{INPUT_FILE_PATH}' was not found.")
+        return
+    except ValueError:
+        print(f"Error: The file '{INPUT_FILE_PATH}' contains non-integer data or is improperly formatted.")
+        return
+    except IndexError:
+        print(f"Error: The file '{INPUT_FILE_PATH}' seems to be empty or misformatted.")
+        return
+
+    # Ensure the data has the expected shape (N rows, 2 columns)
+    if data.ndim != 2 or data.shape[1] != 2:
+        print(f"Error: Expected data to have 2 columns, but got shape {data.shape}.")
+        return
+
+    # Extract the two columns from the data.
+    list_1 = data[:, 0]
+    list_2 = data[:, 1]
+
+    # The original algorithm repeatedly found and removed the minimum element from each list.
+    # This is functionally equivalent to sorting both lists and then comparing elements.
+    # Sorting is much more efficient (O(N log N)) than the original O(N^2) approach.
+    list_1.sort()
+    list_2.sort()
+
+    # Calculate the sum of absolute differences using a single, efficient
+    # vectorized NumPy operation. This is significantly faster than looping and
+    # appending to a list in Python.
+    total_distance = np.sum(np.abs(list_1 - list_2))
+
+    print(total_distance)
+    
+# The original parse_input_file function is no longer necessary, as np.loadtxt
+# provides a more powerful and direct way to read and parse the data.
+
+if __name__ == "__main__":
+    main()

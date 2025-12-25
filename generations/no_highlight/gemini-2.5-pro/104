@@ -1,0 +1,247 @@
+An improved and bug-fixed version of the code is provided below.
+
+### Summary of Fixes:
+
+1.  **Syntax and Structure:** The primary bug was severe malformation of the code due to syntax errors (e.g., `simport`) and incorrect indentation. The entire file structure has been corrected, with `import` statements at the top, followed by the `Graph` class, the `TestGraph` class, and a main execution block.
+2.  **`remove_vertex` Logic:** The original logic for removing a vertex could fail if modification happens during iteration in more complex scenarios. The logic has been made more robust by safely iterating over a vertex's neighbors before deletion. The provided fix in the original user prompt for `remove_vertex` was also buggy; it has been corrected.
+3.  **Robust `remove_edge`:** The `remove_edge` method now uses a `try...except` block to safely handle cases where an edge does not exist, preventing potential `ValueError` exceptions.
+4.  **BFS Performance:** The Breadth-First Search (`bfs`) method has been optimized to use `collections.deque` instead of a standard `list` for its queue, changing the time complexity of pop operations from O(N) to O(1).
+5.  **Non-Deterministic Tests:** The unit tests for `dfs` and `bfs` were flawed as they expected a single-hardcoded output. Graph traversals can have multiple valid paths depending on the order neighbors are processed. The tests have been fixed to accept any of the possible valid traversal orders.
+6.  **Duplication Prevention:** A check was added to `add_edge` to prevent duplicate edges from being added to the graph.
+7.  **Main Execution Block:** The `if __name__ == '__main__':` block has been properly structured to first run the demonstration code and then execute the unit tests, providing a complete and runnable script.
+python
+import unittest
+import io
+from contextlib import redirect_stdout
+from collections import deque
+
+class Graph:
+    def __init__(self):
+        """
+        Initializes an undirected graph using an adjacency list representation.
+        """
+        self.adjacency_list = {}
+
+    def add_vertex(self, vertex):
+        """
+        Adds a vertex to the graph if it doesn't already exist.
+        Args:
+            vertex: The vertex to add.
+        """
+        if vertex not in self.adjacency_list:
+            self.adjacency_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2):
+        """
+        Adds an undirected edge between two existing vertices.
+        Args:
+            vertex1: The first vertex.
+            vertex2: The second vertex.
+        """
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            # Check to avoid adding duplicate edges
+            if vertex2 not in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].append(vertex2)
+            if vertex1 not in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].append(vertex1)
+
+    def __str__(self):
+        """
+        Returns a string representation of the graph's adjacency list.
+        """
+        return str(self.adjacency_list)
+
+    def remove_vertex(self, vertex):
+        """
+        Removes a vertex and all its associated edges from the graph.
+        Args:
+            vertex: The vertex to remove.
+        """
+        if vertex in self.adjacency_list:
+            # Remove edges from neighbors' lists pointing back to this vertex
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor in self.adjacency_list:
+                    self.adjacency_list[neighbor].remove(vertex)
+            # Delete the vertex itself from the adjacency list
+            del self.adjacency_list[vertex]
+
+    def remove_edge(self, vertex1, vertex2):
+        """
+        Removes an edge between two vertices.
+        Args:
+            vertex1: The first vertex.
+            vertex2: The second vertex.
+        """
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            try:
+                self.adjacency_list[vertex1].remove(vertex2)
+                self.adjacency_list[vertex2].remove(vertex1)
+            except ValueError:
+                # This block executes if the edge doesn't exist, which is a safe failure.
+                pass
+
+    def dfs(self, start_vertex, visited=None):
+        """
+        Perform a depth-first search (DFS) starting from the given vertex.
+        This implementation prints the visited vertices.
+        Args:
+            start_vertex: The starting vertex for the DFS.
+            visited (set, optional): A set of already visited vertices. Defaults to None.
+        """
+        if start_vertex not in self.adjacency_list:
+            return
+
+        if visited is None:
+            visited = set()
+        
+        visited.add(start_vertex)
+        print(start_vertex, end=' ')
+        
+        for neighbor in self.adjacency_list[start_vertex]:
+            if neighbor not in visited:
+                self.dfs(neighbor, visited)
+    
+    def bfs(self, start_vertex):
+        """
+        Perform a breadth-first search (BFS) starting from the given vertex.
+        This implementation prints the visited vertices and uses an efficient deque.
+        Args:
+            start_vertex: The starting vertex for the BFS.
+        """
+        if start_vertex not in self.adjacency_list:
+            return
+
+        visited = {start_vertex}
+        queue = deque([start_vertex])
+        
+        while queue:
+            vertex = queue.popleft()
+            print(vertex, end=' ')
+            
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+
+class TestGraph(unittest.TestCase):
+
+    def setUp(self):
+        self.graph = Graph()
+
+    def test_add_vertex(self):
+        self.graph.add_vertex('A')
+        self.assertIn('A', self.graph.adjacency_list)
+        self.graph.add_vertex('B')
+        self.assertEqual(list(self.graph.adjacency_list.keys()), ['A', 'B'])
+        # Adding a duplicate vertex should not modify the graph
+        self.graph.add_vertex('A')  
+        self.assertEqual(list(self.graph.adjacency_list.keys()), ['A', 'B'])
+
+    def test_add_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.assertEqual(self.graph.adjacency_list['A'], ['B'])
+        self.assertEqual(self.graph.adjacency_list['B'], ['A'])
+        # Adding an edge with non-existent vertices should not modify the graph
+        self.graph.add_edge('A', 'C')  
+        self.assertEqual(self.graph.adjacency_list['A'], ['B'])
+        self.graph.add_edge('D','E')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+
+    def test_remove_vertex(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A','B')
+        self.graph.add_edge('A','C')
+        self.graph.remove_vertex('A')
+        self.assertNotIn('A', self.graph.adjacency_list)
+        self.assertEqual(self.graph.adjacency_list['B'], [])
+        self.assertEqual(self.graph.adjacency_list['C'], [])
+        # Removing a non-existent vertex shouldn't modify the graph
+        self.graph.remove_vertex('D')
+        self.assertEqual(self.graph.adjacency_list, {'B': [], 'C': []})
+
+    def test_remove_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A','B')
+        self.graph.remove_edge('A','B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # Removing a non-existent edge should not do anything or raise an error
+        self.graph.remove_edge('A','C')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+    def test_dfs(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B','C')
+
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.dfs('A')
+        output = f.getvalue().strip()
+        
+        # Original test was bugged; it didn't account for valid alternative paths.
+        valid_outputs = ["A B C", "A C B"]
+        self.assertIn(output, valid_outputs)
+
+    def test_bfs(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B','C')
+
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.bfs('A')
+        output = f.getvalue().strip()
+        
+        # Original test was bugged; it checked for only one possible output.
+        valid_outputs = ["A B C", "A C B"]
+        self.assertIn(output, valid_outputs)
+
+
+if __name__ == '__main__':
+    # --- Graph Demonstration ---
+    print("--- Graph Demonstration ---")
+    
+    # Create a new graph instance
+    graph = Graph()
+
+    # Add vertices
+    graph.add_vertex('A')
+    graph.add_vertex('B')
+    graph.add_vertex('C')
+    graph.add_vertex('D')
+
+    # Add edges
+    graph.add_edge('A', 'B')
+    graph.add_edge('A', 'C')
+    graph.add_edge('B', 'D')
+
+    # Display the graph
+    print("Graph adjacency list:")
+    print(graph)
+
+    # Perform DFS starting from vertex 'A'
+    print("\nDFS starting from vertex 'A':")
+    graph.dfs('A')
+
+    # Perform BFS starting from vertex 'A'
+    print("\n\nBFS starting from vertex 'A':")
+    graph.bfs('A')
+    print("\n" + "="*30)
+
+    # --- Running Unit Tests ---
+    print("\n--- Running Unit Tests ---")
+    # To run tests without exiting the script, we use `exit=False`.
+    # `unittest.main()` parses command-line args, so we pass a dummy list.
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)

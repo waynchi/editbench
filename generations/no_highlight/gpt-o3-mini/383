@@ -1,0 +1,38 @@
+import pandas as pd
+from main13 import knn, mlp
+
+# Iterate over the parameter grid.
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create a DataFrame with one row.
+            data = {
+                "Pclass": [pclass],
+                "Name": [24],      # Placeholder value as in the original code.
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            }
+            my_df = pd.DataFrame(data)
+
+            # Convert 'Embarked' into dummy variables.
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+            # Ensure that all expected dummy columns are present.
+            expected_dummies = ["Embarked_S", "Embarked_C", "Embarked_Q"]
+            for col in expected_dummies:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+
+            # Optional: Reorder columns if the models require features in a specific order.
+            # feature_order = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked_C', 'Embarked_Q', 'Embarked_S']
+            # my_df = my_df.reindex(columns=feature_order, fill_value=0)
+
+            # Output the parameters and model predictions.
+            print("-------------------------------------------------------")
+            print("Параметры: класс {}, плата {}, embarked {}".format(pclass, fare, embarked))
+            print("По knn: {}".format(knn.predict(my_df)))
+            print("По mlp: {}".format(mlp.predict(my_df)))

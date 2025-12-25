@@ -1,0 +1,121 @@
+# env: pyAI
+
+import os
+from openai import OpenAI
+import json
+
+
+# MODIFIED: Takes history and filename as arguments for better encapsulation.
+def save_conversation(history, filename):
+    """Saves the conversation history to a JSON file."""
+    with open(filename, "w") as f:
+        json.dump(history, f, ensure_ascii=False, indent=4)
+
+
+# MODIFIED: Added handling for JSON decoding errors.
+def load_conversation(filename="conversation_history.json"):
+    """Loads a conversation history from a JSON file."""
+    try:
+        with open(filename, "r") as f:
+            history = json.load(f)
+        print(f"Conversation history from {filename} loaded successfully.")
+        return history
+    except FileNotFoundError:
+        print(f"No saved conversation history found for {filename}.")
+        return None
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from {filename}. File might be corrupt.")
+        return None
+
+
+# token = os.environ["GITHUB_TOKEN"]
+endpoint = "https://models.inference.ai.azure.com"
+model_name = "gpt-4o"
+
+client = OpenAI(
+    base_url=endpoint,
+    api_key="XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+)
+
+# ---- FIXED CODE SECTION: Corrected indentation, logic, and error handling ----
+
+conversation_history = None
+loaded_filename = None  # To track the file we loaded from
+
+# Ask the user if they want to load a conversation history
+load_history = input("Do you want to load a conversation history? (yes/no): ").strip().lower()
+
+if load_history == "yes":
+    # Get all conversation history files in the current directory
+    history_files = [f for f in os.listdir() if f.endswith(".json")]
+
+    if history_files:
+        print("Available conversation history files:")
+        for i, file in enumerate(history_files, 1):
+            print(f"{i}. {file}")
+
+        try:
+            choice = input("Enter the number of the conversation history file to load: ")
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(history_files):
+                loaded_filename = history_files[choice_idx]
+                conversation_history = load_conversation(loaded_filename)
+            else:
+                print("Invalid choice.")
+        except ValueError:
+            print("Invalid input.")
+    else:
+        print("No conversation history files found.")
+
+# If conversation_history is still None (because user said no, or loading failed),
+# initialize a new conversation.
+if conversation_history is None:
+    print("Initializing new conversation history.")
+    conversation_history = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant.",
+        }
+    ]
+    loaded_filename = None  # Ensure we don't have a filename for a new conversation
+
+# ---- END OF FIXED CODE SECTION ----
+
+
+# Simulate continuous conversation
+while True:
+    user_input = input("User: ")
+    if user_input.lower() in ["exit", "quit"]:
+        print("Exiting the conversation.")
+        break
+
+    conversation_history.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    try:
+        response = client.chat.completions.create(
+            messages=conversation_history,
+            temperature=1.0,
+            top_p=1.0,
+            max_tokens=4086,
+            model=model_name
+        )
+
+        # FIX: The response message is an object. Convert it to a dict for JSON serialization.
+        assistant_message = response.choices[0].message
+        conversation_history.append(assistant_message.model_dump())
+        print("GPT: ", assistant_message.content)
+
+    except Exception as e:
+        print(f"An error occurred while communicating with the API: {e}")
+        # Remove the user's last message to allow them to try again
+        print("Please try your message again.")
+        conversation_history.pop()
+
+
+# FIX: Saving logic now saves back to the loaded file or to a default for new conversations.
+filename_to_save = loaded_filename if loaded_filename else "conversation_history.json"
+save_conversation(conversation_history, filename_to_save)
+print(f"Conversation saved to {filename_to_save}.")

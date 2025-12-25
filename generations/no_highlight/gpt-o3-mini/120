@@ -1,0 +1,58 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import sys
+
+# Create a Spark session
+spark = SparkSession.builder.appName("AnalyzeAndWriteParquetFromAPI").getOrCreate()
+
+# --- Step 1: Fetch Data from the API ---
+# Replace with your real API endpoint
+api_url = "https://api.example.com/your_data_endpoint"
+
+try:
+    response = requests.get(api_url)
+    response.raise_for_status()  # Raise an error for bad HTTP status codes
+    # Assume the API returns JSON data which is a list of records (dictionaries)
+    data = response.json()
+except Exception as e:
+    print("Error fetching data from API:", e)
+    spark.stop()
+    sys.exit(1)
+
+# --- Step 2: Create a DataFrame from the API data ---
+# It's important to analyze the data as its structure is unknown.
+# For now, we'll create a DataFrame directly from the data and then inspect it.
+df = spark.createDataFrame(data)
+
+# --- Step 3: Analyze the DataFrame ---
+print("DataFrame Schema:")
+df.printSchema()
+
+print("Showing sample records:")
+df.show(5)
+
+print("Basic Statistical Summary (if applicable):")
+df.describe().show()
+
+# --- Step 4: Write the DataFrame to ADL2 in Parquet Format ---
+# Set up the connection to ADL2 using the managed identity.
+# In a Synapse notebook, credentials are managed automatically, so you don't need to provide them explicitly.
+
+# Specify the container name, storage account name, and folder path in ADL2.
+container_name = "<your_container_name>"         # Replace with the name of your ADL2 container
+storage_account_name = "<your_storage_account_name>"  # Replace with your storage account name
+folder_path = "<your_folder_path>"                 # Replace with the desired folder path within the container
+
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Write the DataFrame in parquet format to ADL2 (mode="overwrite" will replace existing data)
+df.write.parquet(adl2_path, mode="overwrite")
+
+# --- Optional Step: Read Back the Parquet File to Verify ---
+df_leido = spark.read.parquet(adl2_path)
+print("Data read from ADL2:")
+df_leido.show()
+
+# Stop the Spark session
+spark.stop()

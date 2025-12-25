@@ -1,0 +1,102 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+author = 'subidu'
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+
+def crear_diccionario_jerarquico(posts):
+    """
+    Crea un diccionario jerárquico a partir de una lista de posts.
+    La clave principal es el authorperm del post.
+    El valor es una lista de los comentarios que cumplen las condiciones.
+    """
+    estructura_posts = {}
+    X = 0
+    for post in posts:
+        X += 1
+        # print(f"Procesando post {X}...", end='\r')
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_authorperm = f"{post_author}/{post_permlink}"
+        
+        # Procesar solo si el post tiene un número mínimo de respuestas
+        if post['children'] > n_respuestas_minimas:
+            try:
+                comment = Comment(authorperm=post_authorperm)
+                post_replies = comment.get_replies()
+            except Exception as e:
+                # En caso de error al obtener replies (p.e. post no encontrado), saltar al siguiente.
+                continue
+
+            respuestas_validas = []
+            ya_he_respondido = False
+            for reply in post_replies:
+                author_reply = reply['author']
+                
+                # Si encuentro mi propio comentario, dejo de procesar este post
+                if is_own_author(author_reply):
+                    ya_he_respondido = True
+                    break
+                
+                # Ignorar comentarios de usuarios baneados
+                if is_banned(author_reply):
+                    continue
+                
+                # Si el comentario cumple la condición, lo añado a la lista
+                if procesar(reply['body']):
+                    # Se guarda el comentario como un diccionario para facilitar el manejo
+                    respuestas_validas.append(reply.json)
+
+            # Si no he respondido y encontré respuestas válidas, las guardo en la estructura
+            if not ya_he_respondido and respuestas_validas:
+                estructura_posts[post_authorperm] = respuestas_validas
+                
+    # print("\n") # Salto de línea para la siguiente impresión
+    return estructura_posts
+
+# 1. Construir el diccionario jerárquico usando la nueva función
+#    La variable global 'diccionario' se poblará con el resultado.
+diccionario = crear_diccionario_jerarquico(posts_generator)
+
+# 2. Procesar el diccionario creado para replicar y mejorar la lógica original
+print(f"Análisis completado. Se encontraron {len(diccionario)} posts con participantes válidos.")
+X = 0
+for post_authorperm, replies_list in diccionario.items():
+    X += 1
+    cnt = len(replies_list)
+    
+    # Lógica original: actuar si hay más de 3 participantes
+    if cnt > 3:
+        print("Iterador: ", X)
+        # La impresión original era errónea. Ahora se muestra el post contenedor correcto.
+        print(f"Post encontrado con {cnt} participantes: {post_authorperm}")
+        # Aquí se podría añadir la lógica para preparar y enviar un comentario al post.

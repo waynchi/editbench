@@ -1,0 +1,69 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Commented out instead of overwriting
+
+def main():
+    """Main function to calculate sum of distances between paired minimum values."""
+    try:
+        list_1, list_2 = parse_and_process_input()
+        total_distance = calculate_min_distances(list_1, list_2)
+        print(f"Total distance: {total_distance}")
+    except FileNotFoundError:
+        print(f"Error: File {INPUT_FILE_PATH} not found.")
+    except ValueError as e:
+        print(f"Error processing data: {e}")
+
+def parse_and_process_input() -> Tuple[np.ndarray, np.ndarray]:
+    """Parse input file and return two sorted arrays."""
+    lines = parse_input_file()
+    
+    if not lines or not lines[0]:
+        raise ValueError("Input file is empty or contains no valid data")
+    
+    # More robust parsing with error handling
+    cols = []
+    for line_num, line in enumerate(lines, 1):
+        if line.strip():  # Skip empty lines
+            parts = line.split()
+            if len(parts) != 2:
+                raise ValueError(f"Line {line_num}: Expected 2 columns, got {len(parts)}")
+            try:
+                cols.append([int(parts[0]), int(parts[1])])
+            except ValueError:
+                raise ValueError(f"Line {line_num}: Could not convert to integers: {parts}")
+    
+    if not cols:
+        raise ValueError("No valid data found in file")
+    
+    # Convert to numpy array and transpose
+    cols_array = np.array(cols).T
+    
+    # Sort arrays once instead of finding minimum repeatedly
+    list_1 = np.sort(cols_array[0])
+    list_2 = np.sort(cols_array[1])
+    
+    return list_1, list_2
+
+def calculate_min_distances(list_1: np.ndarray, list_2: np.ndarray) -> int:
+    """Calculate sum of absolute differences between corresponding elements."""
+    if len(list_1) != len(list_2):
+        raise ValueError("Lists must have the same length")
+    
+    # Vectorized operation instead of loop
+    distances = np.abs(list_1 - list_2)
+    return int(np.sum(distances))
+
+def parse_input_file() -> List[str]:
+    """Parse input file and return list of lines."""
+    file_path = Path(INPUT_FILE_PATH)
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.read().strip().split('\n')
+    
+    return lines
+
+if __name__ == "__main__":
+    main()

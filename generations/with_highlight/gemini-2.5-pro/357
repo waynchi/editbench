@@ -1,0 +1,105 @@
+import numpy as np
+
+def metoda_sprzezonych_gradientow(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Rozwiązuje układ równań liniowych Ax = b za pomocą metody sprzężonych gradientów.
+
+    Metoda ta jest przeznaczona dla macierzy symetrycznych i dodatnio określonych.
+
+    Args:
+        A (np.ndarray): Macierz symetryczna, dodatnio określona (wymiary n x n).
+        b (np.ndarray): Wektor prawej strony (wymiar n).
+        x0 (np.ndarray, optional): Początkowe przybliżenie rozwiązania.
+                                   Jeśli None, używany jest wektor zerowy.
+                                   Domyślnie None.
+        tol (float, optional): Tolerancja dla kryterium stopu. Iteracje kończą się,
+                               gdy norma L2 residuum jest mniejsza niż tol.
+                               Domyślnie 1e-6.
+        max_iter (int, optional): Maksymalna liczba iteracji. Domyślnie 1000.
+
+    Returns:
+        np.ndarray: Przybliżone rozwiązanie układu Ax = b.
+        int: Liczba wykonanych iteracji.
+    """
+    n = len(b)
+
+    # --- Krok 1: Inicjalizacja ---
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+
+    r = b - A @ x  # Obliczenie początkowego residuum: r_0 = b - A*x_0
+    p = r.copy()   # Ustawienie początkowego kierunku poszukiwań: p_0 = r_0
+    rs_old = np.dot(r, r) # Obliczenie iloczynu skalarnego r_0^T * r_0
+
+    # Sprawdzenie, czy początkowe przybliżenie jest już rozwiązaniem
+    if np.sqrt(rs_old) < tol:
+        print("Początkowe przybliżenie jest już wystarczająco dokładne.")
+        return x, 0
+
+    # --- Krok 2: Pętla iteracyjna ---
+    for i in range(max_iter):
+        Ap = A @ p  # Obliczenie iloczynu macierzy A przez wektor p_k
+        alpha = rs_old / np.dot(p, Ap)  # Obliczenie współczynnika kroku alpha_k
+
+        # Aktualizacja rozwiązania i residuum
+        x = x + alpha * p       # x_{k+1} = x_k + alpha_k * p_k
+        r = r - alpha * Ap      # r_{k+1} = r_k - alpha_k * A*p_k
+
+        rs_new = np.dot(r, r)   # Obliczenie iloczynu skalarnego r_{k+1}^T * r_{k+1}
+
+        # Kryterium stopu: sprawdzenie normy residuum
+        if np.sqrt(rs_new) < tol:
+            print(f"Zbieżność osiągnięta po {i + 1} iteracjach.")
+            return x, i + 1
+
+        # Aktualizacja kierunku poszukiwań
+        # p_{k+1} = r_{k+1} + (rs_new / rs_old) * p_k
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+
+    print(f"Nie osiągnięto zbieżności w {max_iter} iteracjach.")
+    return x, max_iter
+
+if __name__ == '__main__':
+    # --- PRZYKŁAD UŻYCIA ---
+
+    # Zdefiniujmy symetryczną, dodatnio określoną macierz A
+    # A musi być symetryczna (A = A^T) i dodatnio określona
+    # (wszystkie wartości własne > 0)
+    A = np.array([[4, 1, 0],
+                  [1, 3, -1],
+                  [0, -1, 2]], dtype=float)
+
+    # Zdefiniujmy wektor b
+    b = np.array([1, 2, 5], dtype=float)
+
+    # Sprawdzenie, czy A jest symetryczna
+    if not np.allclose(A, A.T):
+        print("Uwaga: Macierz A nie jest symetryczna.")
+
+    # Sprawdzenie, czy A jest dodatnio określona
+    try:
+        np.linalg.cholesky(A)
+    except np.linalg.LinAlgError:
+        print("Uwaga: Macierz A nie jest dodatnio określona.")
+
+
+    print("--- Metoda sprzężonych gradientów ---")
+    # Wywołanie funkcji
+    rozwiazanie, iteracje = metoda_sprzezonych_gradientow(A, b)
+
+    print(f"\nMacierz A:\n{A}")
+    print(f"Wektor b: {b}")
+    print(f"\nObliczone rozwiązanie x: {rozwiazanie}")
+    print(f"Liczba iteracji: {iteracje}")
+
+    # Weryfikacja wyniku
+    print(f"\nSprawdzenie A*x: {A @ rozwiazanie}")
+    print(f"Błąd (norma z |A*x - b|): {np.linalg.norm(A @ rozwiazanie - b)}")
+
+    print("\n--- Porównanie z wbudowaną funkcją NumPy ---")
+    rozwiazanie_numpy = np.linalg.solve(A, b)
+    print(f"Rozwiązanie z np.linalg.solve: {rozwiazanie_numpy}")
+    print(f"Różnica: {np.linalg.norm(rozwiazanie - rozwiazanie_numpy)}")

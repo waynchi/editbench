@@ -1,0 +1,54 @@
+from flask import Flask, render_template
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return render_template('index.html', current_time=current_time)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Current Date and Time</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .time-container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .time-display {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        .title {
+            color: #666;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="time-container">
+        <div class="title">Current Date and Time:</div>
+        <div class="time-display">{{ current_time }}</div>
+    </div>
+</body>
+</html>

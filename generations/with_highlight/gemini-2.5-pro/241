@@ -1,0 +1,16 @@
+from flask import Flask
+import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def get_current_datetime():
+    """
+    Returns the current date and time.
+    """
+    now = datetime.datetime.now()
+    time_string = now.strftime("%Y-%m-%d %H:%M:%S")
+    return f"<h1>Текущие дата и время: {time_string}</h1>"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)

@@ -1,0 +1,78 @@
+function createTurnState(allyStates, foeStates) {
+  // Find current turn based on which group still has units that can act
+  let currentTurn = determineCurrentTurn();
+  let turnNumber = 1;
+
+  function determineCurrentTurn() {
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    // If both groups have units that can act, prioritize player turn
+    if (allyCanAct) {
+      return "player";
+    } else if (foeCanAct) {
+      return "cpu";
+    } else {
+      // If no units can act, start new turn cycle with player
+      return "player";
+    }
+  }
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    // Check if current group still has units that can act
+    if (currentTurn === "player") {
+      const allyCanStillAct = allyStates.some(unit => !unit.hasActed);
+      
+      if (!allyCanStillAct) {
+        // No more ally units can act, switch to CPU
+        currentTurn = "cpu";
+        cpuTurn();
+      }
+    } else {
+      const foeCanStillAct = foeStates.some(unit => !unit.hasActed);
+      
+      if (!foeCanStillAct) {
+        // No more foe units can act, switch to player and start new turn
+        currentTurn = "player";
+        // Reset action availability for all units at the start of a new turn
+        allyStates.forEach(unit => unit.hasActed = false);
+        foeStates.forEach(unit => unit.hasActed = false);
+        turnNumber++;
+      }
+    }
+    
+    // Update current turn based on who can actually act
+    currentTurn = determineCurrentTurn();
+  }
+
+  function cpuTurn() {
+    // Example CPU behavior (replace with your actual AI logic)
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // Check if the unit has already acted in this turn
+        // Perform CPU actions (e.g., movement, attack)
+        // ... your CPU AI logic here ...
+
+        cpuUnit.hasActed = true; // Mark the unit as having acted
+      }
+    }
+
+    // After all CPU units have acted, check if turn should continue
+    nextTurn();
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

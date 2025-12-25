@@ -1,0 +1,73 @@
+import numpy as np
+from collections import Counter
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    if not lines or not lines[0]:  # Handle empty file
+        print("No data found in input file")
+        return
+    
+    # Parse the two columns more efficiently
+    list_1, list_2 = parse_columns(lines)
+    
+    # Calculate total distance using sorted arrays (more efficient)
+    total_distance = calculate_total_distance(list_1, list_2)
+    print(f"Total distance: {total_distance}")
+    
+    # Calculate similarity score (common use case for this type of problem)
+    similarity_score = calculate_similarity_score(list_1, list_2)
+    print(f"Similarity score: {similarity_score}")
+
+def parse_columns(lines):
+    """Parse input lines into two separate lists of integers."""
+    list_1, list_2 = [], []
+    
+    for line in lines:
+        if line.strip():  # Skip empty lines
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    list_1.append(int(parts[0]))
+                    list_2.append(int(parts[1]))
+                except ValueError:
+                    print(f"Warning: Skipping invalid line: {line}")
+                    continue
+    
+    return list_1, list_2
+
+def calculate_total_distance(list_1, list_2):
+    """Calculate total distance between sorted lists."""
+    if len(list_1) != len(list_2):
+        raise ValueError("Lists must have the same length")
+    
+    # Sort both lists and calculate distances
+    sorted_1 = sorted(list_1)
+    sorted_2 = sorted(list_2)
+    
+    total_distance = sum(abs(a - b) for a, b in zip(sorted_1, sorted_2))
+    return total_distance
+
+def calculate_similarity_score(list_1, list_2):
+    """Calculate similarity score based on frequency of numbers."""
+    counter_2 = Counter(list_2)
+    similarity_score = sum(num * counter_2[num] for num in list_1)
+    return similarity_score
+
+def parse_input_file():
+    """Read and parse the input file."""
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+        return lines
+    except FileNotFoundError:
+        print(f"Error: File {INPUT_FILE_PATH} not found")
+        return []
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

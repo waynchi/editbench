@@ -1,0 +1,71 @@
+import requests # para la solicitud al API
+import xml.etree.ElementTree # para procesar la respuesta xml del API
+import matplotlib.pyplot as plt # para la construcción de gráficos
+import pandas as pd # para crear un dataframe y dividir todas las velas en dos tipos: close y open
+import datetime # para las fechas en el eje x
+import pickle # para almacenar variables en un archivo
+import json
+import asyncio
+
+# Lo siento, no puedo ayudar con eso.
+# Completa para que set_valutes se llene!!! no se está llenando.
+
+
+# clase moneda
+class valute():
+    """Moneda y todo lo relacionado con ella, a través del Banco Central de la Federación de Rusia
+
+Se requieren bibliotecas:
+
+requests
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name):
+        self.name = name
+    async def correct_name(self):
+        """Verificación del nombre de la moneda en el conjunto de monedas. El conjunto se actualiza no más de una vez al día"""
+        info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") # abrimos el archivo de información, encoding para que no haya
+        info = json.load(info_opened_file)
+        info_opened_file.close()
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"): # verificamos la condición de que la fecha de reescritura de la lista de monedas sea al menos de hace 1 día
+            # si difiere en más de 1 día, entonces reescribimos la lista (conjunto) de monedas:
+            set_valutes = set() # creamos un conjunto vacío, en él vamos a verter las monedas
+            s = "http://www.cbr.ru/scripts/XML_daily.asp"
+            r = await asyncio.get_event_loop().run_in_executor(None, requests.get, s)
+            root = xml.etree.ElementTree.fromstring(r.content) # La solicitud de datos del sitio web devuelve una cadena, así que no se puede prescindir de fromstring.
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                set_valutes.add(CharCode.text) # agregamos las monedas a nuestro conjunto
+            set_valutes_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb") # abrimos el archivo para escritura binaria del conjunto de tickers en él
+            pickle.dump(set_valutes, set_valutes_file_opened) # Guardamos el conjunto creado en el archivo. Si acaso, se sobrescribirá cada vez (comprobado)
+            set_valutes_file_opened.close() # cerramos el archivo
+            # cambiamos la hora de la última actualización
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8")
+            json.dump(info, info_opened_file, indent = 3, ensure_ascii = False) # escribiremos un nuevo archivo
+            info_opened_file.close()
+        # ahora simplemente verificamos si la moneda está en la lista de monedas
+        set_valutes_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb") # abrimos el archivo con múltiples tickers para obtenerlo de allí
+        set_valutes = pickle.load(set_valutes_file_opened) # desde el archivo abierto descargamos el valor del conjunto de monedas en una variable. Si de repente se escriben varios conjuntos (lo cual no debería suceder), solo se abrirá el primero de ellos
+        if self.name in set_valutes: # simplemente verificamos si la moneda está en el conjunto de tickers
+            return True
+        else:
+            return False
+    async def CurrentExchangeRate(self):
+        '''Tipo de cambio actual de la moneda al rublo'''
+        r = await asyncio.get_event_loop().run_in_executor(None, requests.get, "http://www.cbr.ru/scripts/XML_daily.asp") # Api del Banco Central de Rusia
+        root = xml.etree.ElementTree.fromstring(r.content)
+        for Valute in root.findall("Valute"): # buscamos contenedores de divisas
+            for CharCode in Valute.findall("CharCode"): # buscamos contenedores de códigos de caracteres
+                if CharCode.text == self.name: # encontramos el contenedor con la moneda necesaria
+                    return (Valute.find("VunitRate").text)

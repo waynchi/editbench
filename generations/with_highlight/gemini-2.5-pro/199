@@ -1,0 +1,38 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Initialize the result DataFrame *before* the loops to accumulate results.
+# Set dtype to object to allow storing dictionaries or other complex objects in cells.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+            # Create a test DataFrame. It has 3 rows to test each 'Embarked' value,
+            # which ensures the one-hot encoded DataFrame has all required columns for the model.
+            my_df = pd.DataFrame({
+                "Pclass": [pclass]*3,
+                "Name": [24]*3,
+                "Sex": [0]*3, 
+                "Age": [19]*3,
+                "SibSp": [0]*3,
+                "Parch": [0]*3,
+                "Fare": [fare]*3,
+                "Embarked": ["S", "Q", "C"]
+            })
+            # Perform one-hot encoding as in the original code.
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked") # 进行独热编码
+            my_df["Embarked_S"] = my_df["Embarked_S"].map({True: 1, False: 0})
+            my_df["Embarked_C"] = my_df["Embarked_C"].map({True: 1, False: 0})
+            my_df["Embarked_Q"] = my_df["Embarked_Q"].map({True: 1, False: 0})
+            
+            # The original code re-initialized np_df here, which was a bug; that line is now removed.
+
+            # Get predictions. The models return an array of predictions (one for each row in my_df).
+            knn_predictions = knn.predict(my_df)
+            mlp_predictions = mlp.predict(my_df)
+
+            # Store a dictionary of scalar predictions (the first one from each model's output).
+            # The original code tried to assign a dictionary of lists, causing the ValueError.
+            np_df.loc[fare, pclass] = {"knn": knn_predictions[0], "mlp": mlp_predictions[0]}
+
+print(np_df)

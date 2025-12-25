@@ -1,0 +1,149 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-8, max_iter=None):
+    """
+    Resuelve el sistema de ecuaciones lineales Ax = b usando el método de gradientes conjugados.
+    
+    El método de gradientes conjugados es un algoritmo iterativo para sistemas
+    simétricos y definidos positivos. Es más eficiente que métodos directos para matrices grandes y dispersas.
+    
+    Parámetros:
+    -----------
+    A : array-like, matriz cuadrada de dimensión n x n
+        Matriz del sistema (debe ser simétrica y definida positiva)
+    b : array-like, vector de dimensión n
+        Vector del lado derecho del sistema
+    x0 : array-like, vector de dimensión n, opcional
+        Aproximación inicial. Si es None, se usa el vector cero
+    tol : float, opcional
+        Tolerancia para el criterio de convergencia (por defecto 1e-8)
+    max_iter : int, opcional
+        Número máximo de iteraciones. Si es None, se usa n
+    
+    Retorna:
+    --------
+    x : array
+        Solución aproximada del sistema Ax = b
+    resnorm : float
+        Norma del residuo final
+    k : int
+        Número de iteraciones realizadas
+    res_hist : list
+        Historial de normas de residuos
+    
+    Ejemplo:
+    --------
+    >>> import numpy as np
+    >>> A = np.array([[4, 1], [1, 3]])
+    >>> b = np.array([1, 2])
+    >>> x, resnorm, k, hist = conjugate_gradient(A, b)
+    >>> print(f"Solución: {x}")
+    >>> print(f"Residuo: {resnorm}")
+    >>> print(f"Iteraciones: {k}")
+    """
+    import numpy as np
+    
+    # Convertir a arrays de numpy
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float)
+    
+    n = len(b)
+    
+    # Validar dimensiones
+    if A.shape != (n, n):
+        raise ValueError("Las dimensiones de A y b no son compatibles")
+    
+    # Establecer valores por defecto
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+        if len(x) != n:
+            raise ValueError("La dimensión de x0 no coincide con b")
+    
+    if max_iter is None:
+        max_iter = n
+    
+    # Inicializar variables
+    r = b - A @ x  # residuo
+    p = r.copy()   # dirección de búsqueda
+    rs_old = r @ r  # producto interno del residuo
+    
+    # Historial de residuos
+    res_hist = [np.linalg.norm(r)]
+    
+    # Verificar si ya estamos en la solución
+    if res_hist[0] < tol:
+        return x, res_hist[0], 0, res_hist
+    
+    # Iteraciones del método
+    for k in range(1, max_iter + 1):
+        Ap = A @ p  # producto matriz-vector
+        
+        # Calcular alpha
+        alpha = rs_old / (p @ Ap)
+        
+        # Actualizar solución y residuo
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        # Calcular nueva norma del residuo
+        res_norm = np.linalg.norm(r)
+        res_hist.append(res_norm)
+        
+        # Verificar convergencia
+        if res_norm < tol:
+            break
+        
+        # Calcular beta y actualizar dirección
+        rs_new = r @ r
+        beta = rs_new / rs_old
+        p = r + beta * p
+        rs_old = rs_new
+    
+    return x, res_norm, k, res_hist
+
+
+# Ejemplo de uso y pruebas
+if __name__ == "__main__":
+    import numpy as np
+    
+    # Ejemplo 1: Sistema pequeño 2x2
+    print("=== Ejemplo 1: Sistema 2x2 ===")
+    A1 = np.array([[4, 1], [1, 3]], dtype=float)
+    b1 = np.array([1, 2], dtype=float)
+    
+    x1, resnorm1, k1, hist1 = conjugate_gradient(A1, b1)
+    
+    print(f"Solución: {x1}")
+    print(f"Residuo: {resnorm1:.2e}")
+    print(f"Iteraciones: {k1}")
+    print(f"Solución exacta: {np.linalg.solve(A1, b1)}")
+    print()
+    
+    # Ejemplo 2: Sistema más grande y disperso
+    print("=== Ejemplo 2: Sistema 10x10 ===")
+    n2 = 10
+    # Crear una matriz simétrica definida positiva
+    A2 = np.random.randn(n2, n2)
+    A2 = A2.T @ A2 + np.eye(n2)  # Hacerla definida positiva
+    b2 = np.random.randn(n2)
+    
+    x2, resnorm2, k2, hist2 = conjugate_gradient(A2, b2)
+    
+    print(f"Residuo: {resnorm2:.2e}")
+    print(f"Iteraciones: {k2}")
+    print(f"Error respecto a solución exacta: {np.linalg.norm(x2 - np.linalg.solve(A2, b2)):.2e}")
+    print()
+    
+    # Verificar que converge en n iteraciones (en aritmética exacta)
+    print("=== Verificación de convergencia en n iteraciones ===")
+    n3 = 5
+    A3 = np.random.randn(n3, n3)
+    A3 = A3.T @ A3 + np.eye(n3)
+    b3 = np.random.randn(n3)
+    
+    x3, resnorm3, k3, hist3 = conjugate_gradient(A3, b3, tol=1e-12)
+    
+    print(f"Dimension: {n3}")
+    print(f"Iteraciones realizadas: {k3}")
+    print(f"Residuo final: {resnorm3:.2e}")
+    print("El método debería converger en a lo más n iteraciones en aritmética exacta")

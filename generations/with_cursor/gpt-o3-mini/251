@@ -1,0 +1,58 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+
+TOKEN = "TOKEN"
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+chat_id = 111111111
+sleep_time = 5
+
+# Флаг для остановки периодической отправки сообщений
+continue_sending = True
+
+@dp.message(Command("start"))
+async def start_handler(message: types.Message):
+    # Создаем inline-клавиатуру
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton(text="Да", callback_data="stop"),
+        types.InlineKeyboardButton(text="Нет", callback_data="continue")
+    )
+    await bot.send_message(chat_id=chat_id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query(text="stop")
+async def callback_stop(call: types.CallbackQuery):
+    global continue_sending
+    # Если нужно, можем остановить периодическую рассылку:
+    # continue_sending = False
+    # await call.message.answer("Молодец, лох")
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+
+@dp.callback_query(text="continue")
+async def callback_continue(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+
+@dp.message()
+async def handle_all_messages(message: types.Message):
+    # Отправляем GIF
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=chat_id, video=vid, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    while continue_sending:
+        await bot.send_message(chat_id=chat_id, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=chat_id, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(sleep_time)
+
+async def main():
+    # Запускаем фоновую задачу для периодической отправки сообщений
+    asyncio.create_task(send_periodic_messages())
+    print("Бот запущен!")
+    # Запуск поллинга без использования executor
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())

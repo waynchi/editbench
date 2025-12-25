@@ -1,0 +1,90 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+  let currentTurn = "player"; // Domyślnie zaczyna gracz
+
+  // Funkcja sprawdzająca, która grupa ma jednostki mogące działać
+  function determineCurrentTurn() {
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (allyCanAct && foeCanAct) {
+      // Obie strony mogą działać - kontynuuj aktualną turę
+      return currentTurn;
+    } else if (allyCanAct) {
+      return "player";
+    } else if (foeCanAct) {
+      return "cpu";
+    } else {
+      // Żadna strona nie może działać - przejdź do następnej tury
+      return currentTurn === "player" ? "cpu" : "player";
+    }
+  }
+
+  function getCurrentTurn() {
+    // Aktualizuj bieżącą turę na podstawie stanu jednostek
+    currentTurn = determineCurrentTurn();
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    // Sprawdź, czy któraś ze stron nadal ma jednostki do wykonania akcji
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (currentTurn === "player" && !allyCanAct) {
+      // Gracz skończył turę, przejdź do CPU
+      currentTurn = "cpu";
+      foeStates.forEach(unit => unit.hasActed = false);
+      cpuTurn();
+    } else if (currentTurn === "cpu" && !foeCanAct) {
+      // CPU skończyło turę, przejdź do gracza
+      currentTurn = "player";
+      allyStates.forEach(unit => unit.hasActed = false);
+      turnNumber++; // Inkrementuj numer tury tylko po turze CPU
+    } else {
+      // Jedna ze stron nadal ma jednostki do wykonania akcji
+      // Pozostajemy w obecnej turze
+      if (currentTurn === "player") {
+        // Logika dla gracza jeśli nadal ma jednostki do wykonania
+      } else {
+        // Logika dla CPU jeśli nadal ma jednostki do wykonania
+        cpuTurn();
+      }
+    }
+  }
+
+  function cpuTurn() {
+    // Przykładowe zachowanie CPU
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // Wykonaj akcje CPU
+        // ... tutaj twoja logika AI CPU ...
+        cpuUnit.hasActed = true;
+      }
+    }
+
+    // Sprawdź czy CPU ma jeszcze jednostki do wykonania akcji
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (!foeCanAct) {
+      // CPU skończyło wszystkie akcje, przejdź do następnej tury
+      nextTurn();
+    }
+  }  
+
+  // Inicjalizacja początkowa
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = true);
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

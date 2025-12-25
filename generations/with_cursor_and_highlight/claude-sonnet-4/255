@@ -1,0 +1,64 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Comment out unused path
+
+def main():
+    """Main function to calculate sum of distances between sorted pairs."""
+    try:
+        list_1, list_2 = parse_and_process_input()
+        total_distance = calculate_total_distance(list_1, list_2)
+        print(f"Total distance: {total_distance}")
+    except FileNotFoundError:
+        print(f"Error: File {INPUT_FILE_PATH} not found")
+    except Exception as e:
+        print(f"Error processing file: {e}")
+
+def parse_and_process_input() -> Tuple[np.ndarray, np.ndarray]:
+    """Parse input file and return two sorted arrays."""
+    lines = parse_input_file()
+    
+    # Filter out empty lines
+    lines = [line for line in lines if line.strip()]
+    
+    if not lines:
+        raise ValueError("No valid data found in input file")
+    
+    # Split lines and convert to numpy array
+    cols = [line.split() for line in lines]  # More flexible splitting
+    cols = np.array(cols, dtype=int).T
+    
+    if cols.shape[0] != 2:
+        raise ValueError("Expected exactly 2 columns of data")
+    
+    # Sort arrays directly instead of using inefficient pop operations
+    list_1 = np.sort(cols[0])
+    list_2 = np.sort(cols[1])
+    
+    return list_1, list_2
+
+def calculate_total_distance(list_1: np.ndarray, list_2: np.ndarray) -> int:
+    """Calculate total distance between corresponding elements of sorted arrays."""
+    if len(list_1) != len(list_2):
+        raise ValueError("Lists must have the same length")
+    
+    # Vectorized calculation - much more efficient
+    distances = np.abs(list_1 - list_2)
+    return np.sum(distances)
+
+def parse_input_file() -> List[str]:
+    """Parse input file and return list of lines."""
+    file_path = Path(INPUT_FILE_PATH)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"Input file {INPUT_FILE_PATH} does not exist")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.read().strip().split("\n")
+    
+    return lines
+
+if __name__ == "__main__":
+    main()

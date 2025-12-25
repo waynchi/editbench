@@ -1,0 +1,19 @@
+import pandas as pd
+import statsmodels.api as sm
+from scipy import stats
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Perform ANOVA analysis using Python style
+brand_groups = [df[df['Brand'] == brand]['Cost'] for brand in df['Brand'].unique()]
+f_stat, p_value = stats.f_oneway(*brand_groups)
+
+# Print the ANOVA results
+print(f"F-statistic: {f_stat}")
+print(f"p-value: {p_value}")

@@ -1,0 +1,111 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+def cluster_data(features_transformed, clustering_columns, n_clusters=2, clustering_method='kmeans'):
+    """
+    Performs clustering independently on specified sets of columns.
+
+    Args:
+        features_transformed (pandas.DataFrame): Transformed DataFrame with data.
+        clustering_columns (dict): Dictionary where keys are the names for the new cluster columns and values are
+                                   a list or tuple of column names on which to perform clustering.
+                                   Example: {"Cluster1": ("column1", "column2"), "Cluster2": ("column3",)}
+        n_clusters (int): Number of clusters.
+        clustering_method (str): Clustering method ('kmeans' supported).
+
+    Returns:
+        pandas.DataFrame: DataFrame with added columns (one for each key in clustering_columns) containing cluster labels.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    # Make a copy of the original DataFrame to ensure that clustering results are added without altering input data
+    results_df = features_transformed.copy()
+
+    # Process clustering for each specified set of columns independently.
+    for cluster_col_name, cols in clustering_columns.items():
+        # Verify that required columns exist in the DataFrame
+        missing_cols = [col for col in cols if col not in results_df.columns]
+        if missing_cols:
+            print(f"Предупреждение: следующие колонки для '{cluster_col_name}' отсутствуют в данных: {missing_cols}. Пропуск этого набора.")
+            continue
+
+        # Select the subset of features for clustering
+        features_for_clustering = results_df[list(cols)].dropna()
+        if features_for_clustering.empty:
+            print(f"Нет данных для кластеризации по колонкам {cols} (после удаления пропусков) для '{cluster_col_name}'.")
+            continue
+
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            # Fit the model on the available data (if rows were dropped in subset, align labels with original rows)
+            cluster_labels = model.fit_predict(features_for_clustering)
+
+            # Evaluation of clustering quality (using silhouette coefficient if there is more than one cluster)
+            unique_labels = np.unique(cluster_labels)
+            if len(unique_labels) > 1:
+                silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров в '{cluster_col_name}': {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера в '{cluster_col_name}' (все точки в одном кластере).")
+
+            # Insert the cluster labels into the original DataFrame.
+            # We assign np.nan for the rows that were dropped during clustering (due to missing values)
+            full_cluster_labels = pd.Series(data=np.nan, index=results_df.index)
+            full_cluster_labels.loc[features_for_clustering.index] = cluster_labels
+            results_df[cluster_col_name] = full_cluster_labels
+            print(f"Кластеризация по колонкам {cols} выполнена. Метки кластеров добавлены в столбец '{cluster_col_name}'.")
+        else:
+            print(f"Неподдерживаемый метод кластеризации '{clustering_method}' для набора {cols}. Пропуск.")
+    
+    return results_df
+
+# Example execution of clustering (after data transformation step 5 and before step 6)
+if 'features_transformed' in globals() and features_transformed is not None:
+    # Define the clustering configuration:
+    # The key will be the new column name with cluster labels,
+    # and the value is a tuple or list of column names on which to perform clustering.
+    clustering_config = {
+        "Cluster1": ("column1", "column2"),
+        "Cluster2": ("column3",)
+    }
+    
+    # Set the desired number of clusters (the same for all independent clusterings in this example)
+    n_clusters = 3
+    
+    # Perform clustering independently for each set of columns
+    features_transformed = cluster_data(features_transformed, clustering_config, n_clusters=n_clusters)
+    
+    # Visualization for each clustering result
+    for cluster_col, cols in clustering_config.items():
+        # Use the first available numeric feature pair from the selected columns for visualization if possible.
+        available_numeric = features_transformed[list(cols)].select_dtypes(include=np.number)
+        if available_numeric.shape[1] >= 2:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(available_numeric.iloc[:, 0], available_numeric.iloc[:, 1],
+                        c=features_transformed[cluster_col], cmap='viridis', edgecolor='k')
+            plt.xlabel(available_numeric.columns[0])
+            plt.ylabel(available_numeric.columns[1])
+            plt.title(f'Результаты кластеризации: {cluster_col}')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+        elif available_numeric.shape[1] == 1:
+            # If only one numeric feature is available, create a histogram colored by cluster labels.
+            plt.figure(figsize=(8, 6))
+            unique_clusters = features_transformed[cluster_col].dropna().unique()
+            for cluster in unique_clusters:
+                subset = features_transformed[features_transformed[cluster_col] == cluster]
+                plt.hist(subset[available_numeric.columns[0]], alpha=0.5, label=f"Кластер {int(cluster)}")
+            plt.xlabel(available_numeric.columns[0])
+            plt.ylabel('Частота')
+            plt.title(f'Распределение значений: {cluster_col}')
+            plt.legend()
+            plt.show()
+        else:
+            print(f"Недостаточно числовых признаков из {cols} для визуализации кластеров в '{cluster_col}'.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

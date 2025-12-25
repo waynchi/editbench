@@ -1,0 +1,62 @@
+import math
+
+def is_perfect_square(n):
+    """检查 n 是否是完全平方数"""
+    if n < 1:
+        return False
+    root = math.isqrt(n)
+    return root * root == n
+
+def find_four_nonzero_square_representation(n):
+    """
+    尝试将整数 n 表示为四个非零正整数平方和的形式：
+    n = a^2 + b^2 + c^2 + d^2，其中 a, b, c, d 均不等于 0.
+    
+    如果存在这样的组合，则返回 (a, b, c, d)；否则返回 None.
+    """
+    # 由于所有的数字都必须非零，因此最小的平方数是 1.
+    # 最大的候选数的上限可以取 int(sqrt(n))
+    limit = int(math.sqrt(n)) + 1
+    
+    # 遍历所有可能的 a, b, c，利用剩余部分计算 d.
+    for a in range(1, limit):
+        a2 = a * a
+        if a2 >= n:
+            break
+        for b in range(1, limit):
+            b2 = b * b
+            if a2 + b2 >= n:
+                break
+            for c in range(1, limit):
+                c2 = c * c
+                sum3 = a2 + b2 + c2
+                if sum3 >= n:
+                    break
+                remainder = n - sum3
+                # remainder 必须为一个非零完全平方数，也就是说 d > 0.
+                if is_perfect_square(remainder):
+                    d = int(math.sqrt(remainder))
+                    if d >= 1:
+                        # 成功找到表示
+                        return a, b, c, d
+    return None
+
+def main():
+    try:
+        n = int(input("请输入一个正整数 n："))
+        if n <= 0:
+            print("请输入一个正整数。")
+            return
+    except ValueError:
+        print("输入无效，请输入整数。")
+        return
+
+    result = find_four_nonzero_square_representation(n)
+    if result:
+        a, b, c, d = result
+        print(f"{n} 可以表示为四个非零平方的和：{a}^2 + {b}^2 + {c}^2 + {d}^2 = {n}")
+    else:
+        print(f"无法将 {n} 表示为四个非零平方的和。")
+
+if __name__ == '__main__':
+    main()

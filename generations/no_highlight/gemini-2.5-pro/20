@@ -1,0 +1,97 @@
+import argparse
+from pathlib import Path
+
+import numpy as np
+
+
+def calculate_sorted_diff_sum(data: np.ndarray) -> np.integer:
+    """
+    Calculates the sum of absolute differences between two sorted columns.
+
+    This function takes a 2D NumPy array, sorts each of its two columns
+    independently, and then computes the sum of the absolute differences
+    between the corresponding elements of the sorted columns. This is a highly
+    efficient, vectorized implementation of the logic from the original code.
+
+    The original code's logic was to pair the smallest value from the first
+    list with the smallest from the second, the second-smallest with the
+    second-smallest, and so on. Sorting both columns first and then taking
+    the element-wise difference achieves the same result much more efficiently.
+
+    Args:
+        data: A 2D NumPy array with a shape of (N, 2).
+
+    Returns:
+        The total sum of the absolute differences as a NumPy integer type.
+
+    Raises:
+        ValueError: If the input data does not have exactly two columns.
+    """
+    if data.ndim != 2 or data.shape[1] != 2:
+        raise ValueError("Input data must have exactly two columns.")
+
+    # Sort each column independently.
+    col1_sorted = np.sort(data[:, 0])
+    col2_sorted = np.sort(data[:, 1])
+
+    # Calculate the sum of absolute differences using vectorized NumPy operations.
+    total_difference = np.sum(np.abs(col1_sorted - col2_sorted))
+
+    return total_difference
+
+
+def main() -> None:
+    """
+    Main function to parse input, process data, and print the result.
+    """
+    parser = argparse.ArgumentParser(
+        description="Calculates the sum of absolute differences between two columns of integer data from a file."
+    )
+    parser.add_argument(
+        'input_file',
+        nargs='?',  # Makes the argument optional.
+        default=Path('input.txt'),
+        type=Path,
+        help="Path to the input file. Defaults to 'input.txt'."
+    )
+    args = parser.parse_args()
+    input_file_path: Path = args.input_file
+
+    # Create a default input file if the specified one doesn't exist.
+    if not input_file_path.exists():
+        print(f"Info: Input file '{input_file_path}' not found. Creating a default file.")
+        default_content = "10   20\n15   5\n3    30\n"
+        try:
+            input_file_path.write_text(default_content)
+        except OSError as e:
+            print(f"Error: Could not create default file: {e}")
+            return
+
+    try:
+        # np.loadtxt is a robust way to load whitespace-separated data.
+        # It handles file reading, parsing, and type conversion efficiently.
+        data = np.loadtxt(input_file_path, dtype=int)
+
+        # Handle the case where the file has only one line of data.
+        # np.loadtxt would return a 1D array in this case.
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+
+        total_sum = calculate_sorted_diff_sum(data)
+
+        print(f"The sum of the paired absolute differences is: {total_sum}")
+
+    except FileNotFoundError:
+        # This case is now handled by the file creation logic above,
+        # but is kept as a safeguard.
+        print(f"Error: Input file could not be read at '{input_file_path}'")
+    except ValueError as e:
+        # This will catch errors from np.loadtxt if data is not numeric
+        # or from our custom check in calculate_sorted_diff_sum.
+        print(f"Error processing file '{input_file_path}': {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,24 @@
+import random
+
+def main():
+    n = int(input("请输入所需单词的字符数: "))
+    # 从系统词典文件中加载单词列表，假设文件路径为 /usr/share/dict/words
+    try:
+        with open('/usr/share/dict/words', 'r') as f:
+            word_list = f.read().splitlines()
+    except FileNotFoundError:
+        print("词典文件未找到。")
+        return
+
+    # 筛选出正好有 n 个字符的单词，并且只取字母组成的单词
+    filtered_words = [word for word in word_list if len(word) == n and word.isalpha()]
+    if len(filtered_words) < 10:
+        print("词典中没有足够的单词。")
+        return
+
+    selected_words = random.sample(filtered_words, 10)
+    for word in selected_words:
+        print(word)
+
+if __name__ == "__main__":
+    main()

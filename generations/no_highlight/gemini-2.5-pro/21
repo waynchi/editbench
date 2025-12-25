@@ -1,0 +1,67 @@
+import shutil
+from pathlib import Path
+
+# Define the target folder where the images will be saved.
+target_folder = Path('F:/Maverick/desktop/Windows/temp/')
+
+def get_content_delivery_path():
+    """
+    Get the path of Windows Content Delivery assets.
+    This is where Windows Spotlight and lock screen images are stored.
+    """
+    # Use Path.home() to get the current user's home directory, making it user-independent.
+    base_path = Path.home() / 'AppData/Local/Packages/'
+    
+    # The ContentDeliveryManager folder has a dynamic suffix, so we search for it.
+    matched = base_path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    
+    try:
+        # Find the first directory that matches the pattern.
+        result = next(matched)
+        assets_path = result / 'LocalState/Assets/'
+        if assets_path.exists():
+            return assets_path
+        else:
+            raise FileNotFoundError(f"Assets folder not found in {result}")
+    except StopIteration:
+        # This exception is raised by next() if the glob search yields no results.
+        raise FileNotFoundError('ContentDeliveryManager Not Found. Windows Spotlight might be disabled.')
+    
+
+def jpeg(source_folder: Path, target_folder: Path):
+    """
+    Copy files from the source folder to the target folder and add the .jpeg suffix.
+    The source contains image files without extensions.
+    """
+    # Create the target directory if it doesn't exist.
+    # parents=True allows creating intermediate directories (like 'Windows/temp').
+    # exist_ok=True prevents an error if the directory already exists.
+    target_folder.mkdir(parents=True, exist_ok=True)
+    print(f"Ensured target directory exists: {target_folder}")
+
+    copied_count = 0
+    # Iterate over all items in the source directory.
+    for source_file in source_folder.iterdir():
+        # We only want to copy files, not any subdirectories that might exist.
+        if source_file.is_file():
+            # Create the full destination path, appending '.jpeg' to the original name.
+            destination_file = target_folder / (source_file.name + '.jpeg')
+            
+            # Use shutil.copy2 to copy the file while preserving metadata (like creation time).
+            shutil.copy2(source_file, destination_file)
+            copied_count += 1
+    
+    print(f"\nProcess complete. Copied {copied_count} files to {target_folder}")
+
+    
+if __name__ == '__main__':
+    try:
+        # Step 1: Find the Windows Content Delivery assets folder.
+        source_folder = get_content_delivery_path()
+        print(f"Windows Content Delivery path: {source_folder}")
+
+        # Step 2: Copy and rename the asset files to the target folder.
+        jpeg(source_folder, target_folder)
+
+    except (FileNotFoundError, Exception) as e:
+        print(f"An error occurred: {e}")

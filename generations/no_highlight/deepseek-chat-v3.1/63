@@ -1,0 +1,112 @@
+import numpy as np
+import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_config, n_clusters=2, clustering_method='kmeans'):
+    """
+    Выполняет кластеризацию данных для указанных наборов столбцов.
+
+    Args:
+        features_transformed (pandas.DataFrame): Преобразованный DataFrame с параметрами.
+        cluster_config (dict): Словарь конфигурации кластеризации вида 
+                              {имя_кластера: (столбец1, столбец2, ...), ...}
+        n_clusters (int or dict): Количество кластеров (может быть общим для всех или словарем 
+                                 с указанием для каждого набора).
+        clustering_method (str or dict): Метод кластеризации ('kmeans') (может быть общим для всех 
+                                        или словарем с указанием для каждого набора).
+
+    Returns:
+        pandas.DataFrame: DataFrame с добавленными столбцами меток кластеров.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    if not isinstance(cluster_config, dict):
+        print("cluster_config должен быть словарем вида {имя_кластера: (столбец1, столбец2, ...)}")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+
+    # Преобразуем n_clusters и clustering_method в словари, если они не являются таковыми
+    if not isinstance(n_clusters, dict):
+        n_clusters = {cluster_name: n_clusters for cluster_name in cluster_config.keys()}
+    
+    if not isinstance(clustering_method, dict):
+        clustering_method = {cluster_name: clustering_method for cluster_name in cluster_config.keys()}
+
+    for cluster_name, columns in cluster_config.items():
+        if not isinstance(columns, (list, tuple)):
+            columns = [columns]
+        
+        # Проверяем существование столбцов
+        missing_columns = [col for col in columns if col not in features_for_clustering.columns]
+        if missing_columns:
+            print(f"Столбцы {missing_columns} не найдены в DataFrame. Пропускаем кластеризацию '{cluster_name}'.")
+            continue
+        
+        # Выбираем данные для текущего набора столбцов
+        cluster_data_subset = features_for_clustering[list(columns)]
+        
+        current_n_clusters = n_clusters.get(cluster_name, 2)
+        current_method = clustering_method.get(cluster_name, 'kmeans')
+        
+        if current_method == 'kmeans':
+            model = KMeans(n_clusters=current_n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(cluster_data_subset)
+            
+            # Оценка качества кластеризации
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(cluster_data_subset, cluster_labels)
+                print(f"Коэффициент силуэта для '{cluster_name}' ({current_n_clusters} кластеров): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для '{cluster_name}' (все точки в одном кластере).")
+
+        else:
+            print(f"Неподдерживаемый метод кластеризации '{current_method}' для '{cluster_name}'. Пропускаем.")
+            continue
+
+        # Добавляем метки кластеров в DataFrame
+        features_for_clustering[cluster_name] = cluster_labels
+        print(f"Кластеризация '{cluster_name}' выполнена. Метки добавлены в столбец '{cluster_name}'.")
+
+    return features_for_clustering
+
+# Пример использования (после этапа 5 и до этапа 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Конфигурация кластеризации: имя_кластера -> список столбцов
+    cluster_config = {
+        'cluster_group1': ('feature1', 'feature2'),
+        'cluster_group2': ('feature3',),
+        'cluster_group3': ('feature4', 'feature5', 'feature6')
+    }
+    
+    # Можно задать разное количество кластеров для каждой группы
+    n_clusters_config = {
+        'cluster_group1': 3,
+        'cluster_group2': 2,
+        'cluster_group3': 4
+    }
+    
+    features_transformed = cluster_data(features_transformed, cluster_config, n_clusters_config)
+    
+    # Визуализация кластеров (для каждой пары числовых признаков)
+    numerical_features = features_transformed.select_dtypes(include=np.number)
+    cluster_columns = [col for col in features_transformed.columns if col.startswith('cluster_')]
+    
+    for cluster_col in cluster_columns:
+        if numerical_features.shape[1] >= 2:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(numerical_features.iloc[:, 0], numerical_features.iloc[:, 1], 
+                       c=features_transformed[cluster_col], cmap='viridis')
+            plt.xlabel(numerical_features.columns[0])
+            plt.ylabel(numerical_features.columns[1])
+            plt.title(f'Результаты кластеризации: {cluster_col}')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+        else:
+            print(f"Недостаточно числовых признаков для визуализации кластеров '{cluster_col}' на плоскости.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

@@ -1,0 +1,61 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Check if a number can be expressed as the sum of four non-zero squares.
+    
+    Args:
+        n (int): The number to check
+        
+    Returns:
+        bool: True if n can be expressed as sum of four non-zero squares, False otherwise
+    """
+    if n < 4:  # Minimum sum is 1+1+1+1 = 4
+        return False
+    
+    # Check all possible combinations of four positive integers whose squares sum to n
+    # We only need to check up to sqrt(n) for each term
+    limit = int(n**0.5) + 1
+    
+    for a in range(1, limit):
+        if a*a > n:
+            break
+        for b in range(a, limit):
+            if a*a + b*b > n:
+                break
+            for c in range(b, limit):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, limit):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+                    if a*a + b*b + c*c + d*d > n:
+                        break
+    return False
+
+def generate_numbers_with_four_square_representation(limit):
+    """
+    Generate all numbers up to limit that can be expressed as sum of four non-zero squares.
+    
+    Args:
+        limit (int): Upper bound to check
+        
+    Returns:
+        list: List of numbers that can be expressed as sum of four non-zero squares
+    """
+    result = []
+    for i in range(1, limit + 1):
+        if can_be_sum_of_four_nonzero_squares(i):
+            result.append(i)
+    return result
+
+# Example usage
+if __name__ == "__main__":
+    # Find first 20 numbers that can be expressed as sum of four non-zero squares
+    numbers = generate_numbers_with_four_square_representation(100)
+    print("Numbers that can be expressed as sum of four non-zero squares:")
+    print(numbers[:20])
+    
+    # Test specific examples
+    test_numbers = [4, 5, 8, 12, 15, 20, 24]
+    for num in test_numbers:
+        can_represent = can_be_sum_of_four_nonzero_squares(num)
+        print(f"{num}: {'Yes' if can_represent else 'No'}")

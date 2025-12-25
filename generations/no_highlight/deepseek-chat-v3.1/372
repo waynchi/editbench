@@ -1,0 +1,57 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, from_json, schema_of_json
+from pyspark.sql.types import StructType, StringType
+
+# Utwórz sesję Spark
+spark = SparkSession.builder.appName("AnalizaDanychAPI").getOrCreate()
+
+# Przykładowe dane JSON z API (zastąp rzeczywistymi danymi z API)
+json_data = [
+    '{"id": 1, "nombre": "Juan", "edad": 30, "ciudad": "Madrid"}',
+    '{"id": 2, "nombre": "Ana", "edad": 25, "departamento": "IT"}',
+    '{"id": 3, "nombre": "Pedro", "edad": 40, "pais": "España", "salario": 50000}'
+]
+
+# Utwórz RDD z danych JSON
+rdd = spark.sparkContext.parallelize(json_data)
+
+# Odczytaj dane jako DataFrame z kolumną wartości string
+df_raw = spark.read.json(rdd)
+
+# Wyświetl surowe dane do analizy struktury
+print("Surowe dane z API:")
+df_raw.show(truncate=False)
+print("Schema surowych danych:")
+df_raw.printSchema()
+
+# Jeśli dane mają spójną strukturę, można je bezpośrednio przetworzyć
+# W przeciwnym razie może być potrzebna dodatkowa transformacja
+
+# Alternatywnie: jeśli dane przychodzą jako pojedynczy string JSON
+# można użyć funkcji from_json do parsowania z dynamicznym schematem
+
+# Przykład parsowania z dynamicznym schematem:
+# df_parsed = df_raw.withColumn("parsed_data", from_json(col("value"), schema_of_json(df_raw.first()["value"])))
+
+# Skonfiguruj połączenie z ADL2 używając tożsamości Microsoft ID
+# Nie jest konieczne podawanie poświadczeń jawnie w notebooku Synapse
+# Spark użyje zarządzanej tożsamości notebooka do uwierzytelniania.
+
+# Określ ścieżkę do kontenera i folderu w ADL2
+container_name = "<your_container_name>"  # Zastąp nazwą swojego kontenera
+storage_account_name = "<your_storage_account_name>"  # Zastąp nazwą konta magazynu
+folder_path = "<your_folder_path>"  # Zastąp ścieżką do folderu w kontenerze
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Zapisać przeanalizowany DataFrame w formacie parquet w ADL2
+df_raw.write.parquet(adl2_path, mode="overwrite")
+
+# Opcjonalnie: odczytać plik parquet w celu weryfikacji
+df_leido = spark.read.parquet(adl2_path)
+print("Dane odczytane z Parquet:")
+df_leido.show(truncate=False)
+print("Schema danych odczytanych:")
+df_leido.printSchema()
+
+# Zatrzymać sesję Spark
+spark.stop()

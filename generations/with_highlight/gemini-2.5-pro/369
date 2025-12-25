@@ -1,0 +1,66 @@
+import os
+import shutil
+import numpy as np
+from numpy.random import sample_without_replacement
+import splitfolders
+
+# Assuming DATA_PATH is defined elsewhere, e.g.:
+# DATA_PATH = "path/to/your/data"
+
+# Nowa, zwięzła implementacja podziału danych przy użyciu biblioteki split-folders.
+# Zastępuje ona oryginalny, ręczny proces kopiowania i usuwania plików.
+
+# --- POCZĄTEK ZMIAN ---
+
+# Ścieżka do folderu, który pierwotnie zawiera wszystkie dane do podziału
+INPUT_DIR = os.path.join(DATA_PATH, "train")
+
+# Ścieżka wyjściowa, gdzie powstaną nowe foldery 'train' i 'val'
+OUTPUT_DIR = DATA_PATH
+
+# Definicje ścieżek do zbiorów, które zostaną utworzone
+TRAIN_DIR = os.path.join(OUTPUT_DIR, "train")
+VAL_DIR = os.path.join(OUTPUT_DIR, "val")
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Udział obrazów w walidacji
+VAL_FRAC = 0.3
+TRAIN_FRAC = 1 - VAL_FRAC
+
+# Sprawdzamy, czy istnieje folder wejściowy do podziału
+if os.path.exists(INPUT_DIR):
+    print(f"Dzielenie danych ze źródła '{INPUT_DIR}' na zbiory treningowe i walidacyjne...")
+
+    # Usuwamy stary folder walidacyjny, jeśli istnieje, aby uniknąć mieszania danych
+    if os.path.exists(VAL_DIR):
+        shutil.rmtree(VAL_DIR)
+
+    # Używamy biblioteki split-folders, aby automatycznie podzielić dane.
+    # Domyślnie przenosi ona pliki, co jest równoznaczne z operacją copy+remove z oryginalnego kodu.
+    # `seed=42` zapewnia powtarzalność podziału.
+    splitfolders.ratio(
+        INPUT_DIR,
+        output=OUTPUT_DIR,
+        seed=42,
+        ratio=(TRAIN_FRAC, VAL_FRAC),
+        group_prefix=None
+    )
+
+    print("Podział danych zakończony.")
+
+else:
+    print("Folder źródłowy do podziału nie istnieje. Zakładam, że podział został już wykonany.")
+
+# Odczytujemy nazwy katalogów (rodzaje zaćmienia) z nowo utworzonego zbioru treningowego
+ECLIPSE_LIST = {i: name for i, name in enumerate(sorted(os.listdir(TRAIN_DIR)))}
+
+# Wyświetlamy podsumowanie podziału dla każdej klasy
+print("\nPodsumowanie liczby obrazów po podziale:")
+for eclipse in ECLIPSE_LIST.values():
+    num_train_images = len(os.listdir(os.path.join(TRAIN_DIR, eclipse)))
+    # Sprawdzamy czy folder walidacyjny dla danej klasy istnieje
+    eclipse_val_path = os.path.join(VAL_DIR, eclipse)
+    num_val_images = len(os.listdir(eclipse_val_path)) if os.path.exists(eclipse_val_path) else 0
+    print(f'{eclipse} | train images = {num_train_images} | val images = {num_val_images}')
+
+# --- KONIEC ZMIAN ---

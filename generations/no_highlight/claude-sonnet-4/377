@@ -1,0 +1,54 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Get the current script directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct relative path to chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# Check if chromedriver exists
+if not os.path.exists(chromedriver_path):
+    print(f"ChromeDriver not found at: {chromedriver_path}")
+    print("Please ensure chromedriver.exe is in the correct location")
+    exit(1)
+
+try:
+    # Create Chrome options
+    options = uc.ChromeOptions()
+    
+    # Add some basic options to help with stability
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--remote-debugging-port=9222")
+    
+    print("Initializing Chrome driver...")
+    
+    # Initialize undetected Chrome driver with the chromedriver path
+    driver = uc.Chrome(
+        driver_executable_path=chromedriver_path,
+        options=options,
+        use_subprocess=True
+    )
+    
+    print("Chrome driver initialized successfully")
+    print("Navigating to website...")
+    
+    driver.get("https://lmarena.ai/")
+    print("Website loaded successfully")
+    
+    # Wait for page to load
+    time.sleep(10)
+    
+    print("Closing browser...")
+    driver.quit()
+    
+except Exception as e:
+    print(f"An error occurred: {e}")
+    try:
+        if 'driver' in locals():
+            driver.quit()
+    except:
+        pass

@@ -1,0 +1,132 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+def cluster_data(features_transformed, cluster_definitions, n_clusters=2, clustering_method='kmeans'):
+    """
+    Wykonuje klasteryzację na wskazanych, niezależnych zestawach kolumn.
+
+    Args:
+        features_transformed (pandas.DataFrame): Przekształcony DataFrame z parametrami.
+        cluster_definitions (dict): Słownik definiujący zadania klasteryzacji.
+                                    Klucze to nazwy dla nowych kolumn z etykietami klastrów.
+                                    Wartości to listy/krotki nazw kolumn do użycia w klasteryzacji.
+                                    Przykład: {'klaster_A': ['cecha1', 'cecha2'], 'klaster_B': ['cecha3']}
+        n_clusters (int): Liczba klastrów do utworzenia. Stosowana do wszystkich zadań klasteryzacji.
+        clustering_method (str): Metoda klasteryzacji do użycia ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame z dodanymi kolumnami etykiet klastrów lub None w przypadku błędu.
+    """
+    if features_transformed is None:
+        print("Najpierw wykonaj transformację danych (krok 5).")
+        return None
+
+    df_with_clusters = features_transformed.copy()
+    print(f"Rozpoczęcie klasteryzacji dla {len(cluster_definitions)} zdefiniowanych zestawów...")
+
+    for cluster_feature_name, columns_to_cluster in cluster_definitions.items():
+        print(f"\n--- Przetwarzanie klasteryzacji '{cluster_feature_name}' dla kolumn: {list(columns_to_cluster)} ---")
+
+        # Sprawdzenie, czy wszystkie podane kolumny istnieją w DataFrame
+        missing_cols = [col for col in columns_to_cluster if col not in df_with_clusters.columns]
+        if missing_cols:
+            print(f"Błąd: Brakujące kolumny w DataFrame: {missing_cols}. Pomijanie tego zestawu klasteryzacji.")
+            continue
+
+        # Wybór podzbioru danych dla bieżącego zadania klasteryzacji
+        features_for_clustering = df_with_clusters[list(columns_to_cluster)]
+        
+        if features_for_clustering.empty:
+            print("Brak danych do klasteryzacji po wybraniu kolumn. Pomijanie.")
+            continue
+
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            try:
+                cluster_labels = model.fit_predict(features_for_clustering)
+            except Exception as e:
+                print(f"Błąd podczas dopasowywania modelu KMeans dla '{cluster_feature_name}': {e}")
+                continue
+
+            # Ocena jakości klasteryzacji (np. za pomocą współczynnika sylwetki)
+            # Sprawdzenie, czy utworzono więcej niż jeden klaster
+            if len(np.unique(cluster_labels)) > 1:
+                try:
+                    silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                    print(f"Współczynnik sylwetki dla {n_clusters} klastrów: {silhouette_avg:.4f}")
+                except Exception as e:
+                    print(f"Nie można obliczyć współczynnika sylwetki: {e}")
+            else:
+                print("Nie można obliczyć współczynnika sylwetki, ponieważ wszystkie punkty znalazły się w jednym klastrze.")
+        
+        else:
+            print(f"Nieobsługiwana metoda klasteryzacji: '{clustering_method}'. Pomijanie tego zestawu.")
+            continue
+        
+        # Dodanie etykiet klastrów jako nowej kolumny do DataFrame
+        df_with_clusters[cluster_feature_name] = cluster_labels
+        print(f"Klasteryzacja zakończona. Etykiety dodane do kolumny '{cluster_feature_name}'.")
+
+    return df_with_clusters
+
+# ----- Przykład użycia -----
+# Zakładamy, że zmienna 'features_transformed' istnieje i jest DataFrame'em
+# Poniższy kod jest tylko przykładem i należy go dostosować do własnych danych.
+# Aby uruchomić ten przykład, odkomentuj poniższy blok i stwórz przykładowy DataFrame.
+#
+# from sklearn.preprocessing import StandardScaler
+# data = {'cecha1': np.random.rand(100) * 10,
+#         'cecha2': np.random.rand(100) * 5 + 2,
+#         'cecha3': np.random.rand(100) * 20 - 5}
+# features_transformed = pd.DataFrame(data)
+# scaler = StandardScaler()
+# features_transformed = pd.DataFrame(scaler.fit_transform(features_transformed), columns=features_transformed.columns)
+
+
+# Wykonywanie klasteryzacji (po etapie 5 i przed etapem 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Przykład definicji klasteryzacji. 
+    # Dostosuj nazwy kolumn do swojego DataFrame 'features_transformed'.
+    numerical_cols = features_transformed.select_dtypes(include=np.number).columns.tolist()
+
+    if len(numerical_cols) >= 2:
+        # Zdefiniuj, które zestawy kolumn chcesz klastrować i jak nazwać wyniki.
+        cluster_definitions = {
+            # Przykład 1: Klasteryzacja na podstawie wszystkich cech numerycznych
+            'cluster_all_numeric': numerical_cols,
+            # Przykład 2: Klasteryzacja na podstawie tylko dwóch pierwszych cech
+            'cluster_first_two': numerical_cols[:2]
+        }
+        
+        n_clusters = 3  # Liczba klastrów (dobierz optymalną wartość)
+        features_with_clusters = cluster_data(features_transformed, cluster_definitions, n_clusters=n_clusters)
+        
+        # Wizualizacja wyników dla każdego przeprowadzonego klastrowania
+        if features_with_clusters is not None:
+            print("\n--- Wizualizacja wyników klasteryzacji ---")
+            for cluster_col_name, clustered_cols in cluster_definitions.items():
+                if cluster_col_name in features_with_clusters.columns:
+                    # Wizualizacja jest możliwa tylko dla co najmniej 2 wymiarów.
+                    # Użyjemy pierwszych dwóch kolumn z danego zestawu do wykresu.
+                    if len(clustered_cols) >= 2:
+                        plt.figure(figsize=(8, 6))
+                        scatter = plt.scatter(
+                            features_with_clusters[clustered_cols[0]], 
+                            features_with_clusters[clustered_cols[1]], 
+                            c=features_with_clusters[cluster_col_name], 
+                            cmap='viridis'
+                        )
+                        plt.xlabel(clustered_cols[0])
+                        plt.ylabel(clustered_cols[1])
+                        plt.title(f'Wyniki klasteryzacji dla: {cluster_col_name}')
+                        plt.colorbar(scatter, label='Numer klastra')
+                        plt.show()
+                    else:
+                        print(f"Nie można zwizualizować klastrów dla '{cluster_col_name}', ponieważ użyto mniej niż 2 cechy.")
+    else:
+        print("Nie znaleziono wystarczającej liczby cech numerycznych do przeprowadzenia klasteryzacji.")
+else:
+    print("Najpierw wykonaj Krok 5 (Transformacja danych), aby utworzyć DataFrame 'features_transformed'.")

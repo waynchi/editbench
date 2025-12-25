@@ -1,0 +1,149 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                              std=[0.229, 0.224, 0.225])
+        ])
+    def create_unrelated_pairs(self, image_text_pairs):
+        """Creates unrelated image-text pairs by shuffling the text descriptions"""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """Creates semantically similar text pairs using paraphrase datasets"""
+        try:
+            dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+            textual_pairs = []
+            for item in dataset:
+                if item['is_duplicate'] == 1:
+                    pair = (item['question1'], item['question2'])
+                    textual_pairs.append(pair)
+            return textual_pairs[:self.sample_size]
+        except:
+            # Fallback with synthetic text pairs if quora dataset fails
+            print("Failed to load quora dataset, creating synthetic text pairs...")
+            return [
+                ("What is machine learning?", "Can you explain machine learning?"),
+                ("How does AI work?", "What is the working principle of artificial intelligence?"),
+                ("What is deep learning?", "Can you describe deep learning?"),
+                ("How to train neural networks?", "What is the process of neural network training?"),
+                ("What is computer vision?", "Can you explain computer vision technology?")
+            ][:self.sample_size]
+            
+    def create_visual_pairs(self, image_text_pairs):
+        """Creates augmented image pairs while maintaining semantic meaning"""
+        if not image_text_pairs:
+            return []
+            
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+        
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                try:
+                    augmented = augmentation_transforms(image)
+                    visual_pairs.append((image, augmented))
+                except Exception as e:
+                    print(f"Error augmenting image: {e}")
+                    continue
+        return visual_pairs
+
+    def load_mscoco_dataset(self):
+        """Loads and preprocesses MSCOCO dataset with improved filtering and fallback"""
+        try:
+            # Try to load the MSCOCO dataset
+            dataset = load_dataset(
+                "nlphuji/flickr30k",
+                split=f'test[:{self.sample_size}]'
+            )
+            
+            image_text_pairs = []
+            for item in dataset:
+                # Use the first caption from flickr30k
+                caption = item["caption"][0] if isinstance(item["caption"], list) else item["caption"]
+                if len(caption.split()) >= 5:  # Filter out too short captions
+                    try:
+                        # Ensure image is properly loaded
+                        image = item["image"]
+                        if image is not None:
+                            image_text_pairs.append((image, caption))
+                    except Exception as e:
+                        print(f"Error processing image-text pair: {e}")
+                        continue
+                        
+                if len(image_text_pairs) >= self.sample_size:
+                    break
+                    
+            return image_text_pairs
+            
+        except Exception as e:
+            print(f"Failed to load Flickr30k dataset: {e}")
+            print("Creating synthetic image-text pairs...")
+            
+            # Create synthetic data as fallback
+            synthetic_captions = [
+                "A cat sitting on a wooden table",
+                "A dog running in the park with green grass",
+                "A beautiful sunset over the ocean with orange colors",
+                "A red car parked on a city street",
+                "A person walking down a busy sidewalk with buildings",
+                "A bird flying in the blue sky with white clouds",
+                "A flower garden with colorful blooms in spring",
+                "A mountain landscape with snow-capped peaks and trees"
+            ]
+            
+            # Create simple synthetic images (colored rectangles as placeholders)
+            image_text_pairs = []
+            colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), 
+                     (255, 0, 255), (0, 255, 255), (128, 128, 128), (255, 128, 0)]
+            
+            for i in range(min(self.sample_size, len(synthetic_captions))):
+                # Create a simple colored image as placeholder
+                color = colors[i % len(colors)]
+                synthetic_image = Image.new('RGB', (224, 224), color)
+                image_text_pairs.append((synthetic_image, synthetic_captions[i]))
+                
+            return image_text_pairs
+
+def main():
+    # Initialize dataset creator
+    creator = AlignmentDatasetCreator(sample_size=100)
+    
+    # Load and create datasets
+    print("Loading MSCOCO dataset...")
+    image_text_pairs = creator.load_mscoco_dataset()
+    
+    print("Creating unrelated pairs...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+    
+    print("Creating textual pairs...")
+    textual_pairs = creator.create_textual_pairs()
+    
+    print("Creating visual pairs...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+    
+    # Print sample from each dataset
+    print("Dataset Samples:")
+    print(f"Image-Text Pair: {image_text_pairs[0] if image_text_pairs else 'No pairs available'}")
+    print(f"Unrelated Pair: {unrelated_pairs[0] if unrelated_pairs else 'No pairs available'}")
+    print(f"Textual Pair: {textual_pairs[0] if textual_pairs else 'No pairs available'}")
+    print(f"Visual Pair: {visual_pairs[0] if visual_pairs else 'No pairs available'}")
+
+if __name__ == "__main__":
+    main()

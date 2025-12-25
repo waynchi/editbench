@@ -1,0 +1,67 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+  // 初始回合默认为玩家回合
+  let currentTurn = "player";
+
+  // 辅助函数：判断某一组是否还有单位未行动
+  function hasAvailableActions(units) {
+    return units.some(unit => !unit.hasActed);
+  }
+
+  // 根据哪个小组还有可行动的单位来确定当前回合
+  // 若双方均已行动，则重置所有单位，并默认玩家先手，同时增加回合数
+  function updateCurrentTurn() {
+    if (hasAvailableActions(allyStates)) {
+      return "player";
+    }
+    if (hasAvailableActions(foeStates)) {
+      return "cpu";
+    }
+    // 如果双方都没有可行动的单位，表示本回合结束，重置所有单位的行动状态
+    turnNumber++;
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+    return "player"; // 新回合默认从玩家开始
+  }
+
+  // 返回当前回合队伍
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  // 返回当前回合数
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // 下一步行动：根据哪个小组仍有未行动单位来确定回合
+  // 如果轮到CPU，则自动执行CPU逻辑；若为玩家，则等待玩家行动
+  function nextTurn() {
+    currentTurn = updateCurrentTurn();
+    if (currentTurn === "cpu") {
+      cpuTurn();
+    }
+  }
+
+  // 示例 CPU 行为函数：遍历所有未行动的CPU单位，并执行对应动作
+  function cpuTurn() {
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // 如果该单位尚未行动
+        // 在此处添加相应的 CPU 动作逻辑（例如：移动、攻击等）
+        // ...编写你的 CPU AI 逻辑...
+        // 模拟 CPU 行动结束，标记该单位已行动
+        cpuUnit.hasActed = true;
+      }
+    }
+    // CPU 回合完成后，检查并切换回适当回合
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

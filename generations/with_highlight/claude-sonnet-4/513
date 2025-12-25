@@ -1,0 +1,187 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
+function useDashboardData(user) {
+  const [customerData, setCustomerData] = useState({ summary: null, loading: false, customers: [] });
+  const [healthData, setHealthData] = useState([]);
+  const [websiteStatus, setWebsiteStatus] = useState({ checking: false });
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRangeState] = useState(() => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(startDate.getFullYear() - 1);
+    return { startDate, endDate };
+  });
+  const [error, setError] = useState(null);
+  
+  const loadingRef = useRef(false);
+
+  const calculateHealthData = useCallback(() => {
+    if (!customerData.summary?.customers) return [];
+    
+    const months = [];
+    const currentDate = new Date(dateRange.startDate);
+    
+    while (currentDate <= dateRange.endDate) {
+      months.push({
+        month: currentDate.toLocaleString("default", { month: "short" }),
+        year: currentDate.getFullYear(),
+        monthIndex: currentDate.getMonth()
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return months.map(({ month, year, monthIndex, monthYear = `${month} ${year}` }) => {
+      const monthCustomers = customerData.summary.customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === monthIndex && customerDate.getFullYear() === year;
+      });
+
+      const statusCounts = monthCustomers.reduce((acc, c) => {
+        acc[c.status] = (acc[c.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      return {
+        monthYear,
+        healthy: statusCounts.active || 0,
+        warning: statusCounts.churned || 0,
+        critical: statusCounts.delinquent || 0,
+      };
+    });
+  }, [customerData.summary, dateRange]);
+
+  const loadSettings = useCallback(async () => {
+    if (!user?.id || customerData.summary || stripeApiKey || loadingRef.current) return;
+    
+    loadingRef.current = true;
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      
+      setStripeApiKey(settings[0]?.stripe_api_key || "");
+    } catch (error) {
+      setError("Failed to load user settings");
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [user?.id, customerData.summary, stripeApiKey]);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id || !stripeApiKey || customerData.loading) return;
+
+    setCustomerData(prev => ({ ...prev, loading: true }));
+    setError(null);
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      setCustomerData({ 
+        summary, 
+        loading: false,
+        customers: summary.customers 
+      });
+    } catch (error) {
+      setCustomerData(prev => ({ ...prev, loading: false }));
+      setError(error.message);
+    }
+  }, [user?.id, stripeApiKey, customerData.loading]);
+
+  // Update health data when customer data or date range changes
+  useEffect(() => {
+    const newHealthData = calculateHealthData();
+    setHealthData(newHealthData);
+  }, [calculateHealthData]);
+
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      if (!customerData.summary?.customers?.length || websiteStatus.checking) return;
+      
+      setWebsiteStatus({ checking: true });
+      setError(null);
+
+      try {
+        const updatedCustomers = await Promise.all(
+          customerData.customers.map(async (customer) => {
+            const response = await fetch("/api/website-churn-detector", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: customer.website }),
+            });
+            const health = await response.json();
+            return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+          })
+        );
+
+        const statusCounts = updatedCustomers.reduce((acc, c) => {
+          acc[c.status] = (acc[c.status] || 0) + 1;
+          return acc;
+        }, { active: 0, churned: 0 });
+
+        const summary = {
+          ...customerData.summary,
+          customers: updatedCustomers,
+          ...statusCounts
+        };
+
+        setCustomerData(prev => ({ ...prev, summary }));
+      } catch (err) {
+        setError("Failed to check websites. Please try again.");
+      } finally {
+        setWebsiteStatus({ checking: false });
+      }
+    },
+    
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        setError("Start date cannot be after end date");
+        return;
+      }
+      setDateRangeState(range);
+      setError(null);
+    },
+
+    clearError: () => setError(null)
+  }), [customerData.summary, customerData.customers, websiteStatus.checking]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const data = useMemo(() => ({
+    customerData,
+    healthData,
+    websiteStatus,
+    stripeApiKey,
+    dateRange,
+    error
+  }), [customerData, healthData, websiteStatus, stripeApiKey, dateRange, error]);
+
+  return { 
+    data, 
+    actions,
+    isLoading: customerData.loading || websiteStatus.checking 
+  };
+}
+
+export default useDashboardData;

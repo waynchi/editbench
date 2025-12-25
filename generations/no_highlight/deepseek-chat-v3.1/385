@@ -1,0 +1,32 @@
+import os
+from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility
+
+# Zapisz bieżącą ścieżkę jako cwd
+cwd = os.getcwd()
+
+# Utwórz połączenie z bazą danych Milvus
+connections.connect(host='localhost', port='19530')
+
+# Utwórz ścieżkę bazy danych wektorów (jeśli używane jest połączenie oparte na pliku)
+db_path = os.path.join(cwd, 'milvus_db')
+
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# Sprawdź czy kolekcja już istnieje i usuń ją jeśli tak
+if utility.has_collection(TABLE_NAME):
+    utility.drop_collection(TABLE_NAME)
+
+# Zdefiniuj schemat pól
+fields = [
+    FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+    FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=DIM_VALUE)
+]
+
+# Utwórz schemat kolekcji
+schema = CollectionSchema(fields=fields, description="Test collection")
+
+# Utwórz kolekcję
+collection = Collection(name=TABLE_NAME, schema=schema)
+
+print(f"Połączenie z Milvus zostało ustanowione i kolekcja '{TABLE_NAME}' została utworzona")

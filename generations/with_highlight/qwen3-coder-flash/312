@@ -1,0 +1,113 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('app.log', encoding='utf-8')
+        ]
+    )
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Запуск в виде скомпилированного исполняемого файла
+            executable_dir = os.path.dirname(sys.executable)
+            resource_dir = os.path.join(executable_dir, 'resources')
+            if not os.path.exists(resource_dir):
+                logging.warning(f"Resources directory not found at {resource_dir}, trying alternative location")
+                # Попробовать альтернативное расположение ресурсов
+                resource_dir = os.path.join(executable_dir, '..', 'resources')
+                resource_dir = os.path.abspath(resource_dir)
+            return resource_dir
+        else:
+            # Запуск как скрипт
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            resource_dir = os.path.join(script_dir, 'resources')
+            if not os.path.exists(resource_dir):
+                logging.warning(f"Resources directory not found at {resource_dir}, trying alternative location")
+                # Попробовать альтернативное расположение ресурсов
+                resource_dir = os.path.join(script_dir, '..', 'resources')
+                resource_dir = os.path.abspath(resource_dir)
+            return resource_dir
+    except Exception as e:
+        logging.error(f"Error determining resource path: {e}")
+        # Возврат пути по умолчанию
+        default_path = os.path.join(os.getcwd(), 'resources')
+        logging.info(f"Falling back to default resource path: {default_path}")
+        return default_path
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+    resource_dir = get_resource_path()
+    
+    # Проверить, существует ли каждый необходимый файл
+    missing_files = []
+    for file in required_files:
+        if not os.path.exists(os.path.join(resource_dir, file)):
+            missing_files.append(file)
+    
+    # Если отсутствуют какие-либо необходимые файлы, вернуть False
+    if missing_files:
+        logging.error(f"Missing resource files: {', '.join(missing_files)}")
+        return False
+    return True
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Настроить логирование
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Проверка ресурсов
+        if not check_resources():
+            logging.error("Required resource files are missing. Application cannot start.")
+            sys.exit(1)
+
+        # Инициализировать главное окно с поддержкой перетаскивания
+        root = tkinterdnd2.TkinterDnD.Tk()
+        
+        # Импортировать здесь, чтобы избежать циклических импортов
+        from gui.main_window import AudioTranscriberApp
+        
+        # Создать экземпляр приложения
+        app = AudioTranscriberApp(root)
+        
+        # Запустить основной цикл обработки событий
+        root.mainloop()
+        
+    except Exception as e:
+        logging.error(f"Application error: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()

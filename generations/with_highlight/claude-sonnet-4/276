@@ -1,0 +1,28 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Выполнить анализ ANOVA
+from scipy import stats
+
+# Разделить данные по группам
+groups = [group['Cost'].values for name, group in df.groupby('Brand')]
+f_stat, p_value = stats.f_oneway(*groups)
+
+# Создать таблицу ANOVA в стиле Python
+anova_results = {
+    'F-statistic': f_stat,
+    'p-value': p_value
+}
+
+# Вывести таблицу ANOVA
+print(f"F-statistic: {anova_results['F-statistic']}")
+print(f"p-value: {anova_results['p-value']}")

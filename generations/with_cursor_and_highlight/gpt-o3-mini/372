@@ -1,0 +1,57 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Utwórz sesję Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Przykład danych (zastąp swoimi rzeczywistymi danymi)
+data = [
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+
+# Analizuj dane pochodzące z API, ponieważ nie wiadomo, jak dokładnie przychodzą.
+# Poniższy przykład wykorzystuje symulowaną odpowiedź API jako JSON.
+import json
+
+# Symulowana odpowiedź API (zamień na rzeczywiste wywołanie API)
+api_response = '''
+[
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+'''
+
+# Zamień odpowiedź API na strukturę danych (lista słowników)
+data_from_api = json.loads(api_response)
+
+# Przeprowadź analizę danych: wypisz klucze, by zrozumieć strukturę
+print("Analiza struktury danych z API:")
+if data_from_api:
+    print("Klucze w pierwszym rekordzie:", list(data_from_api[0].keys()))
+else:
+    print("Brak danych z API.")
+
+# Utwórz DataFrame na podstawie przeanalizowanych danych
+df = spark.createDataFrame(data_from_api)
+
+# Skonfiguruj połączenie z ADL2 używając tożsamości Microsoft ID
+# Nie jest konieczne podawanie poświadczeń jawnie w notebooku Synapse
+# Spark użyje zarządzanej tożsamości notebooka do uwierzytelniania.
+
+# Określ ścieżkę do kontenera i folderu w ADL2
+container_name = "<your_container_name>"  # Zastąp nazwą swojego kontenera
+folder_path = "<your_folder_path>"  # Zastąp ścieżką do folderu w kontenerze
+adl2_path = f"abfss://{container_name}@{'<your_storage_account_name>'}.dfs.core.windows.net/{folder_path}"
+
+# Zapisać DataFrame w formacie parquet w ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcjonalnie: odczytać plik parquet w celu weryfikacji
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Zatrzymać sesję Spark
+spark.stop()

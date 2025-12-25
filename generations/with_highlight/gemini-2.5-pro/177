@@ -1,0 +1,33 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# 获取当前脚本的目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 构建到 chromedriver 的相对路径
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# The original code was throwing a SessionNotCreatedException because
+# options.binary_location was incorrectly set to the path of the chromedriver.
+# The 'binary_location' option is for the browser executable (e.g., chrome.exe),
+# not the driver.
+#
+# The correct way to specify the path to the driver executable is by using
+# the 'driver_executable_path' parameter in the uc.Chrome constructor.
+# We also remove the redundant second block of code.
+
+print("wde")
+try:
+    # Initialize the undetected Chrome driver, correctly specifying the driver's path.
+    with uc.Chrome(use_subprocess=True, driver_executable_path=chromedriver_path) as driver:
+        print("wde")
+        driver.get("https://lmarena.ai/")
+        print("wde")
+        # 为undetected_chromedriver创建一个ChromeOptions实例
+        # 使用指定的选项初始化未检测的Chrome驱动程序
+        time.sleep(10)
+except Exception as e:
+    print(f"An error occurred: {e}")
+    print("Please ensure that a compatible version of Google Chrome is installed.")
+    print(f"Attempting to use driver from: {chromedriver_path}")

@@ -1,0 +1,194 @@
+import numpy as np
+from typing import Dict, List
+
+from simulator.model.bidder import _Bidder
+from simulator.model.traffic import Traffic
+from simulator.simulation.modules import History
+
+
+class Mystique(_Bidder):
+    """
+    Mystique bidder implementation using a control-based pacing strategy.
+
+    This bidder adjusts its bid value based on a feedback loop that compares
+    actual spend against a target spending curve. The target curve is derived
+    from the daily traffic distribution to ensure the budget is spent
+    proportionally to user activity throughout the day.
+    """
+    default_params = {
+        'traffic_path': '../data/traffic_share.csv',
+        'pf0': 300,
+        'c_max': 50,
+        'c_min': 5,
+        'e_max': 10,
+        'e_gmc': 10
+    }
+
+    def __init__(self, params: dict = None):
+        """Initializes the Mystique bidder."""
+        super().__init__()
+
+        self.count = 0
+        params = params or {}
+
+        # Initialize traffic model
+        traffic_path = params.get(
+            'traffic_path', self.default_params['traffic_path']
+        )
+        self.traffic = Traffic(path=traffic_path)
+
+        # Algorithm hyper-parameters
+        self.pf0 = params.get('pf0', self.default_params['pf0'])
+        self.c_max = params.get('c_max', self.default_params['c_max'])
+        self.c_min = params.get('c_min', self.default_params['c_min'])
+        self.e_max = params.get('e_max', self.default_params['e_max'])
+        self.e_gmc = params.get('e_gmc', self.default_params['e_gmc'])
+
+        # Use lists for history tracking for better performance
+        self.balance_previous: List[float] = []
+        self.bid_previous: List[float] = []
+        self.timestamp_previous: List[int] = []
+
+    def place_bid(self, bidding_input_params: Dict[str, any],
+                  history: History) -> float:
+        """
+        Calculates and places a bid based on the control-based strategy.
+
+        Args:
+            bidding_input_params: Dictionary with campaign and context info.
+            history: Campaign history object (required by base class but unused).
+
+        Returns:
+            The calculated bid value as a float.
+        """
+        self.count += 1
+        _ = history  # Mark 'history' as unused to satisfy linters
+
+        # Unpack bidding parameters
+        start = bidding_input_params['campaign_start_time']
+        end = bidding_input_params['campaign_end_time']
+        initial_balance = bidding_input_params['initial_balance']
+        balance = bidding_input_params['balance']
+        curr_time = bidding_input_params['curr_time']
+
+        # On the first call, there is no history, so return a default bid.
+        if not self.bid_previous:
+            bid = float(self.pf0)
+            self.balance_previous.append(balance)
+            self.timestamp_previous.append(curr_time)
+            self.bid_previous.append(bid)
+            return bid
+
+        # --- Main Bidding Logic ---
+
+        # Calculate time-related metrics for the campaign
+        campaign_duration_days = (end - start) // (3600 * 24)
+        day_quote = (initial_balance / campaign_duration_days
+                     if campaign_duration_days > 0 else initial_balance)
+        day = (curr_time - start) // (3600 * 24)
+        hour = (curr_time - start) // 3600 % 24
+
+        # Define the target spending curve for the current day
+        region_id = bidding_input_params['region_id']
+        day_start_time = start + day * 3600 * 24
+        hours_of_day = np.arange(day_start_time,
+                                 day_start_time + 3600 * 24, 3600)
+
+        traffic_total_day = self.traffic.get_traffic_share(
+            region_id, day_start_time, day_start_time + 3600 * 24
+        )
+        traffic_per_hour = np.array([
+            self.traffic.get_traffic_share(region_id, h, h + 3600)
+            for h in hours_of_day
+        ])
+
+        if traffic_total_day > 0:
+            traffic_dist = traffic_per_hour / traffic_total_day
+        else:
+            traffic_dist = np.ones_like(traffic_per_hour) / 24.0
+
+        target_spend_curve = day_quote * np.cumsum(traffic_dist)
+
+        # Find the balance at the start of the current day from history
+        if day == 0:
+            initial_day_balance = initial_balance
+        else:
+            # Fallback to theoretical balance if no day-change is found
+            initial_day_balance = initial_balance - day * day_quote
+            hour_previous = [(t - start) // 3600 % 24
+                             for t in self.timestamp_previous]
+            # Search backwards for the last time the hour reset (e.g., 23 -> 0)
+            for i in range(len(hour_previous) - 1, 0, -1):
+                if hour_previous[i] < hour_previous[i - 1]:
+                    initial_day_balance = self.balance_previous[i]
+                    break
+
+        # If daily budget is already spent, reduce bid to zero and exit
+        if initial_day_balance - balance >= day_quote:
+            # Periodically explore a slightly lower bid to reduce costs
+            if self.count % 3 == 1:
+                bid = 0.95 * self.bid_previous[-1]
+            else:
+                bid = self.bid_previous[-1]
+            self.balance_previous.append(balance)
+            self.timestamp_previous.append(curr_time)
+            self.bid_previous.append(bid)
+            return bid
+
+        # --- PI Controller Logic ---
+        # Calculate proportional (spend) and integral (gradient) errors
+        current_spend = initial_day_balance - balance
+        try:
+            target = target_spend_curve[int(hour)]
+        except IndexError:
+            target = target_spend_curve[-1]
+        spend_error = current_spend - target
+
+        if int(hour) > 0 and curr_time > self.timestamp_previous[-1]:
+            desired_gradient = (target_spend_curve[int(hour)] -
+                                target_spend_curve[int(hour) - 1])
+            time_delta = curr_time - self.timestamp_previous[-1]
+            spend_delta = self.balance_previous[-1] - balance
+            real_gradient = spend_delta * 3600 / time_delta  # Per-hour rate
+            gradient_spend_error = real_gradient - desired_gradient
+        else:
+            gradient_spend_error = 0.0
+
+        # Dynamically weigh proportional and integral terms
+        if gradient_spend_error == 0:
+            tau = float('inf')
+        else:
+            tau = -spend_error / gradient_spend_error  # Time to convergence
+
+        if tau < 0:
+            ws, wg = 0.5, 0.5
+        else:
+            ws = min(0.9, 0.2 * tau)
+            wg = 1 - ws
+
+        # Scale error terms for bid correction
+        spend_error_c = min(self.c_max,
+                            self.c_max * abs(spend_error) / self.e_max)
+        grad_error_i = min(1.0, abs(gradient_spend_error))
+        gradient_spend_error_c = max(
+            self.c_min, self.c_max * grad_error_i / self.e_gmc
+        )
+
+        # Update bid periodically to maintain stability
+        if self.count % 3 == 1:
+            correction = (
+                ws * spend_error_c * np.sign(spend_error) +
+                wg * gradient_spend_error_c * np.sign(gradient_spend_error)
+            )
+            bid = self.bid_previous[-1] - correction
+        else:
+            bid = self.bid_previous[-1]  # Hold bid constant
+
+        # Ensure the bid is non-negative
+        final_bid = max(0.0, bid)
+
+        # Update history and return the final bid
+        self.balance_previous.append(balance)
+        self.timestamp_previous.append(curr_time)
+        self.bid_previous.append(final_bid)
+        return final_bid

@@ -1,0 +1,88 @@
+import random
+
+def create_dictionary():
+    """
+    Creates a sample English dictionary. In a real-world application,
+    this would be loaded from a file (e.g., /usr/share/dict/words).
+    """
+    # Lista słów pochodzi z popularnych list słów angielskich.
+    dictionary = [
+        "apple", "banana", "cherry", "date", "elderberry", "fig", "grape",
+        "honeydew", "kiwi", "lemon", "mango", "nectarine", "orange",
+        "papaya", "quince", "raspberry", "strawberry", "tangerine", "ugli",
+        "voavanga", "watermelon", "xigua", "yuzu", "zucchini", "programming",
+        "python", "challenge", "solution", "algorithm", "developer", "computer",
+        "keyboard", "monitor", "software", "hardware", "internet", "network",
+        "database", "security", "encryption", "authentication", "able", "baker",
+        "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india",
+        "juliett", "kilo", "lima", "mike", "november", "oscar", "papa",
+        "quebec", "romeo", "sierra", "tango", "uniform", "victor", "whiskey",
+        "xray", "yankee", "zulu", "cat", "dog", "sun", "moon", "star", "sky",
+        "earth", "water", "fire", "air", "love", "hate", "life", "death",
+        "time", "space", "happy", "sad", "angry", "calm", "beautiful", "ugly",
+        "big", "small", "fast", "slow", "hot", "cold", "light", "dark",
+        "day", "night", "early", "late", "open", "close", "easy", "hard",
+        "simple", "complex", "question", "answer", "problem", "solution",
+        "knowledge", "wisdom", "power", "strength", "weakness", "journey",
+        "destination", "beginning", "end", "middle", "story", "character",
+        "plot", "setting", "theme", "conflict", "resolution", "friendship",
+        "family", "community", "society", "government", "freedom", "justice",
+        "equality", "history", "future", "present", "technology", "science"
+    ]
+    return dictionary
+
+def find_words_of_length(word_list, length):
+    """
+    Filters the word list to find words with a specific length.
+    """
+    # Użycie list comprehension dla znalezienia pasujących słów
+    return [word for word in word_list if len(word) == length]
+
+def main():
+    """
+    Main function to run the program.
+    """
+    english_dictionary = create_dictionary()
+    
+    print("--- Wyszukiwarka słów w słowniku angielskim ---")
+    
+    while True:
+        try:
+            # 1. Poproś użytkownika o podanie liczby znaków
+            user_input = input("\nPodaj liczbę znaków słowa (lub wpisz 'koniec' aby zakończyć): ")
+
+            if user_input.lower() == 'koniec':
+                print("Do widzenia!")
+                break
+
+            num_chars = int(user_input)
+
+            if num_chars <= 0:
+                print("Proszę podać liczbę większą od zera.")
+                continue
+
+            # 2. Znajdź słowa o podanej długości
+            matching_words = find_words_of_length(english_dictionary, num_chars)
+
+            # 3. Wyświetl wyniki
+            if not matching_words:
+                print(f"Nie znaleziono żadnych słów o długości {num_chars} znaków.")
+            else:
+                print(f"\nZnaleziono {len(matching_words)} słów o długości {num_chars} znaków.")
+                print("Oto do 10 z nich:")
+                
+                # Użyjemy random.sample, aby za każdym razem pokazać inne słowa, jeśli jest ich więcej niż 10.
+                # Jeśli jest ich 10 lub mniej, pokaże wszystkie.
+                words_to_show = random.sample(matching_words, min(10, len(matching_words)))
+                
+                for word in words_to_show:
+                    print(f"- {word}")
+
+        except ValueError:
+            print("Błąd: Wprowadzona wartość nie jest liczbą całkowitą.")
+        except Exception as e:
+            print(f"Wystąpił nieoczekiwany błąd: {e}")
+
+# Uruchomienie programu
+if __name__ == "__main__":
+    main()

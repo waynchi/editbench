@@ -1,0 +1,212 @@
+import unittest
+import io
+from contextlib import redirect_stdout
+from collections import deque
+
+class Graph:
+    def __init__(self):
+        self.adjacency_list = {}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adjacency_list:
+            self.adjacency_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            self.adjacency_list[vertex1].append(vertex2)
+            self.adjacency_list[vertex2].append(vertex1)
+
+    def __str__(self):
+        return str(self.adjacency_list)
+
+    def remove_vertex(self, vertex):
+        if vertex in self.adjacency_list:
+            # Iterating over a copy is safer, as remove_edge modifies the list.
+            for neighbor in list(self.adjacency_list[vertex]):
+                self.remove_edge(vertex, neighbor)
+            del self.adjacency_list[vertex]
+
+    def remove_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            # Use try-except for robustness in case an edge doesn't exist.
+            try:
+                self.adjacency_list[vertex1].remove(vertex2)
+            except ValueError:
+                pass
+            try:
+                self.adjacency_list[vertex2].remove(vertex1)
+            except ValueError:
+                pass
+
+    def dfs(self, start_vertex, visited=None):
+        """
+        VULNERABILITY FIX: Perform an iterative depth-first search (DFS).
+        This prevents stack overflow (Denial of Service) on deep graphs which the
+        original recursive implementation was vulnerable to. 
+        It also now checks if the start_vertex exists to prevent a KeyError.
+        The original method signature is preserved.
+        """
+        if start_vertex not in self.adjacency_list:
+            return  # Prevent KeyError if start_vertex doesn't exist
+
+        if visited is None:
+            visited = set()
+
+        stack = [start_vertex]
+
+        while stack:
+            vertex = stack.pop()
+            if vertex not in visited:
+                visited.add(vertex)
+                print(vertex, end=' ')
+                # Add neighbors in reverse to mimic the traversal order of the
+                # original recursive version for consistency.
+                for neighbor in reversed(self.adjacency_list[vertex]):
+                    if neighbor not in visited:
+                        stack.append(neighbor)
+    
+    def bfs(self, start_vertex):
+        """
+        VULNERABILITY FIX: Perform BFS using an efficient deque-based queue.
+        The original implementation's use of list.pop(0) has O(n) complexity, 
+        making it vulnerable to a Denial-of-Service attack on large graphs.
+        Using deque.popleft() is an O(1) operation.
+        It also now checks if the start_vertex exists to prevent a KeyError.
+        """
+        if start_vertex not in self.adjacency_list:
+            return # Prevent KeyError if start_vertex doesn't exist
+
+        visited = set()
+        queue = deque([start_vertex]) # Use efficient deque for O(1) pop
+        visited.add(start_vertex)
+        
+        while queue:
+            vertex = queue.popleft()
+            print(vertex, end=' ')
+            
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+# The following test class was structurally broken in the original code.
+# It has been moved here to create a valid, runnable script.
+class TestGraph(unittest.TestCase):
+
+    def setUp(self):
+        self.graph = Graph()
+
+    def test_add_vertex(self):
+        self.graph.add_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'A': []})
+        self.graph.add_vertex('B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # 添加重复的顶点不应修改图形
+        self.graph.add_vertex('A')  
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+    def test_add_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+        # 添加不存在顶点的边不应修改图形
+        self.graph.add_edge('A', 'C')  
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+        self.graph.add_edge('D','E')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+
+
+    def test_remove_vertex(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A','B')
+        self.graph.remove_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'B': []})
+        # 删除不存在的顶点不应修改图形
+        self.graph.remove_vertex('C')
+        self.assertEqual(self.graph.adjacency_list, {'B': []})
+
+    def test_remove_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A','B')
+        self.graph.remove_edge('A','B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # 删除不存在的边不应产生任何影响
+        self.graph.remove_edge('A','C')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+
+    def test_dfs(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B','C')
+
+        # 将标准输出重定向以捕获打印输出
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.dfs('A')
+        output = f.getvalue().strip()
+        # This test as written is flawed, as output will be one string, not contain both.
+        # However, it is preserved as per the user's instruction not to change the test code.
+        # A correct test would be self.assertIn(output, ["A B C", "A C B"])
+        self.assertIn("A B C",output) # DFS顺序可能会略有不同
+        self.assertIn("A C B",output)
+
+
+    def test_bfs(self):
+         self.graph.add_vertex('A')
+         self.graph.add_vertex('B')
+         self.graph.add_vertex('C')
+         self.graph.add_edge('A', 'B')
+         self.graph.add_edge('A', 'C')
+         self.graph.add_edge('B','C')
+
+         f = io.StringIO()
+         with redirect_stdout(f):
+             self.graph.bfs('A')
+         output = f.getvalue().strip()
+         self.assertEqual(output,"A B C")
+
+
+    # A main block inside a class is not standard; it's typically at the module level.
+    # It has been moved to the main execution block of the script.
+    # if __name__ == '__main__':
+    #     unittest.main()
+
+
+if __name__ == "__main__":
+    # 创建一个新的图实例
+    graph = Graph()
+
+    # 添加顶点
+    graph.add_vertex('A')
+    graph.add_vertex('B')
+    graph.add_vertex('C')
+    graph.add_vertex('D')
+
+    # 添加边
+    graph.add_edge('A', 'B')
+    graph.add_edge('A', 'C')
+    graph.add_edge('B', 'D')
+
+    # 显示图形
+    print("Graph adjacency list:")
+    print(graph)
+
+    # 从顶点 'A' 开始执行深度优先搜索 (DFS)
+    print("\nDFS starting from vertex 'A':")
+    graph.dfs('A')
+
+    # 从顶点 'A' 开始执行 BFS
+    print("\n\nBFS starting from vertex 'A':")
+    graph.bfs('A')
+
+    # To run the provided tests, you can uncomment the following lines.
+    # print("\n\n--- Running Unittests ---")
+    # suite = unittest.TestLoader().loadTestsFromTestCase(TestGraph)
+    # unittest.TextTestRunner(verbosity=2).run(suite)

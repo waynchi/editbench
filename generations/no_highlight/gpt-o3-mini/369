@@ -1,0 +1,53 @@
+import os
+import shutil
+import numpy as np
+
+# Ustawienie ścieżki do katalogu z danymi (zaktualizuj według potrzeb)
+DATA_PATH = "path/to/data"
+
+# Katalog z obrazami treningowymi. Każdy podkatalog reprezentuje typ zaćmienia.
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+
+# Katalog na zbiór walidacyjny
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Katalog ze zdjęciami do testów (pozostaje bez zmian)
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Udział obrazów z każdej kategorii, które mają być przeznaczone do walidacji
+VAL_FRAC = 0.3
+
+# Pobieramy listę typów zaćmienia (nazwy podkatalogów) z katalogu treningowego
+eclipse_types = [d for d in os.listdir(TRAIN_DIR) if os.path.isdir(os.path.join(TRAIN_DIR, d))]
+
+# Dla każdego typu zaćmienia przygotowujemy zbiór walidacyjny
+for eclipse in eclipse_types:
+    # Tworzymy katalog w zbiorze walidacyjnym dla danego typu
+    eclipse_val_dir = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(eclipse_val_dir, exist_ok=True)
+    
+    # Ścieżka do obrazów danego typu w katalogu treningowym
+    eclipse_train_dir = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Pobieramy posortowaną listę plików (dla deterministyczności)
+    images_filenames = sorted(os.listdir(eclipse_train_dir))
+    
+    num_images = len(images_filenames)
+    num_val = int(num_images * VAL_FRAC)
+    
+    # Używamy numpy do wyboru losowych indeksów w sposób deterministyczny
+    rng = np.random.default_rng(seed=42)
+    indices = rng.choice(num_images, size=num_val, replace=False)
+    
+    # Pobieramy nazwy plików, które trafią do zbioru walidacyjnego
+    val_images = [images_filenames[i] for i in indices]
+    
+    print(f"{eclipse} | train images = {num_images - num_val} | val images = {num_val}")
+    
+    # Przenosimy wybrane obrazy z katalogu treningowego do walidacyjnego
+    for image_filename in val_images:
+        source = os.path.join(eclipse_train_dir, image_filename)
+        destination = os.path.join(eclipse_val_dir, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

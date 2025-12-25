@@ -1,0 +1,85 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    # Fix: Changed 'author' to 'autor' to use the function's argument
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    # Fix: Corrected type hint from dict[str:str] to dict[str, str]
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    num_replies = post['children']
+    cnt = 0
+    X += 1
+
+    # New functionality: Add post to the hierarchical dictionary
+    post_id = f"{post_author}/{post_permlink}"
+    diccionario[post_id] = {
+        'post_data': post.copy(),
+        'replies': {}
+    }
+
+    # This variable captures the last reply to safely replicate the original print behavior
+    last_reply_in_loop = None
+
+    if num_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=post_id)
+        actual_replies = comment.get_replies()
+        
+        cnt = 0  # This reset was in the original code
+        for reply in actual_replies:
+            last_reply_in_loop = reply  # Keep track of the last reply object
+
+            # New functionality: add the reply to the dictionary under its parent post
+            reply_author = reply['author']
+            reply_permlink = reply['permlink']
+            reply_id = f"{reply_author}/{reply_permlink}"
+            diccionario[post_id]['replies'][reply_id] = reply.copy()
+            
+            # Original processing logic for each reply
+            author = reply['author']
+            text = reply['body']
+            if is_own_author(author):
+                # Ponownie ocenić komentarz
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+    
+    if cnt > 3:
+        print("Iterador: ", X)
+        # The original code could cause a NameError here.
+        # This implementation preserves the intent (printing the last reply) safely.
+        if last_reply_in_loop:
+            print(last_reply_in_loop['author'], '/', last_reply_in_loop['permlink'])

@@ -1,0 +1,50 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Get the expected columns from the trained models
+# This assumes the models were trained with specific column structure
+expected_columns = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked_C', 'Embarked_Q', 'Embarked_S']
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create base dataframe
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # Apply one-hot encoding
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Ensure all expected embarked columns exist
+            for col in ['Embarked_C', 'Embarked_Q', 'Embarked_S']:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Convert boolean columns to integers if they exist
+            for col in ['Embarked_S', 'Embarked_C', 'Embarked_Q']:
+                if col in my_df.columns:
+                    my_df[col] = my_df[col].astype(int)
+            
+            # Reorder columns to match expected structure
+            my_df = my_df.reindex(columns=expected_columns, fill_value=0)
+            
+            try:
+                knn_prediction = knn.predict(my_df)[0]
+                mlp_prediction = mlp.predict(my_df)[0]
+                
+                print(f"""-------------------------------------------------------
+Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+По knn: {knn_prediction}
+По mlp: {mlp_prediction}""")
+            except Exception as e:
+                print(f"""-------------------------------------------------------
+Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+Error: {str(e)}""")

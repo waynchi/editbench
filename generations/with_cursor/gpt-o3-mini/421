@@ -1,0 +1,138 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+import os
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                 std=[0.229, 0.224, 0.225])
+        ])
+
+    def create_unrelated_pairs(self, image_text_pairs):
+        """Creates unrelated image-text pairs by shuffling the textual descriptions."""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """Creates semantically similar textual pairs using a paraphrase dataset."""
+        dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+        textual_pairs = []
+        for item in dataset:
+            if item.get('is_duplicate', 0) == 1:
+                pair = (item['question1'], item['question2'])
+                textual_pairs.append(pair)
+        return textual_pairs[:self.sample_size]
+
+    def create_visual_pairs(self, image_text_pairs):
+        """Creates augmented visual pairs while preserving semantic meaning."""
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+        
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                augmented = augmentation_transforms(image)
+                visual_pairs.append((image, augmented))
+        return visual_pairs
+
+    def load_mscoco_dataset(self):
+        """
+        Loads and processes the MSCOCO dataset with improved error handling.
+        If an image file is not found during processing, it will be skipped.
+        """
+        dataset = load_dataset(
+            "shunk031/MSCOCO",
+            year=2014,
+            coco_task="captions",
+            split='train',
+            streaming=True
+        )
+        # Limit the dataset to sample_size elements
+        dataset = dataset.take(self.sample_size * 2)  # take more to account for possible skips
+
+        image_text_pairs = []
+        count = 0
+        for item in dataset:
+            try:
+                # Select the most descriptive caption based on length.
+                best_caption = max(item["captions"], key=len)
+            except FileNotFoundError as e:
+                print(f"Warning: {e}. Skipping this example.")
+                continue
+            except Exception as e:
+                print(f"Unexpected error: {e}. Skipping this example.")
+                continue
+
+            # Filter out captions that are too short.
+            if len(best_caption.split()) < 5:
+                continue
+
+            image = item.get("image", None)
+            if image is None:
+                continue
+
+            # If the image is not already a PIL Image, try to convert it
+            if not isinstance(image, Image.Image):
+                try:
+                    image = Image.open(image)
+                except Exception as e:
+                    print(f"Could not load image: {e}. Skipping this example.")
+                    continue
+
+            image_text_pairs.append((image, best_caption))
+            count += 1
+            if count >= self.sample_size:
+                break
+
+        if not image_text_pairs:
+            raise RuntimeError("No valid image-text pairs could be loaded from the MSCOCO dataset.")
+        return image_text_pairs
+
+def main():
+    # Initialize the dataset creator with a sample size.
+    creator = AlignmentDatasetCreator(sample_size=100)
+
+    print("Loading MSCOCO dataset...")
+    try:
+        image_text_pairs = creator.load_mscoco_dataset()
+    except Exception as e:
+        print(f"Failed to load MSCOCO dataset: {e}")
+        return
+
+    print("Creating unrelated pairs...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+
+    print("Creating textual pairs...")
+    textual_pairs = creator.create_textual_pairs()
+
+    print("Creating visual pairs...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+
+    # Print a sample from each dataset.
+    print("Dataset Samples:")
+    print(f"Image-Text Pair: {image_text_pairs[0]}")
+    print(f"Unrelated Pair: {unrelated_pairs[0]}")
+    if textual_pairs:
+        print(f"Textual Pair: {textual_pairs[0]}")
+    else:
+        print("No textual pairs were created.")
+    if visual_pairs:
+        print(f"Visual Pair: {visual_pairs[0]}")
+    else:
+        print("No visual pairs were created.")
+
+if __name__ == "__main__":
+    main()

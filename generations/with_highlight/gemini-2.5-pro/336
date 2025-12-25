@@ -1,0 +1,25 @@
+from flask import Flask
+import datetime
+
+# Inicjalizacja aplikacji Flask
+app = Flask(__name__)
+
+@app.route('/')
+def show_current_time():
+    """
+    Funkcja widoku, która renderuje stronę główną.
+    Wyświetla bieżącą datę i godzinę.
+    """
+    # Pobranie bieżącej daty i godziny
+    now = datetime.datetime.now()
+    
+    # Sformatowanie daty i godziny do czytelnego ciągu znaków
+    time_string = now.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Zwrócenie odpowiedzi HTML z bieżącą godziną
+    return f"<h1>Aktualna data i godzina:</h1><p>{time_string}</p>"
+
+if __name__ == '__main__':
+    # Uruchomienie serwera deweloperskiego Flask
+    # W trybie debugowania aplikacja będzie się automatycznie restartować po zmianach w kodzie.
+    app.run(debug=True)

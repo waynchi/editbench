@@ -1,0 +1,101 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def construir_diccionario_jerarquico(posts_generator):
+    """
+    Construye un diccionario jerárquico de posts y sus replies
+    """
+    diccionario_jerarquico = {}
+    
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_replies = post['children']
+        
+        # Creamos la estructura del post
+        post_key = f"{post_author}/{post_permlink}"
+        diccionario_jerarquico[post_key] = {
+            'author': post_author,
+            'permlink': post_permlink,
+            'replies': {}
+        }
+        
+        if post_replies > n_respuestas_minimas:
+            comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+            replies_list = comment.get_replies()
+            
+            # Añadimos los replies al diccionario jerárquico
+            for reply in replies_list:
+                reply_author = reply['author']
+                reply_permlink = reply['permlink']
+                reply_body = reply['body']
+                
+                # Solo procesamos si no es el autor propio ni estábaneado
+                if not is_own_author(reply_author) and not is_banned(reply_author):
+                    # Almacenamos los datos del reply
+                    diccionario_jerarquico[post_key]['replies'][reply_permlink] = {
+                        'author': reply_author,
+                        'body': reply_body,
+                        'is_count_me': procesar(reply_body)
+                    }
+    
+    return diccionario_jerarquico
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Usamos la nueva función para construir el diccionario jerárquico
+diccionario_jerarquico = construir_diccionario_jerarquico(posts_generator)
+
+# Ahora podemos iterar sobre el diccionario jerárquico para obtener los resultados deseados
+for post_key, post_data in diccionario_jerarquico.items():
+    cnt = 0
+    post_author = post_data['author']
+    post_permlink = post_data['permlink']
+    replies = post_data['replies']
+    
+    # Contamos los comentarios con "count me"
+    for reply_key, reply_data in replies.items():
+        if reply_data['is_count_me']:
+            cnt += 1
+    
+    # Mostramos los resultados si hay más de 3 respuestas
+    if cnt > 3:
+        print("Iterador: ", X)
+        # Aquí puedes acceder a la información del último reply que cumplió la condición
+        last_reply = None
+        for reply_key, reply_data in replies.items():
+            if reply_data['is_count_me']:
+                last_reply = reply_data
+        if last_reply:
+            print(last_reply['author'], '/', reply_key)
+    
+    X += 1

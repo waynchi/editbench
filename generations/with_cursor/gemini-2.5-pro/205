@@ -1,0 +1,52 @@
+import { messages } from "./messages.js";
+
+$(function() {
+    // Cache jQuery objects for performance
+    const loading = $('.container-loading');
+    const payment = $('.payment-section');
+    const info = $('.user-info');
+    const main = $('.main');
+
+    // 从 localStorage 中检索值
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // 根据需要使用检索到的数据
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $('#generateTaxButton').on('click', function() {
+        // Fade out the main section and execute the rest of the logic in a callback
+        main.fadeOut(500, function() {
+            // Show the loading container
+            loading.css('display', 'flex');
+
+            const loadMessages = $('#loading-messages');
+            let cumulativeTime = 0;
+
+            // Use jQuery.each to iterate through the messages
+            $.each(messages, function(index, message) {
+                console.log(message.text);
+                console.log(message.time);
+
+                // Set a timeout to display each message sequentially
+                setTimeout(function() {
+                    loadMessages.text(message.text);
+                }, cumulativeTime);
+
+                // Add the current message's display time to the cumulative total
+                cumulativeTime += message.time;
+            });
+
+            console.log(`intervalo: ${cumulativeTime}`);
+
+            // After the total duration of all messages, switch to the payment view
+            setTimeout(function() {
+                console.log('pagamento');
+                loading.hide(); // Use jQuery's hide() method
+                payment.show(); // Use jQuery's show() method
+                info.show();    // Use jQuery's show() method
+            }, cumulativeTime + 500); // Add a 500ms buffer
+        });
+    });
+});

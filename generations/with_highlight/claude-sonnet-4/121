@@ -1,0 +1,132 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Creates a matrix of size rows x cols, filled with fill_value.
+    
+    Parameters:
+    rows (int): number of rows.
+    cols (int): number of columns.
+    fill_value (any type): value to fill the matrix.
+    
+    Returns:
+    list: matrix as a list of lists.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Adds two matrices of the same size.
+    
+    Parameters:
+    matrix_a (list): first matrix.
+    matrix_b (list): second matrix.
+    
+    Returns:
+    list: result of matrix addition.
+    """
+    rows = len(matrix_a)
+    cols = len(matrix_a[0])
+    result = []
+    
+    for i in range(rows):
+        row = []
+        for j in range(cols):
+            row.append(matrix_a[i][j] + matrix_b[i][j])
+        result.append(row)
+    
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Multiplies all elements of a matrix by a scalar.
+    
+    Parameters:
+    matrix (list): original matrix.
+    scalar (float): number by which matrix elements are multiplied.
+    
+    Returns:
+    list: result of matrix scalar multiplication.
+    """
+    result = []
+    
+    for i in range(len(matrix)):
+        row = []
+        for j in range(len(matrix[i])):
+            row.append(matrix[i][j] * scalar)
+        result.append(row)
+    
+    return result
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Multiplies two matrices.
+    
+    Parameters:
+    matrix_a (list): first matrix.
+    matrix_b (list): second matrix.
+    
+    Returns:
+    list: result of matrix multiplication.
+    """
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0])
+    cols_b = len(matrix_b[0])
+    
+    result = []
+    
+    for i in range(rows_a):
+        row = []
+        for j in range(cols_b):
+            element = 0
+            for k in range(cols_a):
+                element += matrix_a[i][k] * matrix_b[k][j]
+            row.append(element)
+        result.append(row)
+    
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Transposes a matrix.
+    
+    Parameters:
+    matrix (list): original matrix.
+    
+    Returns:
+    list: transposed matrix.
+    """
+    rows = len(matrix)
+    cols = len(matrix[0])
+    result = []
+    
+    for j in range(cols):
+        row = []
+        for i in range(rows):
+            row.append(matrix[i][j])
+        result.append(row)
+    
+    return result
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Calculates the determinant of a 3x3 matrix.
+    
+    Parameters:
+    matrix (list): original 3x3 matrix.
+    
+    Returns:
+    float: determinant of the matrix.
+    """
+    a11, a12, a13 = matrix[0][0], matrix[0][1], matrix[0][2]
+    a21, a22, a23 = matrix[1][0], matrix[1][1], matrix[1][2]
+    a31, a32, a33 = matrix[2][0], matrix[2][1], matrix[2][2]
+    
+    det = (a11 * (a22 * a33 - a23 * a32) - 
+           a12 * (a21 * a33 - a23 * a31) + 
+           a13 * (a21 * a32 - a22 * a31))
+    
+    return float(det)

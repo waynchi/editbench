@@ -1,0 +1,89 @@
+import numpy as np
+
+def fit_line(x, y):
+    """Функция для нахождения линии наилучшего соответствия для массива"""
+    # Вычислить средние значения x и y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Вычислить отклонения от средних значений
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # Вычислить наклон и пересечение прямой методом наименьших квадратов
+    slope = np.sum(x_dev * y_dev) / np.sum(x_dev ** 2)
+    intercept = y_mean - slope * x_mean
+    
+    return slope, intercept
+
+def fit_quadratic(x, y):
+    """Функция для нахождения квадратичной аппроксимации массива"""
+    # Создать матрицу Вандермонда с тремя столбцами: x^2, x и 1
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # Использовать метод наименьших квадратов для нахождения коэффициентов
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    return coeffs
+
+def max_deviation_line(x, y):
+    """
+    Функция для увеличенного поиска максимального отклонения точек от линии наилучшего соответствия.
+    Вычисляет значение линии, затем ищет точку с максимальным абсолютным отклонением.
+    
+    Возвращает:
+        index_max - индекс точки с максимальным отклонением
+        max_dev - величина максимального отклонения
+    """
+    slope, intercept = fit_line(x, y)
+    y_fit = slope * x + intercept
+    deviations = np.abs(y - y_fit)
+    index_max = np.argmax(deviations)
+    max_dev = deviations[index_max]
+    return index_max, max_dev
+
+def max_deviation_quadratic(x, y):
+    """
+    Функция для увеличенного поиска максимального отклонения точек от квадратичной аппроксимации.
+    Вычисляет значения квадратичной функции по найденным коэффициентам и ищет максимальное отклонение.
+    
+    Возвращает:
+        index_max - индекс точки с максимальным отклонением
+        max_dev - величина максимального отклонения
+    """
+    coeffs = fit_quadratic(x, y)
+    # Распаковка коэффициентов для удобства: a*x^2 + b*x + c
+    a, b, c = coeffs
+    y_fit = a * x**2 + b * x + c
+    deviations = np.abs(y - y_fit)
+    index_max = np.argmax(deviations)
+    max_dev = deviations[index_max]
+    return index_max, max_dev
+
+if __name__ == "__main__":
+    # Пример использования функций
+    # Создадим массив x и сгенерируем данные с шумом
+    x = np.linspace(0, 10, 50)
+    
+    # Данные для линейной аппроксимации (y = 2*x + 1 с шумом)
+    y_line = 2 * x + 1 + np.random.normal(scale=1.0, size=x.shape)
+    
+    # Данные для квадратичной аппроксимации (y = 0.5*x^2 + 2*x + 1 с шумом)
+    y_quadratic = 0.5 * x**2 + 2 * x + 1 + np.random.normal(scale=1.0, size=x.shape)
+    
+    # Линейная аппроксимация
+    slope, intercept = fit_line(x, y_line)
+    line_index, line_max_dev = max_deviation_line(x, y_line)
+    
+    print("Линейная аппроксимация:")
+    print("  Наклон (slope):", slope)
+    print("  Сдвиг (intercept):", intercept)
+    print("  Максимальное отклонение от линии: точка", line_index, "с отклонением", line_max_dev)
+    
+    # Квадратичная аппроксимация
+    coeffs = fit_quadratic(x, y_quadratic)
+    quad_index, quad_max_dev = max_deviation_quadratic(x, y_quadratic)
+    
+    print("\nКвадратичная аппроксимация:")
+    print("  Коэффициенты (a*x^2 + b*x + c):", coeffs)
+    print("  Максимальное отклонение от квадратичной кривой: точка", quad_index, "с отклонением", quad_max_dev)

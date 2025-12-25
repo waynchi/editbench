@@ -1,0 +1,83 @@
+#
+# @lc app=leetcode id=2379 lang=python3
+#
+# [2379] 获取K个连续黑块的最小重新着色次数
+#
+# https://leetcode.com/problems/minimum-recolors-to-get-k-consecutive-black-blocks/description/
+#
+# 算法
+# 简单 (59.47%)
+# 点赞：751
+# 不喜欢: 21
+# 总接受：61.3K
+# 总提交次数：103K
+# 测试用例示例：'"WBBWWBBWBW"\n7
+#
+# 给定一个长度为 n 的 0 索引字符串 blocks，其中 blocks[i] 是
+# “W”或“B”，表示第i个方块的颜色。字符
+# W' 和 'B' 分别表示白色和黑色。
+# 
+# 你还会得到一个整数 k，它是所需的连续黑色块的数量
+# 黑色方块。
+# 
+# 在一次操作中，你可以将一个白色块重新着色为黑色块
+# 块。
+# 
+# 返回所需的最小操作次数，以确保至少有
+# 至少有一个 k 个连续黑块的出现。
+# 
+# 
+# 示例 1:
+# 
+# 
+# 输入：blocks = "WBBWWBBWBW", k = 7
+# 输出：3
+# 解释：
+# 一种实现7个连续黑块的方法是重新着色第0、第3个和
+# 第4个块
+# 使得 blocks = "BBBBBBBWBW"。
+# 可以证明，没有办法在少于3次操作中实现7个连续的黑块。
+# 少于3次操作。
+# 因此，我们返回3。
+# 
+# 
+# 示例 2:
+# 
+# 
+# 输入: blocks = "WBWBBBW", k = 2
+# 输出：0
+# 解释：
+# 已经存在2个连续的黑色块，因此不需要进行任何更改。
+# 因此，我们返回 0。
+# 
+# 
+# 
+# 约束条件：
+# 
+# 
+# n == blocks.length
+# 1 <= n <= 100
+# blocks[i] 不是 'W' 就是 'B'。
+# 1 <= k <= n
+# 
+# 
+#
+
+# @lc 代码开始
+class Solution:
+    def minimumRecolors(self, blocks: str, k: int) -> int:
+        # 使用滑动窗口的方法
+        # 遍历所有可能的长度为k的子串
+        min_operations = k  # 最大可能的操作次数
+        
+        for i in range(len(blocks) - k + 1):
+            # 获取当前窗口内的子串
+            window = blocks[i:i+k]
+            # 计算当前窗口中白色块的数量（即需要重涂的次数）
+            white_count = window.count('W')
+            # 更新最小操作次数
+            min_operations = min(min_operations, white_count)
+            
+        return min_operations
+        
+# @lc code=end

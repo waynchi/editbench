@@ -1,0 +1,51 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+# Uncomment the following line for testing with an example file:
+# INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # Eliminar líneas vacías si existen
+    lines = [line for line in lines if line.strip()]
+    # Convertir cada línea en una lista de caracteres para formar una matriz 2D
+    grid = np.array([list(line) for line in lines])
+    print("Grid:")
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+
+    # Verificar horizontalmente
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Verificar verticalmente
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col])
+        count += col_str.count(str_to_match)
+
+    # Verificar diagonalmente (de arriba a la izquierda a abajo a la derecha)
+    for offset in range(-grid.shape[0] + 1, grid.shape[1]):
+        diag = np.diagonal(grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Verificar diagonalmente (de arriba a la derecha a abajo a la izquierda)
+    flipped_grid = np.fliplr(grid)
+    for offset in range(-flipped_grid.shape[0] + 1, flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        # Usar splitlines() para evitar tener líneas vacías con '\n' al final
+        lines = f.read().splitlines()
+    return lines
+
+if __name__ == "__main__":
+    main()

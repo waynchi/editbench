@@ -1,0 +1,54 @@
+import random
+
+# Sample English dictionary (in a real implementation, you would load from a file)
+english_words = [
+    "cat", "dog", "run", "jump", "book", "tree", "house", "water", "light", "music",
+    "apple", "table", "chair", "phone", "happy", "smile", "world", "green", "heart", "mouse",
+    "computer", "elephant", "keyboard", "mountain", "birthday", "sandwich", "hospital", "creative", "language", "football",
+    "dictionary", "beautiful", "wonderful", "technique", "adventure", "education", "generation", "university", "restaurant", "telephone",
+    "information", "application", "development", "environment", "organization", "communication", "presentation", "international", "understanding", "responsibility"
+]
+
+def find_words_by_length(n):
+    """Find words with exactly n characters"""
+    matching_words = [word for word in english_words if len(word) == n]
+    return matching_words
+
+def main():
+    print("English Dictionary Word Finder")
+    print("Find words by character count!")
+    
+    while True:
+        try:
+            n = int(input("\nEnter the number of characters you want in the word (or 0 to exit): "))
+            
+            if n == 0:
+                print("Goodbye!")
+                break
+            
+            if n < 1:
+                print("Please enter a positive number.")
+                continue
+            
+            matching_words = find_words_by_length(n)
+            
+            if not matching_words:
+                print(f"No words found with {n} characters.")
+            else:
+                # Get up to 10 words
+                words_to_show = matching_words[:10] if len(matching_words) >= 10 else matching_words
+                
+                print(f"\nFound {len(matching_words)} word(s) with {n} characters.")
+                print(f"Here are {len(words_to_show)} words:")
+                
+                for i, word in enumerate(words_to_show, 1):
+                    print(f"{i}. {word}")
+                
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

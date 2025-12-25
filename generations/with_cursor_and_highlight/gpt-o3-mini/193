@@ -1,0 +1,95 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_feature_name, n_clusters=2, clustering_method='kmeans'):
+    """执行数据聚类。
+
+参数：
+    features_transformed (pandas.DataFrame): 转换后的包含参数的DataFrame。
+    cluster_feature_name (str 或 dict): 如果为字符串，则所有数据参与聚类，聚类结果存储在此列中；
+        如果为字典，则键为新聚类标签列名，值为一个列名集合，表示对这些列独立进行聚类。例如：
+            {'cluster1': ('col1', 'col2'), 'cluster2': ('col3',)}
+    n_clusters (int): 聚类数量。
+    clustering_method (str): 聚类方法（当前仅支持 'kmeans'）。
+
+返回：
+    pandas.DataFrame: 添加了聚类标签列的DataFrame。"""
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+
+    # 如果传入的是字典，则对每一组指定的列单独执行聚类
+    if isinstance(cluster_feature_name, dict):
+        for new_col, cols in cluster_feature_name.items():
+            data_subset = features_transformed[list(cols)]
+            if clustering_method == 'kmeans':
+                model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                cluster_labels = model.fit_predict(data_subset)
+                
+                # 评估聚类质量（例如，使用轮廓系数）
+                if len(np.unique(cluster_labels)) > 1:  # 检查是否所有点都分配到同一簇
+                    silhouette_avg = silhouette_score(data_subset, cluster_labels)
+                    print(f"Коэффициент силуэта для {n_clusters} кластеров (列 {cols}): {silhouette_avg:.4f}")
+                else:
+                    print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера (все点 в одном кластере) для列 {cols}.")
+            else:
+                print("Неподдерживаемый метод кластеризации.")
+                return None
+
+            features_transformed[new_col] = cluster_labels
+            print(f"Кластеризация выполнена для列 {cols}. Метки кластеров добавлены в столбец '{new_col}'.")
+    else:
+        # 如果传入的不是字典，则对整个DataFrame进行聚类（保持原行为）
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(features_for_clustering)
+            
+            # 评估聚类质量（例如，使用轮廓系数）
+            if len(np.unique(cluster_labels)) > 1:  # 检查所有点是否都分配到同一簇
+                silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров: {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера (все点 в одном кластере).")
+        else:
+            print("Неподдерживаемый метод кластеризации.")
+            return None
+
+        features_transformed[cluster_feature_name] = cluster_labels
+        print(f"Кластеризация выполнена. Метки кластеров добавлены в столбец '{cluster_feature_name}'.")
+        
+    return features_transformed
+
+# 执行聚类（在步骤5之后和步骤6之前）
+if 'features_transformed' in locals() and features_transformed is not None:
+    # 若需要对指定列集进行独立聚类，请传入字典。例如：
+    # cluster_feature_spec = {'cluster1': ('col1', 'col2'), 'cluster2': ('col3',)}
+    # 否则，仅传入一个字符串，以对整个DataFrame进行聚类
+    cluster_feature_spec = {'cluster1': ('col1', 'col2'), 'cluster2': ('col3',)}
+    n_clusters = 3  # 簇的数量（选择最佳值）
+    features_transformed = cluster_data(features_transformed, cluster_feature_spec, n_clusters)
+    
+    # 可视化聚类（当有两个数值特征时的示例）
+    numerical_features = features_transformed.select_dtypes(include=np.number)
+    if numerical_features.shape[1] >= 2:
+        plt.figure(figsize=(8, 6))
+        # 这里为了展示效果，我们随机选择其中一个聚类结果进行可视化，
+        # 假设第一个聚类结果的列名是字典中第一个键或直接为字符串情况
+        if isinstance(cluster_feature_spec, dict):
+            cluster_label_col = list(cluster_feature_spec.keys())[0]
+        else:
+            cluster_label_col = cluster_feature_spec
+        plt.scatter(numerical_features.iloc[:, 0], numerical_features.iloc[:, 1], 
+                    c=features_transformed[cluster_label_col], cmap='viridis')
+        plt.xlabel(numerical_features.columns[0])
+        plt.ylabel(numerical_features.columns[1])
+        plt.title('Результаты кластеризации')
+        plt.colorbar(label='Номер кластера')
+        plt.show()
+    else:
+        print("Недостаточно числовых признаков для визуализации кластеров на плоскости.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

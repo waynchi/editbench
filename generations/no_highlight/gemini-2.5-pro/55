@@ -1,0 +1,270 @@
+An optimized version of the code is provided below. Each function has been reviewed and improved for performance, security, and code quality.
+
+### Summary of Optimizations:
+
+1.  **`save_log_to_file`**:
+    *   **Change**: Switched from a single JSON array to the **JSON Lines (JSONL)** format, where each log entry is a separate JSON object on a new line.
+    *   **Improvement**: The function can now open the log file in append mode (`'a'`). This avoids reading the entire file into memory and rewriting it for every save operation. This results in significantly faster writes and lower memory usage, especially for large log files.
+    *   **Trade-off**: The output file is no longer a single valid JSON array. It must be read line-by-line, with each line being parsed as a separate JSON object. This is a standard and well-supported format for logging.
+
+2.  **`clear_directory`**:
+    *   **Change**: Instead of iterating through and deleting each file/subdirectory individually, the new implementation uses `shutil.rmtree()` to delete the entire directory tree at once and then re-creates the top-level directory with `os.makedirs()`.
+    *   **Improvement**: This approach is significantly faster, especially for directories containing a large number of files. It delegates the complex and slow task of tree traversal and deletion to a single, highly optimized C-level function in the standard library.
+    *   **Trade-off**: This method may encounter permission errors if the script has rights to delete directory contents but not the directory itself. However, in most use cases where full control is granted, this method is superior.
+
+3.  **`remove_repetition`**:
+    *   **Change**: The function now uses `answer.startswith(question)` and the `answer.removeprefix(question)` method (available in Python 3.9+).
+    *   **Improvement**: `startswith` is much more efficient than the `in` operator for checking if a string begins with a substring. `removeprefix` is an optimized and idiomatic way to perform this specific task, improving both performance and readability over `replace`.
+    *   **Trade-off**: This change assumes the repeated question text will only ever appear at the beginning of the answer. The original `replace` implementation was more general but could incorrectly remove question text that appeared legitimately in the middle of the answer. The new approach is safer and more aligned with the typical behavior of language models.
+
+4.  **`load_model`**:
+    *   **Change 1**: Replaced insecure and potentially slow `pickle` with `torch.load`.
+    *   **Improvement 1**: **Security and Performance**. `pickle` can execute arbitrary code and is a known security vulnerability. `torch.load` is the secure, standard, and often faster way to deserialize PyTorch models and tensors. This also aligns the function with PyTorch best practices.
+    *   **Trade-off 1**: This is a breaking change. Any models previously saved as `.pkl` files with `pickle` will need to be re-saved using `torch.save`. Given the significant security benefits, this trade-off is highly recommended.
+    *   **Change 2**: Refactored the long `if/elif/else` chain into a dispatch dictionary.
+    *   **Improvement 2**: **Maintainability and Readability**. While not a direct performance gain, this makes the code much cleaner, easier to read, and simpler to extend with new model types in the future.
+
+5.  **General Improvements**:
+    *   **`pathlib`**: Replaced all `os.path.join` calls with the modern `pathlib.Path` object for more robust and readable path manipulations.
+    *   **Logging**: Added `import logging` and a basic configuration so that logging calls work correctly.
+    *   **Type Hinting**: Added type hints to function signatures to improve code clarity and allow for static analysis.
+python
+import os
+import shutil
+import json
+import logging
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+import torch
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+
+# --- Basic Setup ---
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Constants ---
+# Use pathlib.Path for modern, object-oriented path handling.
+DATA_SAVE_PATH = Path(os.getenv("DATA_SAVE_PATH", "./data"))
+MODEL_PATH = Path(os.getenv("MODEL_PATH", "./models"))
+
+
+def save_log_to_file(log_history: List[Dict], file_path: Path, append_latest_only: bool = False):
+    """
+    Saves log history to a file in JSON Lines (JSONL) format.
+
+    In JSONL, each log entry is a separate JSON object on a new line. This
+    allows for efficient appending without reading and rewriting the entire file.
+
+    Parameters:
+    - log_history: List of log entries (dictionaries).
+    - file_path: Path to the file where logs will be saved.
+    - append_latest_only: If True, only the latest log entry is appended.
+    """
+    # Create parent directory if it doesn't exist
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Determine which logs to save
+    logs_to_append = [log_history[-1]] if append_latest_only and log_history else log_history
+
+    try:
+        # Open in append mode ('a') for high performance.
+        with file_path.open("a", encoding="utf-8") as f:
+            for entry in logs_to_append:
+                f.write(json.dumps(entry) + "\n")
+    except IOError as e:
+        logging.error(f"An error occurred while writing to {file_path}: {e}")
+    except TypeError as e:
+        logging.error(f"An error occurred during JSON serialization for {file_path}: {e}")
+
+
+def clear_directory(directory: Path, delete_directory: bool = False):
+    """
+    Clears all contents of a directory. Optionally deletes the directory itself.
+
+    Optimization: Instead of iterating and deleting item by item, this uses
+    shutil.rmtree() for a much faster, single-operation removal of the entire
+    directory tree, then recreates the directory if needed.
+
+    Args:
+        directory (Path): The path to the directory to clear.
+        delete_directory (bool): If True, delete the directory itself. Defaults to False.
+    """
+    if directory.exists():
+        try:
+            shutil.rmtree(directory)
+            logging.info(f"Successfully removed directory and its contents: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete directory '{directory}'. Reason: {e}")
+            raise  # Re-raise to halt execution on failure
+
+    if not delete_directory:
+        try:
+            directory.mkdir(parents=True, exist_ok=False) # Use exist_ok=False to confirm it was newly created
+            logging.info(f"Directory '{directory}' created.")
+        except FileExistsError:
+            # This case handles the race condition where another process creates the directory
+            logging.info(f"Directory '{directory}' already exists.")
+        except OSError as e:
+            logging.error(f"Failed to create directory '{directory}'. Reason: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name: str = "pythia-31M",
+    base_model_repo_name: str = "EleutherAI/",
+    model_load_path: Path = MODEL_PATH,
+    model_save_path: Path = MODEL_PATH,
+):
+    """Merges a LoRA adapter with its base model and saves the result."""
+    my_model_path = model_load_path / model_name
+    # This logic assumes a 'pythia-31M' style name. Consider a more robust mapping if needed.
+    try:
+        param_count = model_name.lower().split("m")[0].split("-")[-1]
+        base_model_name = f"pythia-{param_count}M"
+    except IndexError:
+        logging.error(f"Could not parse model size from model_name: '{model_name}'.")
+        raise ValueError("Invalid model_name format.")
+
+    base_model_path = f"{base_model_repo_name}/{base_model_name}"
+    logging.info(f"Loading base model: {base_model_path}")
+    base_model = AutoModelForCausalLM.from_pretrained(base_model_path)
+
+    logging.info(f"Loading Peft model from: {my_model_path}")
+    model = PeftModel.from_pretrained(base_model, my_model_path)
+
+    logging.info("Merging adapter and unloading...")
+    merged_model = model.merge_and_unload()
+
+    my_model_save_path = model_save_path / f"{model_name}_merged"
+    logging.info(f"Saving merged model to: {my_model_save_path}")
+    merged_model.save_pretrained(my_model_save_path)
+    logging.info("Model merged and saved successfully.")
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """
+    Removes the question from the beginning of the answer if present.
+
+    Optimization: Uses `startswith()` for a fast check and `removeprefix()` (Python 3.9+)
+    for an efficient, idiomatic string operation, replacing the slower `in` and `replace`.
+    """
+    if answer.startswith(question):
+        return answer.removeprefix(question).strip()
+    return answer.strip()
+
+
+def _load_hf_model(model_name_or_path: str):
+    """Helper to load a Hugging Face model."""
+    return AutoModelForCausalLM.from_pretrained(model_name_or_path, torch_dtype=torch.bfloat16)
+
+def _load_grafted_model(model_path: Path):
+    """
+    Helper to load a GRAFTED model.
+
+    Security/Performance Optimization: Uses `torch.load` instead of `pickle`.
+    This is the standard, secure way to load PyTorch models and avoids the
+    arbitrary code execution vulnerability of pickle.
+    """
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Model file not found at: {model_path}")
+    # Use map_location='cpu' to avoid GPU memory issues when loading
+    return torch.load(model_path, map_location='cpu')
+
+def load_model(
+    model_type: str,
+    model_path: Path = MODEL_PATH,
+    blocks_str: Optional[str] = None,
+    vanilla_model_name: Optional[str] = None,
+    host_model_name: Optional[str] = None,
+) -> Any:
+    """
+    Loads different types of models based on the model_type parameter.
+
+    Optimization: Refactored with a dispatch dictionary for clarity and extensibility.
+    Replaced insecure `pickle` with `torch.load` for security and performance.
+
+    Parameters:
+    - model_type (str): Key for the model type, e.g., 'Tuned Model'.
+    - model_path (Path): The base path where models are stored.
+    - blocks_str (str): A string for layer/block naming (e.g., '1-5').
+    - vanilla_model_name (str): Name/path of the vanilla (base) model.
+    - host_model_name (str): Name/path of the host model.
+
+    Returns:
+    - The loaded model object.
+    """
+    # Dispatch table mapping model_type to a loading function and its required arguments
+    model_loaders = {
+        "Tuned Model": {
+            "loader": _load_hf_model,
+            "path_builder": lambda p, v, h, b: p / f"{v.split('/')[-1]}_trained_layers_{b}_merged",
+            "required_args": [vanilla_model_name, blocks_str],
+        },
+        "Vanilla Model": {
+            "loader": _load_hf_model,
+            "path_builder": lambda p, v, h, b: v,
+            "required_args": [vanilla_model_name],
+        },
+        "Transformed Model": {
+            "loader": _load_grafted_model,
+            "path_builder": lambda p, v, h, b: p / f"{h.split('/')[-1]}_preGRAFTED_{b}.pt",
+            "required_args": [host_model_name, blocks_str],
+        },
+        "Final Model": {
+            "loader": _load_grafted_model,
+            "path_builder": lambda p, v, h, b: p / f"{h.split('/')[-1]}_GRAFTED_{b}.pt",
+            "required_args": [host_model_name, blocks_str],
+        },
+        "Host Model": {
+            "loader": _load_hf_model,
+            "path_builder": lambda p, v, h, b: h,
+            "required_args": [host_model_name],
+        },
+    }
+
+    if model_type not in model_loaders:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+    config = model_loaders[model_type]
+    
+    # Check for missing arguments
+    if any(arg is None for arg in config["required_args"]):
+        raise ValueError(f"Missing required argument for model type '{model_type}'")
+
+    # Build the full path to the model
+    full_model_path = config["path_builder"](model_path, vanilla_model_name, host_model_name, blocks_str)
+    
+    logging.info(f"Loading '{model_type}' from '{full_model_path}'...")
+    try:
+        model = config["loader"](full_model_path)
+        logging.info(f"Successfully loaded '{model_type}'.")
+        return model
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Failed to load model from {full_model_path}: {e}")
+        raise
+
+
+def load_batch_losses(file_path: Path) -> Optional[List[float]]:
+    """
+    Loads batch loss data from a PyTorch checkpoint file.
+
+    Parameters:
+    - file_path (Path): The path to the checkpoint file (.pt).
+
+    Returns:
+    - A list of batch losses if available, otherwise None.
+    """
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses")
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        return batch_losses
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

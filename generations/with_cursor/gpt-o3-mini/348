@@ -1,0 +1,18 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Ustal ścieżkę do katalogu, w którym znajduje się ten skrypt
+script_dir = os.path.dirname(os.path.abspath(__file__))
+# Ustal względną ścieżkę do pliku chromedriver.exe (zakładając, że jest w podkatalogu chromedriver-win64)
+binary_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+options.binary_location = binary_path
+
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)

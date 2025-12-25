@@ -1,0 +1,61 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Utwórz sesję Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Funkcja symulująca pobieranie danych z API
+def fetch_data_from_api():
+    # Zastąp poniższy URL adresem swojego API
+    api_url = "https://api.example.com/data"
+    try:
+        response = requests.get(api_url)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print("Błąd podczas pobierania danych z API:", e)
+        # Jeśli wystąpi błąd, można użyć przykładowych danych
+        return [
+            {"id": 1, "nombre": "Juan", "edad": 30},
+            {"id": 2, "nombre": "Ana", "edad": 25},
+            {"id": 3, "nombre": "Pedro", "edad": 40}
+        ]
+
+# Pobierz dane z API (lub użyj przykładowych, jeśli API jest niedostępne)
+data = fetch_data_from_api()
+
+# Ponieważ nie znam struktury danych od razu, najpierw analizujemy dane
+print("Podgląd danych pobranych z API:")
+print(json.dumps(data, indent=2))
+
+# Utwórz DataFrame na podstawie pobranych danych
+df = spark.createDataFrame(data)
+
+# Przeanalizuj schemat i zawartość danych
+print("Schemat DataFrame:")
+df.printSchema()
+print("Zawartość DataFrame:")
+df.show(truncate=False)
+
+# Skonfiguruj połączenie z ADL2 używając tożsamości Microsoft ID
+# Nie jest konieczne podawanie poświadczeń jawnie w notebooku Synapse
+# Spark użyje zarządzanej tożsamości notebooka do uwierzytelniania.
+
+# Określ ścieżkę do kontenera i folderu w ADL2
+container_name = "<your_container_name>"  # Zastąp nazwą swojego kontenera
+folder_path = "<your_folder_path>"  # Zastąp ścieżką do folderu w kontenerze
+storage_account_name = "<your_storage_account_name>"  # Zastąp nazwą swojego konta magazynu
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Zapisz DataFrame w formacie Parquet w ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcjonalnie: odczytaj plik Parquet w celu weryfikacji
+df_leido = spark.read.parquet(adl2_path)
+print("Dane odczytane z pliku Parquet:")
+df_leido.show(truncate=False)
+
+# Zatrzymaj sesję Spark
+spark.stop()

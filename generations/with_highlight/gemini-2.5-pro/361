@@ -1,0 +1,32 @@
+# Ustawienie górnego limitu dla przeszukiwanych liczb.
+limit = 100
+
+# Krok 1: Generowanie listy kwadratów liczb całkowitych dodatnich (niezerowych).
+# Wystarczy wygenerować kwadraty liczb do sqrt(limit), ponieważ w sumie
+# a^2+b^2+c^2+d^2=n, każda z liczb a,b,c,d musi być mniejsza od sqrt(n).
+squares = [i * i for i in range(1, int(limit**0.5) + 1)]
+
+# Krok 2: Generowanie zbioru wszystkich możliwych sum dwóch niezerowych kwadratów.
+# Użycie zbioru (set) automatycznie eliminuje powtarzające się sumy.
+sums_of_two_squares = set()
+for s1 in squares:
+    for s2 in squares:
+        current_sum = s1 + s2
+        if current_sum <= limit:
+            sums_of_two_squares.add(current_sum)
+
+# Krok 3: Generowanie zbioru liczb będących sumą czterech niezerowych kwadratów.
+# Robimy to poprzez łączenie wcześniej obliczonych sum dwóch kwadratów.
+# Każda taka liczba 'n' to suma s_ab + s_cd.
+four_square_numbers = set()
+for s_ab in sums_of_two_squares:
+    for s_cd in sums_of_two_squares:
+        current_sum = s_ab + s_cd
+        if current_sum <= limit:
+            four_square_numbers.add(current_sum)
+
+# Krok 4: Posortowanie unikalnych wyników i ich wyświetlenie.
+result_list = sorted(list(four_square_numbers))
+
+print(f"Liczby (do {limit}), które można wyrazić jako sumę czterech niezerowych kwadratów:\n")
+print(result_list)

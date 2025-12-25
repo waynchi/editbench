@@ -1,0 +1,45 @@
+from dataclasses import dataclass
+import numpy as np
+norm = np.random.normal
+
+@dataclass
+class NeuralNetwork:
+    inp: int   # número de neuronas de entrada
+    hid: int   # número de neuronas ocultas
+    out: int   # número de neuronas de salida
+    lr: float  # tasa de aprendizaje
+    act: callable  # función de activación
+    epo: int   # número de épocas
+
+    def __post_init__(self):
+        # Corrección: ajustar la desviación estándar según la cantidad de nodos de entrada/ocultos
+        self.wih = norm(0., 1/np.sqrt(self.inp), (self.hid, self.inp))
+        self.who = norm(0., 1/np.sqrt(self.hid), (self.out, self.hid))
+
+    def train(self, x, y):
+        x = np.array(x, ndmin=2).T
+        y = np.array(y, ndmin=2).T
+
+        ho = self.act(self.wih @ x)  # salidas de la capa oculta
+        fo = self.act(self.who @ ho) # salidas finales
+        oe = y - fo                 # error en la salida
+        he = self.who.T @ oe        # error en la capa oculta
+
+        self.who += self.lr * (oe * fo * (1. - fo)) @ ho.T
+        self.wih += self.lr * (he * ho * (1. - ho)) @ x.T
+
+    def query(self, x):
+        x = np.array(x, ndmin=2).T
+        return self.act(self.who @ self.act(self.wih @ x))
+
+    def fit(self, X, y):
+        for _ in range(self.epo):
+            for xi, yi in zip(X, y):
+                self.train(xi, yi)
+
+    def predict(self, X):
+        return np.array([np.argmax(self.query(x)) for x in X])
+
+    def score(self, X, y):
+        y_true = np.array([np.argmax(i) for i in y])
+        return (self.predict(X) == y_true).mean()

@@ -1,0 +1,92 @@
+import random
+import string
+import json
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+# Configuration
+n_respuestas_minimas = 5
+# Hierarchical dictionary to store posts and their replies
+hierarchical_dict = {}
+
+def procesar(texto: str) -> bool:
+    return "count me " in texto
+
+def is_own_author(autor: str) -> bool:
+    # Return True if the author is the one we want to ignore
+    return autor == 'subidu'
+
+def is_banned(autor: str) -> bool:
+    list_banned = []  # Fill with banned authors if needed
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    # Placeholder for potential recursive reply processing if necessary.
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, 
+                          title: str = '', author: str = 'subidu', 
+                          body: str = 'Count me in ^^ @subidu') -> dict:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_children_count = post['children']
+    X += 1
+
+    # Create a unique key for the post and initialize its entry
+    post_key = f"{post_author}/{post_permlink}"
+    hierarchical_dict[post_key] = {
+        "post_author": post_author,
+        "post_permlink": post_permlink,
+        "replies": []
+    }
+
+    if post_children_count > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        replies_list = comment.get_replies()
+
+        cnt = 0
+        for reply in replies_list:
+            reply_author = reply['author']
+            reply_text = reply['body']
+            reply_permlink = reply['permlink']
+
+            if is_own_author(reply_author):
+                # 如果回复作者是自己的，则跳出当前循环（或根据需求选择跳过该回复）
+                break
+            if is_banned(reply_author):
+                break
+            if procesar(reply_text):
+                cnt += 1
+                # 将符合条件的回复添加到层次字典中
+                hierarchical_dict[post_key]["replies"].append({
+                    "reply_author": reply_author,
+                    "reply_permlink": reply_permlink,
+                    "reply_body": reply_text
+                })
+
+        if cnt > 3:
+            print("Iterador:", X)
+            if hierarchical_dict[post_key]["replies"]:
+                last_reply = hierarchical_dict[post_key]["replies"][-1]
+                print(last_reply['reply_author'] + '/' + last_reply['reply_permlink'])
+
+# 最后打印整个层次字典，可以选择以JSON格式打印
+print(json.dumps(hierarchical_dict, ensure_ascii=False, indent=2))

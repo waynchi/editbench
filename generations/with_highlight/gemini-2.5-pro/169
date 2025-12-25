@@ -1,0 +1,62 @@
+import os
+import shutil
+import random
+
+# The following is a placeholder for the DATA_PATH variable, which should be defined
+# before this script block runs. For example: DATA_PATH = "path/to/your/data"
+
+
+# 包含所有照片的文件夹/用于训练的照片文件夹
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# 读取目录名称，这些名称就是日食的类型
+# Note: This line might fail if TRAIN_DIR contains files, not just directories.
+# A robust version would be:
+# ECLIPSE_LIST = {i: name for i, name in enumerate([d for d in os.listdir(TRAIN_DIR) if os.path.isdir(os.path.join(TRAIN_DIR, d))])}
+ECLIPSE_LIST = {i:name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+
+# 用于验证的照片文件夹
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# 用于测试的照片文件夹
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+
+# 验证集中图像的比例
+VAL_FRAC = 0.3
+
+# 设置随机种子以确保每次分割的结果都相同，保证可复现性
+random.seed(42)
+
+# 为每种类型的日食创建验证集目录，并将相应比例的图片从训练集移动过去
+for eclipse in ECLIPSE_LIST.values():
+    # 为验证集创建对应的子目录
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # 获取当前类别在训练集中的路径
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # 读取所有图像文件名并排序，以确保确定性
+    images_filename = sorted(os.listdir(eclipse_path))
+    
+    # 如果类别文件夹为空，则跳过
+    if not images_filename:
+        print(f'{eclipse} | train images = 0 | val images = 0')
+        continue
+
+    # 计算验证集中的图像数量
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+    
+    # 使用 random.sample 从文件列表中进行无放回抽样，以选择验证图片
+    val_images = random.sample(images_filename, num_val)
+
+    print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+    
+    # 将抽选出的验证图片从训练文件夹移动到验证文件夹
+    for image_filename in val_images:
+        source = os.path.join(TRAIN_DIR, eclipse, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        # 使用 shutil.move 移动文件，比“复制+删除”更高效且意图更明确
+        shutil.move(source, destination)

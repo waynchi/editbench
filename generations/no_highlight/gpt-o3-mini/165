@@ -1,0 +1,150 @@
+import math
+
+class Value:
+    """存储单个标量值及其梯度"""
+
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self.grad = 0
+        # 用于自动微分图构建的内部变量
+        self._backward = lambda: None
+        self._prev = set(_children)
+        self._op = _op  # 生成此节点的操作，用于 graphviz / 调试 / 等等。
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+
+        return out
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __pow__(self, other):
+        # 仅支持 int/float 次幂
+        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+        out = Value(self.data ** other, (self,), f'**{other}')
+
+        def _backward():
+            self.grad += (other * self.data ** (other - 1)) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def log(self):
+        out = Value(math.log(self.data), (self,), f'log')
+        def _backward():
+            self.grad += (1 / self.data) * out.grad
+        out._backward = _backward       
+        return out
+
+    def relu(self):
+        assert isinstance(self.data, (int, float)), "only supporting int/float values for ReLU"
+        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
+        out._backward = _backward
+
+        return out
+
+    @staticmethod
+    def softmax(values):
+        """
+        计算输入 Value 列表的 softmax，并设置正确的反向传播梯度。
+        对于输入向量 x，其 softmax 输出 s 定义为：
+            s_i = exp(x_i - max(x)) / sum_j exp(x_j - max(x))
+        在反向传播时，对于每个输入 x_j，有：
+            dL/dx_j = sum_i dL/ds_i * s_i * (δ_ij - s_j)
+        其中 δ_ij 是 Kronecker delta。
+        """
+        # 计算数值稳定的 softmax (先减去最大值)
+        max_val = max(x.data for x in values)
+        exp_values = [math.exp(x.data - max_val) for x in values]
+        sum_exp = sum(exp_values)
+        softmax_vals = [ev / sum_exp for ev in exp_values]
+        
+        # 创建输出节点列表，每个 softmax 输出都是一个 Value
+        outputs = [Value(s, _children=tuple(values), _op='softmax') for s in softmax_vals]
+
+        # 由于 softmax 是一个向量运算，各输出共用同一个梯度运算，我们利用闭包保证 _backward 只执行一次
+        executed = [False]
+
+        def _backward():
+            if executed[0]:
+                return
+            # 收集所有 softmax 输出处的上游梯度
+            grads = [out.grad for out in outputs]
+            # 对于每个输入 x_j, 根据 softmax 的雅可比矩阵累积梯度：
+            # dL/dx_j = sum_i (g_i * s_i * (δ_ij - s_j))
+            for j, x in enumerate(values):
+                grad_sum = 0
+                s_j = softmax_vals[j]
+                for i, s in enumerate(softmax_vals):
+                    delta = 1 if i == j else 0
+                    grad_sum += grads[i] * s * (delta - s_j)
+                x.grad += grad_sum
+            executed[0] = True
+
+        # 将相同的 _backward 函数附加到所有 softmax 输出节点上
+        for out in outputs:
+            out._backward = _backward
+
+        return outputs
+
+    def backward(self):
+        # 对图中所有节点进行拓扑排序
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        # 逐个变量应用链式法则以获得其梯度
+        self.grad = 1
+        for v in reversed(topo):
+            v._backward()
+
+    def __neg__(self):  # -self
+        return self * -1
+
+    def __gt__(self, other):
+        return self.data > other.data
+
+    def __radd__(self, other):  # other + self
+        return self + other
+
+    def __sub__(self, other):  # self - other
+        return self + (-other)
+
+    def __rsub__(self, other):  # other - self
+        return other + (-self)
+
+    def __rmul__(self, other):  # other * self
+        return self * other
+
+    def __truediv__(self, other):  # self / other
+        return self * other ** -1
+
+    def __rtruediv__(self, other):  # other / self
+        return other * self ** -1
+
+    def __repr__(self):
+        return f"Value(data={self.data}, grad={self.grad})"

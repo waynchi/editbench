@@ -1,0 +1,46 @@
+import math
+
+def can_be_expressed(n):
+    """
+    Проверяет, может ли число n быть выражено как сумма четырех ненулевых квадратов.
+    Поскольку минимальный ненулевой квадрат равен 1 (1^2), n должно быть не меньше 4.
+    """
+    if n < 4:
+        return False
+    max_square_root = int(math.sqrt(n))
+    # Перебор всех возможных комбинаций четырех чисел от 1 до max_square_root.
+    for a in range(1, max_square_root + 1):
+        a_sq = a * a
+        if a_sq > n:
+            break
+        for b in range(1, max_square_root + 1):
+            b_sq = b * b
+            if a_sq + b_sq > n:
+                break
+            for c in range(1, max_square_root + 1):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq > n:
+                    break
+                for d in range(1, max_square_root + 1):
+                    total = a_sq + b_sq + c_sq + d * d
+                    if total == n:
+                        return True
+                    if total > n:
+                        break
+    return False
+
+def numbers_expressed_as_four_nonzero_squares(limit):
+    """
+    Возвращает список чисел от 4 до limit, которые могут быть выражены как сумма четырех ненулевых квадратов.
+    """
+    result = []
+    for n in range(4, limit + 1):
+        if can_be_expressed(n):
+            result.append(n)
+    return result
+
+if __name__ == "__main__":
+    limit = 100
+    numbers = numbers_expressed_as_four_nonzero_squares(limit)
+    print("Числа, которые могут быть выражены как сумма четырех ненулевых квадратов до", limit, ":")
+    print(numbers)

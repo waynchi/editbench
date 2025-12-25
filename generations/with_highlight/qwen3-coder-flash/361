@@ -1,0 +1,58 @@
+I notice that the original code is empty, and the user has indicated that they want to implement "Liczby, które można wyrazić jako sumę czterech niezerowych kwadratów" (Numbers that can be expressed as sum of four non-zero squares).
+
+Since the original code is empty, I'll provide a complete implementation for this mathematical problem. The solution will find numbers that can be expressed as the sum of four non-zero squares.
+python
+def can_be_sum_of_four_nonzero_squares(n):
+    """Check if a number can be expressed as sum of four non-zero squares"""
+    if n < 4:  # Minimum sum is 1+1+1+1 = 4
+        return False
+    
+    # Check all combinations of four positive integers whose squares sum to n
+    # We only need to check up to sqrt(n) for each term
+    limit = int(n**0.5) + 1
+    
+    for a in range(1, limit):
+        if a*a > n:
+            break
+        for b in range(a, limit):
+            if a*a + b*b > n:
+                break
+            for c in range(b, limit):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, limit):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+                    if a*a + b*b + c*c + d*d > n:
+                        break
+    return False
+
+def find_numbers_with_four_nonzero_squares(limit):
+    """Find all numbers up to limit that can be expressed as sum of four non-zero squares"""
+    result = []
+    for i in range(4, limit + 1):
+        if can_be_sum_of_four_nonzero_squares(i):
+            result.append(i)
+    return result
+
+# Example usage
+if __name__ == "__main__":
+    # Find first 20 numbers that can be expressed as sum of four non-zero squares
+    numbers = find_numbers_with_four_nonzero_squares(100)
+    print("Numbers that can be expressed as sum of four non-zero squares:")
+    print(numbers[:20])  # Show first 20
+    
+    # Test specific examples
+    test_numbers = [4, 5, 8, 15, 20, 25]
+    for num in test_numbers:
+        can_be_expressed = can_be_sum_of_four_nonzero_squares(num)
+        print(f"{num}: {'Yes' if can_be_expressed else 'No'}")
+
+This implementation:
+1. Defines a function to check if a single number can be expressed as sum of four non-zero squares
+2. Uses nested loops to systematically check all combinations
+3. Includes an efficient early termination when sums exceed the target number
+4. Provides a function to find multiple such numbers within a given range
+5. Includes example usage showing both individual checks and a list of qualifying numbers
+
+The code properly addresses the mathematical requirement of expressing numbers as sums of exactly four non-zero square numbers.

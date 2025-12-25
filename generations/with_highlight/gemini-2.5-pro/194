@@ -1,0 +1,29 @@
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class Card():
+    """
+    修复:
+    1. 添加了缺失的 'id' 字段，以解决原 __repr__ 中的 AttributeError.
+    2. 删除了有 bug 的自定义 __repr__ 方法。dataclass 会自动生成一个正确且功能完备的 __repr__。
+    初始化:
+    1. 所有字段都被设置为 Optional[str] 类型，并提供 None 作为默认值。
+    2. 这使得创建 Card 实例时可以省略任何字段，提高了灵活性。
+    """
+    id: Optional[str] = None
+    celular: Optional[str] = None
+    operadora: Optional[str] = None
+    valor: Optional[str] = None
+    email: Optional[str] = None
+    nome: Optional[str] = None
+    cpf: Optional[str] = None
+    card: Optional[str] = None
+    mes: Optional[str] = None
+    ano: Optional[str] = None
+    cvv: Optional[str] = None
+    token: Optional[str] = None
+    bin: Optional[str] = None
+    dadosbin: Optional[str] = None
+    senha: Optional[str] = None

@@ -1,0 +1,111 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+def czyPoprawny(obrazek): # obrzek zawiera liste łancuchów znaków  i można korzystać z operatora balicowego
+                            # obrazek[i][j]
+    for wiersz in obrazek[:-1]: # nie liczymy z ostaniego wiersza tam są bity parzystosci
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna+=obrazek[j][i]
+        if kolumna[:-1].count('1')% 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]: # nie liczymy z ostaniego wiersza tam są bity parzystosci
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne+=1
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna+=obrazek[j][i]
+        if kolumna[:-1].count('1')% 2 != int(kolumna[-1]):
+           bityKolBleden+=1
+    global maxbitybledne
+    if maxbitybledne<(bityKolBleden+bityWierBledne):
+        maxbitybledne = bityKolBleden+bityWierBledne
+    bityBledne.append(bityKolBleden+bityWierBledne)
+
+    if bityWierBledne >1 :
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    # Znajdź błędny wiersz
+    wiersz_bledny = -1
+    for idx, wiersz in enumerate(obrazek[:-1]):
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            wiersz_bledny = idx
+            break
+    
+    # Znajdź błędną kolumnę
+    kolumna_bledna = -1
+    for i in range(20):
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            kolumna_bledna = i
+            break
+    
+    # Stwórz kopię obrazka do naprawy
+    naprawiony = [list(wiersz) for wiersz in obrazek]
+    
+    # Jeśli znaleziono zarówno błędny wiersz jak i kolumnę, napraw odpowiedni piksel
+    if wiersz_bledny != -1 and kolumna_bledna != -1:
+        # Zamień piksel na przeciwny
+        if naprawiony[wiersz_bledny][kolumna_bledna] == '1':
+            naprawiony[wiersz_bledny][kolumna_bledna] = '0'
+        else:
+            naprawiony[wiersz_bledny][kolumna_bledna] = '1'
+    
+    # Jeśli znaleziono tylko błędny wiersz, napraw bit parzystości wiersza
+    elif wiersz_bledny != -1:
+        if obrazek[wiersz_bledny][:-1].count('1') % 2 == 0:
+            naprawiony[wiersz_bledny][-1] = '0'
+        else:
+            naprawiony[wiersz_bledny][-1] = '1'
+    
+    # Jeśli znaleziono tylko błędną kolumnę, napraw bit parzystości kolumny
+    elif kolumna_bledna != -1:
+        kolumna_licz = ""
+        for j in range(20):  # tylko 20 wierszy danych, bez ostatniego wiersza bitów parzystości
+            kolumna_licz += obrazek[j][kolumna_bledna]
+        if kolumna_licz.count('1') % 2 == 0:
+            naprawiony[20][kolumna_bledna] = '0'  # ostatni wiersz to bity parzystości kolumn
+        else:
+            naprawiony[20][kolumna_bledna] = '1'
+    
+    # Konwertuj listy z powrotem na stringi
+    naprawiony = [''.join(wiersz) for wiersz in naprawiony]
+    
+    return naprawiony
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip() # odcinamy białe znaki np enter
+   # wiersz = wiersz[:-1]  # tylko dane obrazka bez bitu parzystosci  teraz czytamy cala wiersz danych
+    obrazek.append(wiersz)
+    if len(obrazek) == 21: # mamy 21 lini czyli cały obrazek razem z wierszam bitów parzystosci
+        if czyPoprawny(obrazek):
+            poprawne+=1
+        elif czyNaprawialny(obrazek):
+            naprawialne+=1
+            naprawiony = napraw(obrazek)
+
+
+    if len(obrazek) == 22:  # po 22 lini czyscimy obrazek by czytać wiersze nastepnego obrazka
+        obrazek = list()
+
+print(poprawne,naprawialne,200-poprawne-naprawialne)
+print(maxbitybledne,max(bityBledne))

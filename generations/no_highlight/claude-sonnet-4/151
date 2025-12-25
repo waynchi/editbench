@@ -1,0 +1,62 @@
+import numpy as np
+from pathlib import Path
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Comment out example path
+
+def main():
+    """Main function to calculate the sum of distances between sorted pairs."""
+    try:
+        lines = parse_input_file()
+        if not lines:
+            print("No data found in input file.")
+            return
+        
+        list_1, list_2 = parse_columns(lines)
+        total_distance = calculate_total_distance(list_1, list_2)
+        print(f"Total distance: {total_distance}")
+        
+    except FileNotFoundError:
+        print(f"Error: Input file '{INPUT_FILE_PATH}' not found.")
+    except Exception as e:
+        print(f"Error processing file: {e}")
+
+def parse_input_file():
+    """Parse input file and return non-empty lines."""
+    file_path = Path(INPUT_FILE_PATH)
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f if line.strip()]
+    return lines
+
+def parse_columns(lines):
+    """Parse lines into two separate lists of integers."""
+    try:
+        # Split each line and convert to numpy array
+        cols = np.array([line.split() for line in lines], dtype=int).T
+        
+        if cols.shape[0] != 2:
+            raise ValueError("Input file must contain exactly 2 columns")
+        
+        return cols[0].tolist(), cols[1].tolist()
+    
+    except ValueError as e:
+        if "invalid literal" in str(e):
+            raise ValueError("Input file contains non-numeric values")
+        raise
+
+def calculate_total_distance(list_1, list_2):
+    """Calculate total distance between sorted pairs using efficient numpy operations."""
+    if len(list_1) != len(list_2):
+        raise ValueError("Both lists must have the same length")
+    
+    # Sort both arrays and calculate distances in one operation
+    sorted_1 = np.sort(list_1)
+    sorted_2 = np.sort(list_2)
+    
+    # Calculate all distances at once using vectorized operations
+    distances = np.abs(sorted_1 - sorted_2)
+    
+    return np.sum(distances)
+
+if __name__ == "__main__":
+    main()

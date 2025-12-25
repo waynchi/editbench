@@ -1,0 +1,53 @@
+import numpy as np
+
+
+def linear_regression_gradient_descent(
+    X: np.ndarray, y: np.ndarray, alpha: float, iterations: int
+) -> np.ndarray:
+    """
+    Performs linear regression using gradient descent.
+
+    The implementation fixes a ValueError caused by incompatible shapes during
+    gradient calculation. The target variable `y` is reshaped into a
+    column vector to ensure correct matrix and vector operations and prevent
+    unintended broadcasting.
+
+    Args:
+        X (np.ndarray): The feature matrix (including a column of ones for the intercept).
+        y (np.ndarray): The target variable.
+        alpha (float): The learning rate.
+        iterations (int): The number of iterations for gradient descent.
+
+    Returns:
+        np.ndarray: The learned parameters (theta).
+    """
+    m, n = X.shape
+
+    # Ensure y is a column vector (m, 1) to prevent broadcasting issues.
+    # The original code produced a ValueError because y was a 1D array (m,),
+    # and its subtraction from `X @ theta` (an m x 1 vector) was ambiguous,
+    # leading to an incorrect shape for the gradient.
+    # Reshaping y to (m, 1) ensures correct element-wise vector subtraction.
+    if y.ndim == 1:
+        y = y.reshape(-1, 1)
+
+    # Initialize parameters (theta) to zeros
+    theta = np.zeros((n, 1))
+
+    for _ in range(iterations):
+        # Calculate the error (predictions - actual values)
+        error = X @ theta - y
+        # Calculate the gradient of the cost function
+        gradient = (1 / m) * X.T @ error
+        # Update the parameters
+        theta -= alpha * gradient
+
+    return theta
+
+
+# Example usage with the provided data
+print(
+    linear_regression_gradient_descent(
+        np.array([[1, 1], [1, 2], [1, 3]]), np.array([1, 2, 3]), 0.01, 1000
+    )
+)

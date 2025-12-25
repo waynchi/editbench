@@ -1,0 +1,65 @@
+import random
+
+# Dictionary of English words (a sample - in practice you'd use a larger dictionary)
+english_words = [
+    "apple", "house", "computer", "python", "programming", "dictionary", "language",
+    "beautiful", "wonderful", "amazing", "fantastic", "excellent", "incredible",
+    "outstanding", "remarkable", "extraordinary", "magnificent", "spectacular",
+    "cat", "dog", "car", "sun", "moon", "star", "tree", "book", "pen", "desk",
+    "chair", "table", "phone", "music", "dance", "smile", "laugh", "happy",
+    "sad", "angry", "calm", "peace", "love", "hope", "dream", "goal", "success",
+    "failure", "learn", "teach", "study", "work", "play", "rest", "sleep",
+    "wake", "eat", "drink", "walk", "run", "jump", "swim", "fly", "drive",
+    "read", "write", "listen", "speak", "see", "hear", "feel", "think",
+    "know", "understand", "remember", "forget", "believe", "trust", "help",
+    "support", "encourage", "motivate", "inspire", "create", "build", "make",
+    "fix", "repair", "clean", "organize", "manage", "lead", "follow", "guide"
+]
+
+def find_words_by_length(word_list, n):
+    """Find words with exactly n characters"""
+    words_with_n_chars = [word for word in word_list if len(word) == n]
+    return words_with_n_chars
+
+def main():
+    print("English Dictionary Word Lookup")
+    print("=" * 30)
+    
+    while True:
+        try:
+            n = int(input("\nEnter the number of characters (or 0 to exit): "))
+            
+            if n == 0:
+                print("Goodbye!")
+                break
+            
+            if n < 1:
+                print("Please enter a positive number.")
+                continue
+            
+            matching_words = find_words_by_length(english_words, n)
+            
+            if not matching_words:
+                print(f"No words found with {n} characters.")
+            else:
+                # Shuffle the words to get random selection
+                random.shuffle(matching_words)
+                
+                # Get up to 10 words
+                words_to_show = matching_words[:10]
+                
+                print(f"\nFound {len(matching_words)} word(s) with {n} characters.")
+                print(f"Here are up to 10 words with {n} characters:")
+                print("-" * 40)
+                
+                for i, word in enumerate(words_to_show, 1):
+                    print(f"{i:2}. {word}")
+        
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

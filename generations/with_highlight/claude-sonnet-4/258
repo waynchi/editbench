@@ -1,0 +1,55 @@
+import random
+
+def load_dictionary():
+    """Load English words from a built-in list"""
+    # Sample English dictionary - in real application you might load from a file
+    words = [
+        "cat", "dog", "run", "jump", "walk", "talk", "book", "read", "write", "play",
+        "house", "mouse", "phone", "apple", "green", "black", "white", "music", "dance", "movie",
+        "computer", "internet", "keyboard", "monitor", "speaker", "penguin", "elephant", "giraffe", "dolphin", "butterfly",
+        "programming", "dictionary", "application", "development", "information", "university", "restaurant", "comfortable", "incredible", "mathematics",
+        "transportation", "communication", "responsibility", "administration", "accommodation", "entertainment", "international", "understanding", "environmental", "approximately"
+    ]
+    return words
+
+def find_words_by_length(dictionary, n):
+    """Find words with exactly N characters"""
+    matching_words = [word for word in dictionary if len(word) == n]
+    return matching_words
+
+def main():
+    print("=== ПОИСК СЛОВ ПО КОЛИЧЕСТВУ СИМВОЛОВ ===")
+    dictionary = load_dictionary()
+    
+    while True:
+        try:
+            n = int(input("\nВведите количество символов (или 0 для выхода): "))
+            
+            if n == 0:
+                print("До свидания!")
+                break
+                
+            if n < 1:
+                print("Количество символов должно быть больше 0!")
+                continue
+                
+            matching_words = find_words_by_length(dictionary, n)
+            
+            if not matching_words:
+                print(f"Слова с {n} символами не найдены в словаре.")
+            else:
+                # Select up to 10 random words
+                words_to_show = random.sample(matching_words, min(10, len(matching_words)))
+                print(f"\nНайдено слов с {n} символами: {len(matching_words)}")
+                print(f"Показываем {len(words_to_show)} слов:")
+                
+                for i, word in enumerate(words_to_show, 1):
+                    print(f"{i}. {word}")
+                    
+        except ValueError:
+            print("Пожалуйста, введите корректное число!")
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
+if __name__ == "__main__":
+    main()

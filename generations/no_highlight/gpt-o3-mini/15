@@ -1,0 +1,55 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+
+token = "TOKEN"
+bot = Bot(token=token)
+dp = Dispatcher(bot)
+chat_id = 111111111
+time_time = 5
+
+continue_periodically = True
+
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    # Создание кнопок с корректным именем параметра "inline_keyboard"
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="stop"),
+         types.InlineKeyboardButton(text="Нет", callback_data="continue")]
+    ], row_width=2)
+    await bot.send_message(chat_id=chat_id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query_handler(text="stop")
+async def stop_handler(call: types.CallbackQuery):
+    global continue_periodically
+    # Останавливаем отправку периодических сообщений, если это нужно
+    continue_periodically = False
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+
+@dp.callback_query_handler(text="continue")
+async def continue_handler(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+
+@dp.message_handler(content_types=['text'])
+async def handle_all_messages(message: types.Message):
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=chat_id, video=vid, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    while continue_periodically:
+        await bot.send_message(chat_id=chat_id, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=chat_id, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(time_time)
+
+async def on_startup():
+    print('Бот запущен!')
+    # Запускаем фоновую задачу по отправке периодических сообщений
+    asyncio.create_task(send_periodic_messages())
+
+async def main():
+    await on_startup()
+    # Запуск поллинга без использования executor
+    await dp.start_polling()
+
+if __name__ == '__main__':
+    asyncio.run(main())

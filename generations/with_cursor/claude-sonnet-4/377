@@ -1,0 +1,48 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Pobierz katalog bieżącego skryptu
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Skonstruuj ścieżkę względną do chromedrivera
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# Remove the incorrect binary_location setting - this should point to Chrome browser, not chromedriver
+# options.binary_location = chromedriver_path
+
+# Add some additional options to help with stability
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--remote-debugging-port=9222")
+
+print("Starting Chrome...")
+try:
+    # Let undetected_chromedriver handle the chromedriver path automatically
+    with uc.Chrome(options=options, version_main=None) as driver:
+        print("Chrome started successfully")
+        driver.get("https://lmarena.ai/")
+        print("Page loaded")
+        time.sleep(10)
+except Exception as e:
+    print(f"Error occurred: {e}")
+
+print("First attempt completed")
+
+# Second attempt with different approach
+options2 = uc.ChromeOptions()
+options2.add_argument("--no-sandbox")
+options2.add_argument("--disable-dev-shm-usage")
+options2.add_argument("--disable-gpu")
+
+print("Starting second Chrome instance...")
+try:
+    with uc.Chrome(options=options2) as driver:
+        print("Second Chrome instance started")
+        driver.get("https://lmarena.ai/")
+        print("Page loaded in second instance")
+        time.sleep(10)
+except Exception as e:
+    print(f"Error in second attempt: {e}")

@@ -1,0 +1,47 @@
+import pandas as pd
+import scipy.stats as stats
+import numpy as np
+
+# Assuming brand_A, brand_B, brand_C are defined elsewhere
+# For demonstration purposes, let's create sample data
+brand_A = [10, 12, 14, 16, 18]
+brand_B = [8, 10, 12, 14, 16]
+brand_C = [6, 8, 10, 12, 14]
+
+# Combine all data
+all_data = brand_A + brand_B + brand_C
+
+# Create DataFrame
+df = pd.DataFrame({
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+})
+
+# Perform one-way ANOVA using scipy
+groups = [df[df['Brand'] == brand]['Cost'].values for brand in df['Brand'].unique()]
+f_statistic, p_value = stats.f_oneway(*groups)
+
+# Create results summary
+print("ANOVA Results")
+print("=" * 30)
+print(f"F-statistic: {f_statistic:.6f}")
+print(f"P-value: {p_value:.6f}")
+
+# Alternative approach using pandas and statsmodels with proper Python style
+from scipy import stats
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+# Perform ANOVA analysis using statsmodels (more Pythonic approach)
+model = ols('Cost ~ C(Brand)', data=df).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Print the ANOVA table
+print("\nANOVA Table:")
+print("=" * 30)
+print(anova_table)
+
+# Additional descriptive statistics
+print("\nDescriptive Statistics:")
+print("=" * 30)
+print(df.groupby('Brand')['Cost'].describe())

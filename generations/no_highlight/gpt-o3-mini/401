@@ -1,0 +1,35 @@
+import pandas as pd
+from main13 import knn, mlp
+
+# Create a DataFrame to store results. Use dtype=object to allow dictionary objects.
+results_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Convert the categorical column into dummy variables (one-hot encoding)
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+        # Ensure that the dummy columns are of type int (they usually are, but just in case)
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].astype(int)
+
+        # Retrieve predictions from both models.
+        pred_knn = knn.predict(my_df)
+        pred_mlp = mlp.predict(my_df)
+        predictions = {"knn": pred_knn, "mlp": pred_mlp}
+
+        # Use .at for scalar assignment to avoid indexer errors.
+        results_df.at[fare, pclass] = predictions
+
+print(results_df)

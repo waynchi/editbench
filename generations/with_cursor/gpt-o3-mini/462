@@ -1,0 +1,50 @@
+import random
+
+def load_dictionary(filepath='/usr/share/dict/words'):
+    """
+    Carga el diccionario de palabras en inglés desde un archivo.
+    Por defecto se utiliza el archivo típico en sistemas Unix.
+    """
+    try:
+        with open(filepath, 'r') as f:
+            # Se filtran líneas vacías y se asegura que la palabra sólo contenga
+            # caracteres alfabéticos.
+            words = [line.strip() for line in f if line.strip().isalpha()]
+        return words
+    except IOError:
+        print("Error: No se pudo abrir el archivo del diccionario.")
+        return []
+
+def filter_words_by_length(words, length):
+    """
+    Filtra y retorna las palabras que tienen exactamente 'length' caracteres.
+    """
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Carga el diccionario
+    dictionary = load_dictionary()
+    if not dictionary:
+        return
+
+    try:
+        n = int(input("Ingrese el número de caracteres deseados para las palabras: "))
+    except ValueError:
+        print("Entrada inválida. Por favor, ingrese un número entero.")
+        return
+
+    filtered_words = filter_words_by_length(dictionary, n)
+    if not filtered_words:
+        print("No se encontraron palabras con esa cantidad de caracteres.")
+        return
+
+    # Seleccionamos 10 palabras aleatorias, o menos si no hay suficientes
+    num_words = 10
+    palabras_mostradas = random.sample(filtered_words, min(num_words, len(filtered_words)))
+    
+    print("\nPalabras encontradas:")
+    for word in palabras_mostradas:
+        print(word)
+
+if __name__ == "__main__":
+    main()

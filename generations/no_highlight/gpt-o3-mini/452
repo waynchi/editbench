@@ -1,0 +1,55 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """
+    Interactúa con un LLM local usando la API de Ollama.
+
+    :param prompt: El mensaje de entrada para el LLM.
+    :param base_url: La URL base de la API de Ollama.
+    :return: La respuesta del LLM o None si ocurre algún error.
+    """
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # Reemplaza con el nombre de tu modelo si es necesario
+        "prompt": prompt,
+        "max_tokens": 2048  # Ajusta según sea requerido
+    }
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"Error en la solicitud: {e}")
+        return None
+
+    # Intentar decodificar la respuesta JSON y manejar posibles errores por datos extra
+    try:
+        data = response.json()
+    except json.JSONDecodeError as e:
+        # Se produjo un error al decodificar el JSON completo; intentaremos extraer la parte válida
+        # El error reportado puede ser algo como: "Datos extra: línea 2 columna 1 (carácter 101)"
+        texto = response.text.strip()
+        try:
+            # Buscamos el último '}' para intentar extraer un JSON válido
+            last_brace = texto.rfind('}')
+            if last_brace != -1:
+                posible_json = texto[:last_brace+1]
+                data = json.loads(posible_json)
+            else:
+                print("No se encontró delimitador válido en la respuesta JSON.")
+                return None
+        except Exception as parse_error:
+            print(f"Error al intentar corregir el JSON: {parse_error}")
+            return None
+
+    return data.get('response', '')
+
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")
+    else:
+        print("No se recibió respuesta del LLM.")

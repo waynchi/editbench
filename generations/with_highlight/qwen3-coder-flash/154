@@ -1,0 +1,70 @@
+import random
+
+def find_words_by_length(word_dict, length, count=10):
+    """
+    查找指定长度的单词
+    
+    Args:
+        word_dict: 单词字典
+        length: 单词长度
+        count: 返回单词数量，默认10个
+    
+    Returns:
+        包含指定长度的单词列表
+    """
+    # 筛选出指定长度的单词
+    matching_words = [word for word in word_dict if len(word) == length]
+    
+    # 随机选择指定数量的单词
+    if len(matching_words) >= count:
+        selected_words = random.sample(matching_words, count)
+    else:
+        selected_words = matching_words
+    
+    return selected_words
+
+# 示例单词字典（实际应用中可以从文件读取）
+english_dictionary = [
+    "apple", "banana", "cherry", "date", "elderberry", "fig", "grape", 
+    "honeydew", "ice", "juice", "kiwi", "lemon", "mango", "nectarine",
+    "orange", "papaya", "quince", "raspberry", "strawberry", "tangerine",
+    "watermelon", "xigua", "yellow", "zucchini", "ant", "bear", "cat",
+    "dog", "elephant", "fish", "goat", "horse", "igloo", "jungle"
+]
+
+def main():
+    """主函数"""
+    print("英语词典查询程序")
+    print("=" * 30)
+    
+    while True:
+        try:
+            # 获取用户输入
+            n = int(input("请输入要查找的单词字符数（输入0退出）: "))
+            
+            if n == 0:
+                print("程序结束，再见！")
+                break
+            elif n < 0:
+                print("请输入非负整数！")
+                continue
+            
+            # 查找单词
+            words = find_words_by_length(english_dictionary, n, 10)
+            
+            if words:
+                print(f"\n找到 {len(words)} 个长度为 {n} 的单词:")
+                for i, word in enumerate(words, 1):
+                    print(f"{i}. {word}")
+            else:
+                print(f"没有找到长度为 {n} 的单词")
+            
+            print("-" * 30)
+            
+        except ValueError:
+            print("请输入有效的数字！")
+        except Exception as e:
+            print(f"发生错误: {e}")
+
+if __name__ == "__main__":
+    main()

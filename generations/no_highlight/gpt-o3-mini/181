@@ -1,0 +1,33 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input_str: str, pos: int) -> bool:
+        # 使用 Python 内置的 isdigit 检查字符是否为数字
+        return input_str[pos].isdigit()
+
+    @staticmethod
+    def is_int(input_str: str, start_pos: int) -> int:
+        max_pos = len(input_str)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos:
+            if not IntegerToken.is_digit(input_str, current_pos):
+                break
+            digit_found = True
+            current_pos += 1
+
+        assert digit_found, "Not an integer"
+        return current_pos
+
+if __name__ == "__main__":
+    print(IntegerToken.is_int("1234", 0))
+    try:
+        print(IntegerToken.is_int("a123", 0))
+    except AssertionError as e:
+        print(e)

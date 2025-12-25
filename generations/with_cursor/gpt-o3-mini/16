@@ -1,0 +1,13 @@
+import time
+import undetected_chromedriver as uc
+
+options = uc.ChromeOptions()
+# Use a relative path for the Chrome binary
+options.binary_location = "./chromedriver-win64/chromedriver.exe"
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # The undetected_chromedriver is initialized with specified options
+    time.sleep(10)

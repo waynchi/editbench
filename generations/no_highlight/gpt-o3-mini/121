@@ -1,0 +1,124 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Creates a matrix of size rows x cols, filled with fill_value.
+
+    Parameters:
+        rows (int): number of rows.
+        cols (int): number of columns.
+        fill_value (any type): value to fill the matrix.
+
+    Returns:
+        list: matrix as a list of lists.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Adds two matrices of the same size element-wise.
+
+    Parameters:
+        matrix_a (list): first matrix.
+        matrix_b (list): second matrix.
+
+    Returns:
+        list: result of matrix addition.
+        
+    Raises:
+        ValueError: if the matrices are not of the same dimensions.
+    """
+    if len(matrix_a) != len(matrix_b) or any(len(row_a) != len(row_b) for row_a, row_b in zip(matrix_a, matrix_b)):
+        raise ValueError("Matrices must have the same dimensions to be added.")
+    
+    result = []
+    for row_a, row_b in zip(matrix_a, matrix_b):
+        result.append([a + b for a, b in zip(row_a, row_b)])
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Multiplies all elements of a matrix by a scalar.
+
+    Parameters:
+        matrix (list): original matrix.
+        scalar (float): number by which matrix elements are multiplied.
+
+    Returns:
+        list: result of matrix scalar multiplication.
+    """
+    return [[element * scalar for element in row] for row in matrix]
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Multiplies two matrices.
+
+    Parameters:
+        matrix_a (list): first matrix.
+        matrix_b (list): second matrix.
+
+    Returns:
+        list: result of matrix multiplication.
+        
+    Raises:
+        ValueError: if the number of columns in matrix_a does not match the number of rows in matrix_b.
+    """
+    if not matrix_a or not matrix_b or len(matrix_a[0]) != len(matrix_b):
+        raise ValueError("Number of columns in the first matrix must equal the number of rows in the second matrix.")
+    
+    result = []
+    # iterate over rows of matrix_a
+    for i in range(len(matrix_a)):
+        row_result = []
+        # iterate over columns of matrix_b
+        for j in range(len(matrix_b[0])):
+            element_sum = 0
+            # sum over rows of matrix_b (or columns of matrix_a)
+            for k in range(len(matrix_b)):
+                element_sum += matrix_a[i][k] * matrix_b[k][j]
+            row_result.append(element_sum)
+        result.append(row_result)
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Transposes a matrix.
+
+    Parameters:
+        matrix (list): original matrix.
+
+    Returns:
+        list: transposed matrix.
+    """
+    # Using list comprehension; handle case when matrix is empty.
+    if not matrix:
+        return []
+    return [[matrix[row][col] for row in range(len(matrix))] for col in range(len(matrix[0]))]
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Calculates the determinant of a 3x3 matrix.
+
+    Parameters:
+        matrix (list): original 3x3 matrix.
+
+    Returns:
+        float: determinant of the matrix.
+        
+    Raises:
+        ValueError: if the provided matrix is not 3x3.
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("The matrix must be 3x3.")
+    
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+    
+    det = (a11 * (a22 * a33 - a23 * a32) -
+           a12 * (a21 * a33 - a23 * a31) +
+           a13 * (a21 * a32 - a22 * a31))
+    return float(det)

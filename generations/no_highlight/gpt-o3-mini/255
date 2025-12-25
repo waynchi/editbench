@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""
+This script reads an input file containing two columns of integers (separated by three spaces)
+and computes the total distance between matching pairs when both columns are sorted in ascending order.
+The program has been refactored to improve readability, error handling, and performance.
+"""
+
+import numpy as np
+import argparse
+import sys
+
+
+def parse_input_file(file_path: str) -> list:
+    """
+    Reads the input file and returns a list of non-empty lines.
+
+    Parameters:
+        file_path (str): The path to the input file.
+
+    Returns:
+        list: A list of strings, each representing a trimmed line from the file.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            # Using splitlines() handles different line endings and avoids empty trailing lines
+            lines = f.read().splitlines()
+        # Filter out possible empty lines
+        return [line for line in lines if line.strip()]
+    except Exception as e:
+        sys.exit(f"Error reading file '{file_path}': {e}")
+
+
+def compute_total_distance(sorted_list1: np.ndarray, sorted_list2: np.ndarray) -> int:
+    """
+    Computes the sum of absolute differences between corresponding elements of two sorted arrays.
+
+    Parameters:
+        sorted_list1 (np.ndarray): First sorted array.
+        sorted_list2 (np.ndarray): Second sorted array.
+
+    Returns:
+        int: Sum of absolute differences.
+    """
+    return int(np.sum(np.abs(sorted_list1 - sorted_list2)))
+
+
+def process_data(lines: list) -> (np.ndarray, np.ndarray):
+    """
+    Processes the input lines and extracts two integer arrays corresponding to the two columns.
+
+    Parameters:
+        lines (list): List of input lines from the file.
+
+    Returns:
+        tuple: A tuple containing two numpy arrays (list1, list2).
+    """
+    data = []
+    for idx, line in enumerate(lines, start=1):
+        # Expecting two integers separated by three spaces; strip extra spaces first
+        parts = [p.strip() for p in line.split("   ") if p.strip()]
+        if len(parts) != 2:
+            sys.exit(f"Input error on line {idx}: Expected 2 columns separated by three spaces. Got: {line}")
+        try:
+            nums = list(map(int, parts))
+        except ValueError:
+            sys.exit(f"Input error on line {idx}: Non-integer value found. Line: {line}")
+        data.append(nums)
+
+    data_array = np.array(data)
+    if data_array.shape[1] != 2:
+        sys.exit("Input error: Expected exactly 2 columns per line.")
+
+    # Extract the two columns
+    list1 = data_array[:, 0]
+    list2 = data_array[:, 1]
+
+    return list1, list2
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Compute the total sum of absolute differences between sorted columns from an input file."
+    )
+    parser.add_argument(
+        "-i", "--input",
+        default="./example_in.txt",
+        help="Path to the input file. Default is './example_in.txt'."
+    )
+    args = parser.parse_args()
+
+    # Reading and processing the input file
+    lines = parse_input_file(args.input)
+    print("Input lines:")
+    for line in lines:
+        print(line)
+    
+    list1, list2 = process_data(lines)
+
+    # Sort both lists to optimize pairing for minimal distances
+    sorted_list1 = np.sort(list1)
+    sorted_list2 = np.sort(list2)
+
+    total_distance = compute_total_distance(sorted_list1, sorted_list2)
+    print("Total distance:", total_distance)
+
+
+if __name__ == "__main__":
+    main()

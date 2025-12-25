@@ -1,0 +1,54 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Llamada a la API para obtener los datos (reemplaza con tu URL real)
+api_url = "<your_api_endpoint_url>"  # Reemplazar con la URL de la API
+response = requests.get(api_url)
+
+# Verificar que la respuesta sea exitosa
+if response.status_code == 200:
+    raw_data = response.json()
+else:
+    raise Exception(f"Error al llamar a la API: {response.status_code}")
+
+# Los datos pueden venir en distintos formatos; aquí se asume que:
+# - Si es una lista, ya es la colección de registros.
+# - Si es un diccionario, los registros podrían estar en la clave 'data'.
+if isinstance(raw_data, list):
+    data_to_analyze = raw_data
+elif isinstance(raw_data, dict):
+    data_to_analyze = raw_data.get("data", [])
+else:
+    raise Exception("El formato de los datos no es reconocido")
+
+# Mostrar la cantidad de registros obtenidos (para análisis preliminar)
+print(f"Registros obtenidos: {len(data_to_analyze)}")
+
+# Convertir cada registro a JSON string para crear un RDD y luego un DataFrame
+rdd = spark.sparkContext.parallelize([json.dumps(record) for record in data_to_analyze])
+df = spark.read.json(rdd)
+
+# Analizamos el esquema y mostramos algunos registros para entender la estructura de los datos
+df.printSchema()
+df.show(truncate=False)
+
+# Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+# No es necesario proporcionar credenciales explícitamente en un notebook de Synapse.
+container_name = "<your_container_name>"  # Reemplazar con el nombre de tu contenedor
+folder_path = "<your_folder_path>"  # Reemplazar con la ruta a la carpeta dentro del contenedor
+adl2_path = f"abfss://{container_name}@<your_storage_account_name>.dfs.core.windows.net/{folder_path}"
+
+# Escribir el DataFrame en formato parquet en ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcional: leer el archivo parquet para verificar
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show(truncate=False)
+
+# Detener la sesión Spark
+spark.stop()

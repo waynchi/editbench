@@ -1,0 +1,45 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+
+def main():
+    lines = parse_input_file()
+    # Remove empty lines and strip whitespace
+    lines = [line.strip() for line in lines if line.strip()]
+    
+    # Parse columns with proper splitting (handles variable whitespace)
+    cols = []
+    for line in lines:
+        # Split on any whitespace and convert to integers
+        values = [int(x) for x in line.split()]
+        cols.append(values)
+    
+    # Transpose to get columns
+    cols = np.array(cols).T
+    
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    all_dists = []
+    while list_1 and list_2:
+        # Find minimum values and their indices
+        min_val_1 = min(list_1)
+        min_val_2 = min(list_2)
+        
+        # Remove the minimum values
+        list_1.remove(min_val_1)
+        list_2.remove(min_val_2)
+        
+        # Calculate and store the distance
+        dist = abs(min_val_1 - min_val_2)
+        all_dists.append(dist)
+    
+    print(f"Total distance: {sum(all_dists)}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

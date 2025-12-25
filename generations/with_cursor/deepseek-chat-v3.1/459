@@ -1,0 +1,67 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+
+def main():
+    lines = parse_input_file()
+    
+    # Validar que el archivo no esté vacío
+    if not lines or not any(line.strip() for line in lines):
+        print("El archivo de entrada está vacío o no contiene datos válidos.")
+        return
+    
+    # Procesar líneas y manejar posibles errores
+    try:
+        # Filtrar líneas vacías y dividir por espacios múltiples
+        data = [line.split() for line in lines if line.strip()]
+        
+        # Convertir a array numpy y transponer
+        cols = np.array(data, dtype=float).T
+        
+        # Extraer las dos listas
+        list_1 = cols[0].tolist()
+        list_2 = cols[1].tolist()
+        
+        # Verificar que ambas listas tengan la misma longitud
+        if len(list_1) != len(list_2):
+            print("Error: Las columnas tienen longitudes diferentes.")
+            return
+            
+        all_dists = []
+        
+        # Procesar mientras haya elementos
+        while list_1 and list_2:
+            # Encontrar índices de los mínimos
+            argmini_1 = np.argmin(list_1)
+            mini_1 = list_1.pop(argmini_1)
+            
+            argmini_2 = np.argmin(list_2)
+            mini_2 = list_2.pop(argmini_2)
+            
+            # Calcular distancia absoluta
+            dist = abs(mini_1 - mini_2)
+            all_dists.append(dist)
+            
+        # Calcular y mostrar resultado
+        total_distance = sum(all_dists)
+        print(f"La suma total de distancias es: {total_distance}")
+        
+    except ValueError as e:
+        print(f"Error en el formato de datos: {e}")
+    except Exception as e:
+        print(f"Error inesperado: {e}")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r', encoding='utf-8') as f:
+            lines = [line.strip() for line in f.readlines()]
+        return lines
+    except FileNotFoundError:
+        print(f"Error: No se encontró el archivo '{INPUT_FILE_PATH}'")
+        return []
+    except Exception as e:
+        print(f"Error al leer el archivo: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

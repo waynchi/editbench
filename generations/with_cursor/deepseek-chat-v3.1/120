@@ -1,0 +1,74 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Create a Spark session
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# For data coming from an API, you'll typically receive it as JSON
+# Example of analyzing API data structure
+def analyze_api_data(api_response):
+    """
+    Function to analyze the structure of data coming from an API
+    """
+    # If the API returns JSON data, inspect its structure
+    print("Analyzing API data structure:")
+    print(f"Data type: {type(api_response)}")
+    
+    # If it's a list, check the first element
+    if isinstance(api_response, list) and len(api_response) > 0:
+        print(f"Number of records: {len(api_response)}")
+        print(f"First record structure: {api_response[0]}")
+        print(f"Keys in first record: {list(api_response[0].keys())}")
+        
+        # Analyze data types for each field
+        first_record = api_response[0]
+        for key, value in first_record.items():
+            print(f"Field '{key}': type {type(value)}, value: {value}")
+    
+    # If it's a dictionary, check its structure
+    elif isinstance(api_response, dict):
+        print(f"Dictionary keys: {list(api_response.keys())}")
+    
+    return api_response
+
+# Example: Simulate API response data (replace with your actual API call)
+# API response could be in various formats - JSON, XML, etc.
+api_response = [
+    {"id": 1, "nombre": "Juan", "edad": 30, "ciudad": "Madrid"},
+    {"id": 2, "nombre": "Ana", "edad": 25, "ciudad": "Barcelona"},
+    {"id": 3, "nombre": "Pedro", "edad": 40, "ciudad": "Valencia"}
+]
+
+# Analyze the API data structure first
+analyzed_data = analyze_api_data(api_response)
+
+# Create a DataFrame from the analyzed API data
+df = spark.createDataFrame(analyzed_data)
+
+# Show schema and sample data for verification
+print("DataFrame Schema:")
+df.printSchema()
+
+print("Sample Data:")
+df.show()
+
+# Set up the connection to ADL2 using the Microsoft ID identity
+# It is not necessary to provide credentials explicitly in a Synapse notebook
+# Spark will use the managed identity of the notebook to authenticate.
+
+# Specify the path to the container and folder in ADL2
+container_name = "<your_container_name>"  # Replace with the name of your container
+storage_account_name = "<your_storage_account_name>"  # Replace with your storage account name
+folder_path = "<your_folder_path>"  # Replace with the path to the folder within the container
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Write the DataFrame in parquet format to ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Optional: read the parquet file to verify
+df_leido = spark.read.parquet(adl2_path)
+print("Data read from parquet file:")
+df_leido.show()
+
+# Stop the Spark session
+spark.stop()

@@ -1,0 +1,57 @@
+# Números que podem ser expressos como a soma de quatro quadrados não nulos
+
+def pode_ser_soma_quatro_quadrados_nao_nulos(n):
+    """
+    Verifica se um número pode ser expresso como soma de quatro quadrados não nulos.
+    """
+    if n < 4:
+        return False
+    
+    # Testando todas as combinações possíveis de quatro quadrados não nulos
+    # O limite superior é sqrt(n) pois x^2 <= n
+    limit = int(n**0.5) + 1
+    
+    for a in range(1, limit):
+        if a*a > n:
+            break
+        for b in range(a, limit):
+            if a*a + b*b > n:
+                break
+            for c in range(b, limit):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, limit):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+                    if a*a + b*b + c*c + d*d > n:
+                        break
+    return False
+
+def encontrar_numeros_validos(quantidade):
+    """
+    Encontra uma quantidade específica de números que podem ser expressos como 
+    soma de quatro quadrados não nulos.
+    """
+    numeros_validos = []
+    num = 4
+    
+    while len(numeros_validos) < quantidade:
+        if pode_ser_soma_quatro_quadrados_nao_nulos(num):
+            numeros_validos.append(num)
+        num += 1
+    
+    return numeros_validos
+
+# Exemplo de uso
+if __name__ == "__main__":
+    print("Números que podem ser expressos como soma de quatro quadrados não nulos:")
+    
+    # Exibir os primeiros 20 números válidos
+    numeros = encontrar_numeros_validos(20)
+    print(numeros)
+    
+    # Verificar alguns números específicos
+    testes = [4, 5, 8, 12, 15, 20, 24]
+    for numero in testes:
+        resultado = pode_ser_soma_quatro_quadrados_nao_nulos(numero)
+        print(f"{numero}: {'Sim' if resultado else 'Não'}")

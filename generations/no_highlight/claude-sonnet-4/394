@@ -1,0 +1,139 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_configs, n_clusters=2, clustering_method='kmeans'):
+    """Wykonuje klasteryzację danych dla wskazanych zestawów kolumn.
+
+    Args:
+        features_transformed (pandas.DataFrame): Przekształcony DataFrame z parametrami.
+        cluster_configs (dict): Słownik w formie {nazwa_kolumny_klastra: (kolumna1, kolumna2, ...)}.
+        n_clusters (int): Liczba klastrów.
+        clustering_method (str): Metoda klasteryzacji ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame z dodanymi kolumnami etykiet klastrów."""
+    
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    if not isinstance(cluster_configs, dict):
+        print("cluster_configs должен быть словарем в формате {название_кластера: (колонка1, колонка2, ...)}.")
+        return None
+
+    features_result = features_transformed.copy()
+
+    for cluster_feature_name, columns in cluster_configs.items():
+        # Проверяем, что columns является кортежем или списком
+        if isinstance(columns, str):
+            columns = (columns,)
+        elif not isinstance(columns, (tuple, list)):
+            print(f"Колонки для кластера '{cluster_feature_name}' должны быть строкой, кортежем или списком.")
+            continue
+
+        # Проверяем, что все указанные колонки существуют в DataFrame
+        missing_columns = [col for col in columns if col not in features_result.columns]
+        if missing_columns:
+            print(f"Колонки {missing_columns} не найдены в DataFrame для кластера '{cluster_feature_name}'.")
+            continue
+
+        # Выбираем данные для кластеризации
+        features_for_clustering = features_result[list(columns)].copy()
+        
+        # Проверяем, что данные числовые
+        if not features_for_clustering.select_dtypes(include=[np.number]).shape[1] == len(columns):
+            print(f"Все колонки для кластера '{cluster_feature_name}' должны быть числовыми.")
+            continue
+
+        # Проверяем на наличие NaN значений
+        if features_for_clustering.isnull().any().any():
+            print(f"Обнаружены пропущенные значения в колонках для кластера '{cluster_feature_name}'. Пропускаем кластеризацию.")
+            continue
+
+        print(f"\nВыполняется кластеризация для '{cluster_feature_name}' с использованием колонок: {columns}")
+
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(features_for_clustering)
+            
+            # Ocena jakości klasteryzacji
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров ({cluster_feature_name}): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера ({cluster_feature_name}) - все точки в одном кластере.")
+
+        else:
+            print("Неподдерживаемый метод кластеризации.")
+            continue
+
+        features_result[cluster_feature_name] = cluster_labels
+        print(f"Кластеризация выполнена. Метки кластеров добавлены в столбец '{cluster_feature_name}'.")
+
+        # Визуализация для каждого набора кластеров
+        visualize_clusters(features_for_clustering, cluster_labels, cluster_feature_name, columns)
+
+    return features_result
+
+def visualize_clusters(features_data, cluster_labels, cluster_name, columns):
+    """Визуализирует результаты кластеризации."""
+    
+    if len(columns) == 1:
+        # Одномерная визуализация
+        plt.figure(figsize=(10, 4))
+        plt.scatter(features_data.iloc[:, 0], [0] * len(features_data), c=cluster_labels, cmap='viridis', s=50)
+        plt.xlabel(columns[0])
+        plt.title(f'Результаты кластеризации: {cluster_name}')
+        plt.colorbar(label='Номер кластера')
+        plt.yticks([])
+        plt.show()
+        
+    elif len(columns) == 2:
+        # Двумерная визуализация
+        plt.figure(figsize=(8, 6))
+        plt.scatter(features_data.iloc[:, 0], features_data.iloc[:, 1], c=cluster_labels, cmap='viridis', s=50)
+        plt.xlabel(columns[0])
+        plt.ylabel(columns[1])
+        plt.title(f'Результаты кластеризации: {cluster_name}')
+        plt.colorbar(label='Номер кластера')
+        plt.show()
+        
+    elif len(columns) >= 3:
+        # Трехмерная визуализация (используем первые 3 колонки)
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        scatter = ax.scatter(features_data.iloc[:, 0], features_data.iloc[:, 1], features_data.iloc[:, 2], 
+                           c=cluster_labels, cmap='viridis', s=50)
+        ax.set_xlabel(columns[0])
+        ax.set_ylabel(columns[1])
+        ax.set_zlabel(columns[2])
+        ax.set_title(f'Результаты кластеризации: {cluster_name}')
+        plt.colorbar(scatter, label='Номер кластера')
+        plt.show()
+        
+        if len(columns) > 3:
+            print(f"Визуализированы только первые 3 измерения из {len(columns)} для кластера '{cluster_name}'.")
+
+# Wykonywanie klasteryzacji (po etapie 5 i przed etapem 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Przykład konfiguracji klastrów
+    cluster_configs = {
+        'Klaster1': ('kolumna1', 'kolumna2'),  # Замените на реальные названия колонок
+        'Klaster2': ('kolumna3',),             # Замените на реальные названия колонок
+        # 'Klaster3': ('kolumna4', 'kolumna5', 'kolumna6'),  # Пример для 3D кластеризации
+    }
+    
+    n_clusters = 3  # Liczba klastrów
+    features_transformed = cluster_data(features_transformed, cluster_configs, n_clusters)
+    
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")
+    print("\nПример использования:")
+    print("cluster_configs = {")
+    print("    'Klaster1': ('feature1', 'feature2'),")
+    print("    'Klaster2': ('feature3',),")
+    print("    'Klaster3': ('feature4', 'feature5', 'feature6')")
+    print("}")
+    print("features_transformed = cluster_data(features_transformed, cluster_configs, n_clusters=3)")

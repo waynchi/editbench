@@ -1,0 +1,117 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Creates a matrix of size rows x cols, filled with fill_value.
+    
+    Parameters:
+        rows (int): Number of rows.
+        cols (int): Number of columns.
+        fill_value (any type): Value to fill the matrix.
+        
+    Returns:
+        list: Matrix as a list of lists.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Adds two matrices of the same size.
+    
+    Parameters:
+        matrix_a (list): First matrix.
+        matrix_b (list): Second matrix.
+        
+    Returns:
+        list: Result of matrix addition.
+    """
+    # Assumes both matrices have the same dimensions
+    result = []
+    for i in range(len(matrix_a)):
+        row = []
+        for j in range(len(matrix_a[0])):
+            row.append(matrix_a[i][j] + matrix_b[i][j])
+        result.append(row)
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Multiplies all elements of a matrix by a scalar.
+    
+    Parameters:
+        matrix (list): Original matrix.
+        scalar (float): Number by which matrix elements are multiplied.
+        
+    Returns:
+        list: Result of matrix scalar multiplication.
+    """
+    return [[element * scalar for element in row] for row in matrix]
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Multiplies two matrices.
+    
+    Parameters:
+        matrix_a (list): First matrix.
+        matrix_b (list): Second matrix.
+        
+    Returns:
+        list: Result of matrix multiplication.
+    """
+    # Number of rows and columns in matrix_a
+    num_rows_a = len(matrix_a)
+    num_cols_a = len(matrix_a[0])
+    # Number of columns in matrix_b
+    num_cols_b = len(matrix_b[0])
+    
+    # Initialize the result matrix with zeros
+    result = []
+    for i in range(num_rows_a):
+        row = []
+        for j in range(num_cols_b):
+            sum_product = 0
+            for k in range(num_cols_a):
+                sum_product += matrix_a[i][k] * matrix_b[k][j]
+            row.append(sum_product)
+        result.append(row)
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Transposes a matrix.
+    
+    Parameters:
+        matrix (list): Original matrix.
+        
+    Returns:
+        list: Transposed matrix.
+    """
+    rows = len(matrix)
+    cols = len(matrix[0])
+    transposed = []
+    for j in range(cols):
+        new_row = []
+        for i in range(rows):
+            new_row.append(matrix[i][j])
+        transposed.append(new_row)
+    return transposed
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Calculates the determinant of a 3x3 matrix.
+    
+    Parameters:
+        matrix (list): Original 3x3 matrix.
+        
+    Returns:
+        float: Determinant of the matrix.
+    """
+    # Unpacking matrix elements for clarity
+    a, b, c = matrix[0]
+    d, e, f = matrix[1]
+    g, h, i = matrix[2]
+    
+    return a*(e*i - f*h) - b*(d*i - f*g) + c*(d*h - e*g)

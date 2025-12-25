@@ -1,0 +1,65 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import json
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("AnalisisDatosAPI").getOrCreate()
+
+# Simular datos provenientes de una API (reemplazar con la llamada real a la API)
+# Ejemplo de datos JSON crudos de una API
+api_response_json = '''
+[
+    {"id": 1, "nombre": "Juan", "edad": 30, "ciudad": "Madrid"},
+    {"id": 2, "nombre": "Ana", "edad": 25, "departamento": "Ventas"},
+    {"id": 3, "nombre": "Pedro", "edad": 40, "salario": 50000},
+    {"id": 4, "nombre": "María", "edad": null, "activo": true}
+]
+'''
+
+# Convertir el JSON a un RDD y luego a DataFrame
+rdd = spark.sparkContext.parallelize([api_response_json])
+df_raw = spark.read.json(rdd)
+
+# Mostrar el esquema para entender la estructura de los datos
+print("Esquema de los datos:")
+df_raw.printSchema()
+
+# Mostrar los datos crudos para analizar su contenido
+print("Datos crudos de la API:")
+df_raw.show(truncate=False)
+
+# Analizar estadísticas básicas de las columnas numéricas
+print("Análisis estadístico de columnas numéricas:")
+df_raw.describe().show()
+
+# Verificar valores nulos por columna
+print("Conteo de valores nulos por columna:")
+for column in df_raw.columns:
+    null_count = df_raw.filter(col(column).isNull()).count()
+    print(f"{column}: {null_count} valores nulos")
+
+# Verificar tipos de datos únicos por columna (para detectar inconsistencias)
+print("Tipos de datos únicos por columna:")
+for column in df_raw.columns:
+    distinct_types = df_raw.select(col(column)).distinct().count()
+    print(f"{column}: {distinct_types} valores distintos")
+
+# Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+# No es necesario proporcionar credenciales explícitamente en un notebook de Synapse
+# Spark utilizará la identidad administrada del notebook para autenticarse.
+
+# Especificar la ruta al contenedor y la carpeta en ADL2
+container_name = "<your_container_name>"  # Reemplazar con el nombre de tu contenedor
+folder_path = "<your_folder_path>"  # Reemplazar con la ruta a la carpeta dentro del contenedor
+adl2_path = f"abfss://{container_name}@<your_storage_account_name>.dfs.core.windows.net/{folder_path}"
+
+# Escribir el DataFrame en formato parquet en ADL2
+df_raw.write.parquet(adl2_path, mode="overwrite")
+
+# Opcional: leer el archivo parquet para verificar
+df_leido = spark.read.parquet(adl2_path)
+print("Datos leídos desde Parquet:")
+df_leido.show()
+
+# Detener la sesión Spark
+spark.stop()

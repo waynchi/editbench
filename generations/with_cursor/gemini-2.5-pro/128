@@ -1,0 +1,38 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Initialize the DataFrame to store results *before* the loops.
+# Use dtype=object to allow storing dictionaries in the cells.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+            # Create a DataFrame with 3 rows, one for each "Embarked" value
+            my_df = pd.DataFrame({
+                "Pclass": [pclass]*3,
+                "Name": [24]*3,
+                "Sex": [0]*3, 
+                "Age": [19]*3,
+                "SibSp": [0]*3,
+                "Parch": [0]*3,
+                "Fare": [fare]*3,
+                "Embarked": ["S", "Q", "C"]
+            })
+            
+            # Perform one-hot encoding, converting boolean flags to integers (0 or 1) directly.
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked", dtype=int)
+
+            # The original code re-initialized np_df inside the loop, which is incorrect.
+            # It has been moved outside the loop.
+
+            # The original code tried to assign an array of 3 predictions to a single cell,
+            # causing the ValueError. The fix is to select a single prediction from the array.
+            # Here, we take the prediction for the first row (where Embarked was 'S').
+            knn_prediction = knn.predict(my_df)[0]
+            mlp_prediction = mlp.predict(my_df)[0]
+            
+            # Assign a dictionary of single prediction values to the appropriate cell.
+            np_df.loc[fare, pclass] = {"knn": knn_prediction, "mlp": mlp_prediction}
+
+# Print the final DataFrame after all loops are completed.
+print(np_df)

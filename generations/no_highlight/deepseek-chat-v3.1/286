@@ -1,0 +1,246 @@
+import os
+import shutil
+import json
+import pickle
+import logging
+from typing import List, Dict, Any, Optional, Union
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+import torch
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+
+def save_log_to_file(log_history: List[Dict[str, Any]], file_path: str, append_latest_only: bool = False) -> None:
+    """Сохраняет историю логов в файл JSON. Если файл уже существует, добавляет в него.
+
+    Параметры:
+    - log_history: Список записей логов (каждая запись - это словарь).
+    - file_path: Путь к файлу, в который будут сохранены логи.
+    - append_latest_only: Если True, добавляется только последняя запись лога.
+    """
+    current_logs = []
+    
+    # Оптимизация: проверяем существование файла один раз
+    file_exists = os.path.exists(file_path)
+    
+    if file_exists:
+        try:
+            # Оптимизация: используем более эффективное чтение файла
+            with open(file_path, "r", encoding='utf-8') as f:
+                content = f.read().strip()
+                if content:
+                    current_logs = json.loads(content)
+        except json.JSONDecodeError:
+            logging.warning(f"Warning: {file_path} contains invalid JSON. Overwriting file.")
+        except Exception as e:
+            logging.error(f"An error occurred while reading {file_path}: {e}")
+    
+    # Оптимизация: избегаем лишних операций с пустыми списками
+    if not log_history:
+        return
+    
+    # Решите, добавлять ли всю историю логов или только последнюю запись.
+    if append_latest_only:
+        current_logs.append(log_history[-1])
+    else:
+        # Оптимизация: используем extend вместо поэлементного добавления
+        current_logs.extend(log_history)
+
+    # Сохранить обновленную историю логов
+    try:
+        # Оптимизация: используем более эффективную запись
+        with open(file_path, "w", encoding='utf-8') as f:
+            json.dump(current_logs, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"An error occurred while writing to {file_path}: {e}")
+
+
+def clear_directory(directory: str, delete_directory: bool = False) -> None:
+    """Очищает все файлы и подкаталоги в указанной директории. Опционально удаляет саму директорию.
+
+    Аргументы:
+    directory (str): Путь к директории, которую нужно очистить.
+    delete_directory (bool): Если True, удаляет директорию после очистки ее содержимого.
+
+    Исключения:
+    OSError: Если возникает ошибка при удалении файла или директории.
+    """
+    if not os.path.exists(directory):
+        if not delete_directory:
+            os.makedirs(directory, exist_ok=True)
+            logging.info(f"Directory '{directory}' created.")
+        else:
+            raise ValueError("Directory does not exist and delete_directory is True. Cannot proceed.")
+        return
+
+    # Оптимизация: собираем все элементы для удаления заранее
+    items_to_remove = []
+    for item in os.listdir(directory):
+        item_path = os.path.join(directory, item)
+        items_to_remove.append(item_path)
+
+    # Удаляем все элементы
+    for item_path in items_to_remove:
+        try:
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+                logging.info(f"Removed directory: {item_path}")
+            else:
+                os.remove(item_path)
+                logging.info(f"Removed file: {item_path}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{item_path}'. Reason: {e}")
+            raise
+
+    if delete_directory:
+        try:
+            os.rmdir(directory)
+            logging.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{directory}'. Reason: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name: str = "pythia-31M",
+    base_model_repo_name: str = "EleutherAI/",
+    model_load_path: str = MODEL_PATH,
+    model_save_path: str = MODEL_PATH,
+) -> None:
+    """Объединяет LoRA модель с базовой моделью."""
+    my_model_path = os.path.join(model_load_path, model_name)
+    
+    # Оптимизация: кэшируем извлечение параметров
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model_name = f"pythia-{param_count}M"
+    full_base_model_path = os.path.join(base_model_repo_name, base_model_name)
+
+    # Оптимизация: используем более эффективную загрузку модели
+    base_model = AutoModelForCausalLM.from_pretrained(
+        full_base_model_path,
+        torch_dtype=torch.float16,  # Используем половинную точность для экономии памяти
+        device_map="auto"  # Автоматическое распределение по устройствам
+    )
+    
+    model = PeftModel.from_pretrained(base_model, my_model_path)
+    merged_model = model.merge_and_unload()
+    
+    my_model_save_path = os.path.join(model_save_path, f"{model_name}_merged")
+    merged_model.save_pretrained(my_model_save_path)
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """Удаляет повторение вопроса из ответа."""
+    # Оптимизация: используем более эффективную проверку
+    if question and question in answer:
+        return answer.replace(question, "").strip()
+    return answer
+
+
+def load_model(
+    model_type: str,
+    model_path: Optional[str] = None,
+    blocks_str: Optional[str] = None,
+    vanilla_model_name: Optional[str] = None,
+    host_model_name: Optional[str] = None,
+) -> Any:
+    """
+    Загружает различные типы моделей на основе параметра model_type.
+
+    Оптимизации:
+    - Кэширование путей к моделям
+    - Использование более эффективных методов загрузки
+    - Предварительная валидация параметров
+    """
+    # Предварительная валидация параметров
+    if model_type == "Tuned Model":
+        if not all([model_path, blocks_str, vanilla_model_name]):
+            raise ValueError("Missing required parameters for Tuned Model")
+        
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        model_full_path = os.path.join(model_path, tuned_model_name)
+        
+        return AutoModelForCausalLM.from_pretrained(
+            model_full_path,
+            torch_dtype=torch.float16,
+            device_map="auto"
+        )
+
+    elif model_type == "Vanilla Model":
+        if not vanilla_model_name:
+            raise ValueError("vanilla_model_name is required for Vanilla Model")
+        
+        return AutoModelForCausalLM.from_pretrained(
+            vanilla_model_name,
+            torch_dtype=torch.float16,
+            device_map="auto"
+        )
+
+    elif model_type == "Transformed Model":
+        if not all([model_path, blocks_str, host_model_name]):
+            raise ValueError("Missing required parameters for Transformed Model")
+        
+        name = host_model_name.split("/")[-1]
+        save_path = os.path.join(model_path, f"{name}_preGRAFTED_{blocks_str}.pkl")
+        
+        # Оптимизация: используем более эффективную загрузку pickle
+        with open(save_path, "rb") as f:
+            return pickle.load(f)
+
+    elif model_type == "Final Model":
+        if not all([model_path, blocks_str, host_model_name]):
+            raise ValueError("Missing required parameters for Final Model")
+        
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = os.path.join(model_path, model_save_name)
+        
+        with open(save_path, "rb") as f:
+            return pickle.load(f)
+
+    elif model_type == "Host Model":
+        if not host_model_name:
+            raise ValueError("host_model_name is required for Host Model")
+        
+        return AutoModelForCausalLM.from_pretrained(
+            host_model_name,
+            torch_dtype=torch.float16,
+            device_map="auto"
+        )
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+def load_batch_losses(file_path: str) -> Optional[List[float]]:
+    """Загружает данные о потерях батча из файла контрольной точки.
+
+    Оптимизации:
+    - Использование более эффективной загрузки тензоров
+    - Предварительная проверка существования файла
+    """
+    if not os.path.exists(file_path):
+        logging.error(f"File not found: {file_path}")
+        return None
+
+    try:
+        # Оптимизация: используем более эффективную загрузку с указанием устройства
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"), weights_only=True)
+        batch_losses = checkpoint.get("batch_losses", None)
+        
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        
+        return batch_losses
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

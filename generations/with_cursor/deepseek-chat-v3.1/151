@@ -1,0 +1,30 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+
+def main():
+    lines = parse_input_file()
+    cols = [l.split() for l in lines if l.strip()]  # 改进：使用split()自动处理多个空格，并过滤空行
+    cols = np.array(cols).T.astype(int)
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    all_dists = []
+    while list_1:  # 改进：简化条件判断
+        argmini_1 = np.argmin(list_1)
+        mini_1 = list_1.pop(argmini_1)
+        
+        argmini_2 = np.argmin(list_2)
+        mini_2 = list_2.pop(argmini_2)
+        dist = abs(mini_1 - mini_2)
+        all_dists.append(dist)
+    
+    print(f"Total distance: {sum(all_dists)}")  # 改进：添加更清晰的输出信息
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().splitlines()  # 改进：使用splitlines()避免末尾空行问题
+    return lines
+
+if __name__ == "__main__":
+    main()

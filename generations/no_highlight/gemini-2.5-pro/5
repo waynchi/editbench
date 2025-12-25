@@ -1,0 +1,33 @@
+def binary_search(arr, target):
+    """
+    Performs binary search on a sorted list to find the index of a target element.
+
+    Args:
+        arr (list): A sorted list of elements. The list must be sorted in
+                    ascending order for the algorithm to work correctly.
+        target: The element to search for.
+
+    Returns:
+        int: The index of the target element if found, otherwise -1.
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        # Calculate the middle index. Using this formula avoids potential
+        # overflow in languages with fixed-size integers, and it's a
+        # good practice in Python as well.
+        mid = low + (high - low) // 2
+
+        # Check if the target is at the middle
+        if arr[mid] == target:
+            return mid
+        # If the target is greater, ignore the left half
+        elif arr[mid] < target:
+            low = mid + 1
+        # If the target is smaller, ignore the right half
+        else:
+            high = mid - 1
+
+    # If the loop finishes, the element was not found
+    return -1

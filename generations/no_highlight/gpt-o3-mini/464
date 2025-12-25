@@ -1,0 +1,54 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def main():
+    # Inicializar el modelo ChatOllama
+    try:
+        chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+    except Exception as e:
+        print(f"Error inicializando ChatOllama: {e}")
+        return
+
+    # Cargar valores SHAP desde archivo JSON
+    json_file = "Vuori_Final_Approval_2024_09_24.json"
+    try:
+        with open(json_file, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            shap_values_json = data.get("shap_values")
+            if shap_values_json is None:
+                raise ValueError("La clave 'shap_values' no se encontró en el archivo JSON.")
+    except Exception as e:
+        print(f"Error al cargar o procesar {json_file}: {e}")
+        return
+
+    # Cargar el mensaje del sistema desde el archivo
+    system_prompt_file = "system.prompt"
+    try:
+        with open(system_prompt_file, "r", encoding="utf-8") as file:
+            sys_prompt = file.read().strip()
+    except Exception as e:
+        print(f"Error al leer {system_prompt_file}: {e}")
+        return
+
+    # Preparar los mensajes utilizando ChatPromptTemplate
+    template = ChatPromptTemplate([
+        ("system", sys_prompt),
+        ("human", "{user_input}"),
+    ])
+
+    # Usar los valores SHAP como entrada del usuario, asegurándonos de pasarlos en formato string
+    user_input = json.dumps(shap_values_json, ensure_ascii=False)
+    prompt_value = template.invoke(user_input=user_input)
+
+    # Combinar el prompt generado con el modelo de chat para obtener la respuesta
+    chain = prompt_value | chat_model
+
+    try:
+        result = chain.invoke()
+        print(result)
+    except Exception as e:
+        print(f"Error al invocar la cadena de procesamiento: {e}")
+
+if __name__ == "__main__":
+    main()

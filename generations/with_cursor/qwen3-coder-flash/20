@@ -1,0 +1,41 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print(f"Input lines: {lines}")
+    
+    # Parse input into two columns
+    cols = [l.split("   ") for l in lines if l.strip()]
+    if not cols:
+        print("No valid data found")
+        return
+        
+    cols = np.array(cols).T.astype(int)
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    # Sort both lists to optimize distance calculation
+    list_1_sorted = sorted(list_1)
+    list_2_sorted = sorted(list_2)
+    
+    # Calculate total distance using sorted approach
+    total_distance = sum(abs(a - b) for a, b in zip(list_1_sorted, list_2_sorted))
+    print(f"Total distance: {total_distance}")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            lines = f.read().split("\n")
+        return [line for line in lines if line.strip()]
+    except FileNotFoundError:
+        print(f"Error: File '{INPUT_FILE_PATH}' not found")
+        return []
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

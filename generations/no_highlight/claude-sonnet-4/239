@@ -1,0 +1,65 @@
+# создать модуль полусумматора на Verilog с помощью Python
+
+# код на verilog
+verilog_code = """
+module half_adder(a, b, c, d, e, f, sum, carry, overflow, parity);
+    input a, b, c, d, e, f;
+    output sum, carry, overflow, parity;
+    wire temp_sum1, temp_carry1, temp_sum2, temp_carry2;
+    
+    assign temp_sum1 = a ^ b;
+    assign temp_carry1 = a & b;
+    assign temp_sum2 = temp_sum1 ^ c;
+    assign temp_carry2 = temp_sum1 & c;
+    assign sum = temp_sum2 ^ d ^ e ^ f;
+    assign carry = temp_carry1 | temp_carry2 | (temp_sum2 & d) | (temp_sum2 & e) | (temp_sum2 & f) | (d & e) | (d & f) | (e & f);
+    assign overflow = carry ^ (a ^ b ^ c ^ d ^ e ^ f);
+    assign parity = a ^ b ^ c ^ d ^ e ^ f;
+endmodule
+"""
+
+# имя модуля verilog
+module_name = "half_adder"
+
+# входные и выходные порты модуля verilog
+input_ports = ["a", "b", "c", "d", "e", "f"]
+output_ports = ["sum", "carry", "overflow", "parity"]
+
+# параметры модуля verilog
+parameters = ["WIDTH", "INPUT_COUNT"]
+
+# значение параметров модуля verilog
+parameter_values = ["8", "6"]
+
+# тело модуля verilog
+module_body = """
+    input a, b, c, d, e, f;
+    output sum, carry, overflow, parity;
+    wire temp_sum1, temp_carry1, temp_sum2, temp_carry2;
+    
+    assign temp_sum1 = a ^ b;
+    assign temp_carry1 = a & b;
+    assign temp_sum2 = temp_sum1 ^ c;
+    assign temp_carry2 = temp_sum1 & c;
+    assign sum = temp_sum2 ^ d ^ e ^ f;
+    assign carry = temp_carry1 | temp_carry2 | (temp_sum2 & d) | (temp_sum2 & e) | (temp_sum2 & f) | (d & e) | (d & f) | (e & f);
+    assign overflow = carry ^ (a ^ b ^ c ^ d ^ e ^ f);
+    assign parity = a ^ b ^ c ^ d ^ e ^ f;
+endmodule
+"""
+
+# инстанцирование модуля verilog
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .c(c),
+    .d(d),
+    .e(e),
+    .f(f),
+    .sum(sum),
+    .carry(carry),
+    .overflow(overflow),
+    .parity(parity)
+);
+"""

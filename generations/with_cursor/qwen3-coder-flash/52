@@ -1,0 +1,29 @@
+from main13 import knn, mlp
+import pandas as pd
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # делаем one-hot encoding для Embarked
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Преобразуем булевы значения в числовые
+            for col in my_df.columns:
+                if col.startswith("Embarked_"):
+                    my_df[col] = my_df[col].astype(int)
+            
+            print(f"""-------------------------------------------------------
+                  Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+                  По knn: {knn.predict(my_df)}
+                  По mlp: {mlp.predict(my_df)}""")

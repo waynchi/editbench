@@ -1,0 +1,38 @@
+# 包含所有照片的文件夹/用于训练的照片文件夹
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# 读取目录名称，这些名称就是日食的类型
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# 用于验证的照片文件夹
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# 用于测试的照片文件夹
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# 验证集中图像的比例
+VAL_FRAC = 0.3
+
+
+# 为每种类型的日食创建验证集目录。
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # 读取图像样本。
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # 对图像进行排序以确保确定性
+    images_filename = sorted(os.listdir(eclipse_path))
+    
+    # 使用 sklearn 将原始训练数据分成新的训练集与验证集
+    from sklearn.model_selection import train_test_split
+    train_images, val_images = train_test_split(images_filename, test_size=VAL_FRAC, random_state=42)
+    
+    print(f'{eclipse} | train images = {len(train_images)} | val images = {len(val_images)}')
+    
+    # 保存验证集: 将划分的验证图像从 TRAIN_DIR 移动到 VAL_DIR
+    for image_filename in val_images:
+        source = os.path.join(eclipse_path, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

@@ -1,0 +1,190 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+from tkinter import messagebox
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    try:
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        logging.basicConfig(
+            level=logging.INFO,
+            format=log_format,
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('app.log', encoding='utf-8')
+            ]
+        )
+        logging.info("Logging setup completed successfully")
+    except Exception as e:
+        print(f"Failed to setup logging: {e}")
+        # Fallback to basic logging
+        logging.basicConfig(level=logging.INFO)
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    
+    Raises:
+        OSError: If unable to determine resource path
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Запуск в виде скомпилированного исполняемого файла
+            resource_path = os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # Запуск как скрипт
+            resource_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+        
+        # Проверить, что путь существует
+        if not os.path.exists(resource_path):
+            raise OSError(f"Resource directory does not exist: {resource_path}")
+        
+        return resource_path
+    except Exception as e:
+        logging.error(f"Error determining resource path: {e}")
+        raise OSError(f"Unable to determine resource path: {e}")
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    
+    Raises:
+        FileNotFoundError: If resource directory cannot be accessed
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+        
+        # Проверить, существует ли каждый необходимый файл
+        missing_files = []
+        for file in required_files:
+            file_path = os.path.join(resource_dir, file)
+            try:
+                if not os.path.exists(file_path):
+                    missing_files.append(file)
+                elif not os.access(file_path, os.R_OK):
+                    logging.warning(f"File exists but is not readable: {file}")
+                    missing_files.append(file)
+            except OSError as e:
+                logging.error(f"Error checking file {file}: {e}")
+                missing_files.append(file)
+        
+        # Если отсутствуют какие-либо необходимые файлы, вернуть False
+        if missing_files:
+            logging.error(f"Missing or inaccessible resource files: {', '.join(missing_files)}")
+            return False
+        
+        logging.info("All required resource files are present and accessible")
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error during resource check: {e}")
+        raise FileNotFoundError(f"Cannot access resource directory: {e}")
+
+def show_error_dialog(title, message):
+    """
+    Show error dialog to user.
+    
+    Args:
+        title (str): Dialog title
+        message (str): Error message
+    """
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        messagebox.showerror(title, message)
+        root.destroy()
+    except Exception as e:
+        print(f"Failed to show error dialog: {e}")
+        print(f"Original error - {title}: {message}")
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Настроить логирование
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Проверка ресурсов
+        try:
+            if not check_resources():
+                error_msg = "Required resource files are missing. Please ensure all resource files are present in the resources directory."
+                logging.error(error_msg)
+                show_error_dialog("Resource Error", error_msg)
+                sys.exit(1)
+        except (FileNotFoundError, OSError) as e:
+            error_msg = f"Cannot access resource files: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Resource Access Error", error_msg)
+            sys.exit(1)
+
+        # Инициализировать главное окно с поддержкой перетаскивания
+        try:
+            root = tkinterdnd2.TkinterDnD.Tk()
+        except Exception as e:
+            error_msg = f"Failed to initialize GUI framework: {e}"
+            logging.error(error_msg)
+            show_error_dialog("GUI Initialization Error", error_msg)
+            sys.exit(1)
+        
+        # Импортировать здесь, чтобы избежать циклических импортов
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as e:
+            error_msg = f"Failed to import application modules: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Import Error", error_msg)
+            sys.exit(1)
+        
+        # Создать экземпляр приложения
+        try:
+            app = AudioTranscriberApp(root)
+        except Exception as e:
+            error_msg = f"Failed to create application instance: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Application Creation Error", error_msg)
+            sys.exit(1)
+        
+        # Запустить основной цикл обработки событий
+        try:
+            logging.info("Starting main event loop")
+            root.mainloop()
+        except KeyboardInterrupt:
+            logging.info("Application interrupted by user")
+        except Exception as e:
+            error_msg = f"Error in main event loop: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Runtime Error", error_msg)
+            raise
+        
+    except SystemExit:
+        # Перехватить sys.exit() для корректного завершения
+        logging.info("Application exiting")
+        raise
+    except Exception as e:
+        error_msg = f"Unexpected application error: {e}"
+        logging.error(error_msg, exc_info=True)
+        show_error_dialog("Critical Error", f"A critical error occurred: {e}\n\nCheck the log file for more details.")
+        sys.exit(1)
+    finally:
+        logging.info("Application shutdown complete")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,6 @@
+import pandas as pd
+
+def create_column(df):
+    df['Frecuencia'] = 0
+    df.loc[df['EventId'] == 'E16', 'Frecuencia'] = 117
+    return df

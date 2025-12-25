@@ -1,0 +1,22 @@
+import os
+from pymilvus import connections
+
+# 记录当前路径为cwd
+cwd = os.getcwd()
+
+# 定义表名和向量维度
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# 定义 Milvus 服务器的地址和端口（请根据实际情况修改）
+MILVUS_HOST = 'localhost'
+MILVUS_PORT = '19530'
+
+# 使用pymilvus创建数据库链接
+connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT)
+
+# 如果需要检查连接是否成功，可以使用以下代码
+if connections.get_connection("default").is_connected():
+    print("Successfully connected to Milvus!")
+else:
+    print("Failed to connect to Milvus.")

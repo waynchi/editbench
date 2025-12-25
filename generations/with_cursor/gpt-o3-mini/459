@@ -1,0 +1,63 @@
+import numpy as np
+
+# Definición del archivo de entrada. Asegúrese de que el archivo exista.
+INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file():
+    """
+    Lee el archivo de entrada y devuelve una lista de líneas.
+    """
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            # splitlines() descarta automáticamente los caracteres de nueva línea.
+            lines = f.read().splitlines()
+    except FileNotFoundError as e:
+        print(f"Error: Archivo no encontrado: {INPUT_FILE_PATH}")
+        raise e
+    return lines
+
+def main():
+    """
+    Función principal.
+    
+    Lee el archivo de entrada, procesa los datos asumiendo que cada línea contiene dos números 
+    separados por tres espacios, y luego calcula la suma de las diferencias absolutas de cada par 
+    emparejado de menor a mayor.
+    
+    La optimización consiste en ordenar las listas que representan cada columna para poder 
+    emparejar directamente los elementos correspondientes, lo que es equivalente al proceso 
+    iterativo del código original, pero de forma más eficiente y legible.
+    """
+    lines = parse_input_file()
+    if not lines:
+        print("El archivo de entrada está vacío.")
+        return
+
+    print("Líneas leídas:")
+    print(lines)
+
+    try:
+        # Convertir cada línea en una lista separada por tres espacios
+        data = [line.split("   ") for line in lines if line.strip()]
+        # Convertir la lista de listas en un array NumPy y transponerlo para obtener columnas separadas
+        data_array = np.array(data).astype(int).T
+    except Exception as e:
+        print("Error al procesar los datos. Verifique el formato del archivo de entrada.")
+        raise e
+
+    # Extraer las dos columnas en listas independientes
+    col1 = list(data_array[0])
+    col2 = list(data_array[1])
+
+    # Ordenar ambas listas para emparejar los elementos con los valores mínimos de forma directa.
+    col1.sort()
+    col2.sort()
+
+    # Calcular la suma de las diferencias absolutas entre los elementos emparejados
+    differences = [abs(a - b) for a, b in zip(col1, col2)]
+    total_difference = sum(differences)
+
+    print("Suma de las diferencias absolutas:", total_difference)
+
+if __name__ == "__main__":
+    main()

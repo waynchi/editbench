@@ -1,0 +1,14 @@
+import os
+from pymilvus import connections
+
+# Сохранить текущий путь как cwd
+cwd = os.getcwd()
+
+# Создать путь к файлу базы данных (для справки, pymilvus использует сетевое подключение)
+db_path = os.path.join(cwd, 'milvus_db.db')
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# Используйте pymilvus для создания подключения к базе данных.
+# Здесь предполагается, что Milvus сервер запущен на localhost с портом 19530.
+connections.connect(alias="default", host="127.0.0.1", port="19530")

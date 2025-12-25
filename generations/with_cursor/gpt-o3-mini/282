@@ -1,0 +1,32 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input_str: str, pos: int) -> bool:
+        """Возвращает True, если символ в позиции pos является цифрой, используя встроенный метод isdigit."""
+        return input_str[pos].isdigit()
+
+def is_int(input_str: str, start_pos: int) -> int:
+    max_pos = len(input_str)
+    current_pos = start_pos
+    digit_found = False
+
+    while current_pos < max_pos:
+        if not IntegerToken.is_digit(input_str, current_pos):
+            break
+        digit_found = True
+        current_pos += 1
+
+    assert digit_found, "Not an integer"
+    return current_pos
+
+# Привязка функции is_int к классу, чтобы соответствовать оригинальному вызову.
+IntegerToken.is_int = staticmethod(is_int)
+
+if __name__ == "__main__":
+    print(IntegerToken.is_int("1234", 0))
+    print(IntegerToken.is_int("a123", 0))

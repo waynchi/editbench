@@ -1,0 +1,69 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-8, max_iter=None):
+    """
+    使用共轭梯度法求解线性系统 Ax = b.
+    
+    参数:
+        A : numpy.ndarray
+            对称正定矩阵.
+        b : numpy.ndarray
+            方程右侧的向量.
+        x0: numpy.ndarray, 可选
+            x 的初始猜测（默认为全零向量）.
+        tol: float, 可选
+            收敛的容限（默认 1e-8）.
+        max_iter: int, 可选
+            最大迭代次数（默认值为问题规模，即 A 的行数）.
+    
+    返回:
+        x : numpy.ndarray
+            求得的解.
+        residuals : list of float
+            每步迭代的残差范数列表.
+    """
+    n = len(b)
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    if max_iter is None:
+        max_iter = n
+
+    r = b - A @ x  # 初始残差
+    p = r.copy()   # 初始方向
+    rs_old = np.dot(r, r)
+    residuals = [np.sqrt(rs_old)]
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = np.dot(r, r)
+        residual_norm = np.sqrt(rs_new)
+        residuals.append(residual_norm)
+        
+        if residual_norm < tol:
+            break
+        
+        beta = rs_new / rs_old
+        p = r + beta * p
+        rs_old = rs_new
+        
+    return x, residuals
+
+def main():
+    # 示例: 使用一个简单 2x2 对称正定矩阵求解 Ax = b.
+    A = np.array([[4, 1],
+                  [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    
+    x, residuals = conjugate_gradient(A, b)
+    print("求解结果 x:", x)
+    print("最终残差范数:", residuals[-1])
+    print("残差历史:", residuals)
+
+if __name__ == "__main__":
+    main()

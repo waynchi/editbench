@@ -1,0 +1,54 @@
+import math
+
+def find_four_nonzero_squares(n):
+    """
+    尝试将 n 表示为四个非零整数的平方和。
+    如果可以表示，返回一个包含四个正整数 (a, b, c, d) 的元组，使得
+    a^2 + b^2 + c^2 + d^2 == n，
+    否则返回 None。
+    """
+    # 最小可能的 n 必须至少为 4 (即 1^2+1^2+1^2+1^2)
+    if n < 4:
+        return None
+
+    # 最大搜索范围为 sqrt(n)，因为每个数至少为 1
+    max_val = int(math.sqrt(n))
+    for a in range(1, max_val + 1):
+        a2 = a * a
+        if a2 > n:
+            break
+        for b in range(1, max_val + 1):
+            b2 = b * b
+            if a2 + b2 > n:
+                break
+            for c in range(1, max_val + 1):
+                c2 = c * c
+                if a2 + b2 + c2 > n:
+                    break
+                # 计算 d 必须满足的平方
+                d2 = n - (a2 + b2 + c2)
+                # d 必须为正整数，而且 d2 要是完全平方数，且 d != 0
+                if d2 <= 0:
+                    continue
+                d = int(math.sqrt(d2))
+                if d * d == d2 and d != 0:
+                    return (a, b, c, d)
+    return None
+
+def main():
+    try:
+        n = int(input("请输入一个正整数: "))
+    except ValueError:
+        print("输入无效，请输入一个正整数。")
+        return
+
+    result = find_four_nonzero_squares(n)
+    if result:
+        a, b, c, d = result
+        print(f"{n} 可以表示为四个非零平方和：")
+        print(f"{n} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+    else:
+        print(f"{n} 不能表示为四个非零平方和。")
+
+if __name__ == "__main__":
+    main()

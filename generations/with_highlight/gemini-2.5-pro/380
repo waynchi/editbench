@@ -1,0 +1,158 @@
+from typing import List, Union
+
+# Typy dla czytelności kodu
+Matrix = List[List[Union[int, float]]]
+Number = Union[int, float]
+
+def create_matrix(rows: int, cols: int, fill_value: Number = 0) -> Matrix:
+    """
+    Tworzy macierz o rozmiarze rows x cols, wypełnioną wartością fill_value.
+
+    Parametry:
+    rows (int): liczba wierszy.
+    cols (int): liczba kolumn.
+    fill_value (dowolny typ): wartość do wypełnienia macierzy.
+
+    Zwraca:
+    list: macierz w postaci listy list.
+    """
+    if rows < 0 or cols < 0:
+        raise ValueError("Rozmiary macierzy nie mogą być ujemne.")
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+def add_matrices(matrix_a: Matrix, matrix_b: Matrix) -> Matrix:
+    """
+    Dodaje dwie macierze o tym samym rozmiarze.
+
+    Parametry:
+    matrix_a (list): pierwsza macierz.
+    matrix_b (list): druga macierz.
+
+    Zwraca:
+    list: wynik dodawania macierzy.
+    """
+    rows_a = len(matrix_a)
+    rows_b = len(matrix_b)
+
+    # Sprawdzenie, czy macierze mają taką samą liczbę wierszy
+    if rows_a != rows_b:
+        raise ValueError("Macierze muszą mieć ten sam rozmiar do dodawania.")
+
+    # Obsługa pustych macierzy
+    if rows_a == 0:
+        return []
+
+    cols_a = len(matrix_a[0])
+    cols_b = len(matrix_b[0])
+
+    # Sprawdzenie, czy macierze mają taką samą liczbę kolumn
+    if cols_a != cols_b:
+        raise ValueError("Macierze muszą mieć ten sam rozmiar do dodawania.")
+
+    # Tworzenie macierzy wynikowej
+    result_matrix = create_matrix(rows_a, cols_a, 0)
+
+    # Dodawanie element po elemencie
+    for i in range(rows_a):
+        for j in range(cols_a):
+            result_matrix[i][j] = matrix_a[i][j] + matrix_b[i][j]
+
+    return result_matrix
+
+def scalar_multiply(matrix: Matrix, scalar: Number) -> Matrix:
+    """
+    Mnoży wszystkie elementy macierzy przez skalar.
+
+    Parametry:
+    matrix (list): macierz źródłowa.
+    scalar (float): liczba, przez którą mnożone są elementy macierzy.
+
+    Zwraca:
+    list: wynik mnożenia macierzy przez skalar.
+    """
+    return [[element * scalar for element in row] for row in matrix]
+
+def multiply_matrices(matrix_a: Matrix, matrix_b: Matrix) -> Matrix:
+    """
+    Mnoży dwie macierze.
+
+    Parametry:
+    matrix_a (list): pierwsza macierz.
+    matrix_b (list): druga macierz.
+
+    Zwraca:
+    list: wynik mnożenia macierzy.
+    """
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0]) if rows_a > 0 else 0
+    rows_b = len(matrix_b)
+    cols_b = len(matrix_b[0]) if rows_b > 0 else 0
+
+    if cols_a != rows_b:
+        raise ValueError("Liczba kolumn pierwszej macierzy musi być równa liczbie wierszy drugiej macierzy.")
+
+    # Tworzenie macierzy wynikowej o odpowiednich wymiarach
+    result_matrix = create_matrix(rows_a, cols_b, 0)
+
+    # Obliczanie iloczynu macierzy
+    for i in range(rows_a):
+        for j in range(cols_b):
+            sum_val = 0
+            for k in range(cols_a):  # lub range(rows_b)
+                sum_val += matrix_a[i][k] * matrix_b[k][j]
+            result_matrix[i][j] = sum_val
+
+    return result_matrix
+
+def transpose_matrix(matrix: Matrix) -> Matrix:
+    """
+    Transponuje macierz.
+
+    Parametry:
+    matrix (list): macierz źródłowa.
+
+    Zwraca:
+    list: macierz transponowana.
+    """
+    if not matrix:
+        return []
+    
+    rows = len(matrix)
+    cols = len(matrix[0])
+
+    # Weryfikacja, czy macierz nie jest "poszarpana"
+    for row in matrix:
+        if len(row) != cols:
+            raise ValueError("Wszystkie wiersze macierzy muszą mieć taką samą długość.")
+
+    transposed = create_matrix(cols, rows)
+    for i in range(rows):
+        for j in range(cols):
+            transposed[j][i] = matrix[i][j]
+            
+    return transposed
+
+def determinant_3x3(matrix: Matrix) -> float:
+    """
+    Oblicza wyznacznik macierzy 3x3.
+
+    Parametry:
+    matrix (list): macierz źródłowa o rozmiarze 3x3.
+
+    Zwraca:
+    float: wyznacznik macierzy.
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("Macierz musi mieć rozmiar 3x3.")
+
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+
+    det = (
+        a11 * (a22 * a33 - a23 * a32) -
+        a12 * (a21 * a33 - a23 * a31) +
+        a13 * (a21 * a32 - a22 * a31)
+    )
+
+    return float(det)

@@ -1,0 +1,13 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def current_date_time():
+    now = datetime.now()
+    formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    return f"Текущая дата и время: {formatted_time}"
+
+if __name__ == '__main__':
+    app.run(debug=True)

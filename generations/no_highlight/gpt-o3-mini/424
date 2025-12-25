@@ -1,0 +1,53 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def generate_response(
+    shap_values_file="Vuori_Final_Approval_2024_09_24.json",
+    system_prompt_file="system.prompt",
+    model="llama3.2",
+    base_url="http://localhost:11434"
+):
+    """
+    Generuje odpowiedź przy użyciu modelu ChatOllama.
+
+    Parametry:
+      shap_values_file (str): Ścieżka do pliku JSON z danymi SHAP.
+      system_prompt_file (str): Ścieżka do pliku z systemowym promptem.
+      model (str): Nazwa modelu do użycia.
+      base_url (str): Adres URL serwera.
+    
+    Zwraca:
+      str: Odpowiedź wygenerowana przez model.
+    """
+    # Inicjalizacja modelu ChatOllama
+    chat_model = ChatOllama(model=model, base_url=base_url)
+
+    # Załaduj wartości SHAP z pliku JSON
+    with open(shap_values_file, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Wczytaj systemowy prompt z pliku
+    with open(system_prompt_file, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Przygotuj template dla wiadomości
+    prompt = ChatPromptTemplate([
+        ("system", sys_prompt),
+        ("human", "{user_input}"),
+    ])
+
+    # Przygotuj dane wejściowe użytkownika
+    user_input = json.dumps(shap_values_json)
+    
+    # Połącz prompt z modelem
+    chain = prompt | chat_model
+
+    # Generuj odpowiedź
+    response = chain.invoke(user_input)
+    return response.content
+
+if __name__ == "__main__":
+    # Przykładowe użycie funkcji generate_response
+    output = generate_response()
+    print(output)

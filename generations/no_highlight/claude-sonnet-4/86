@@ -1,0 +1,235 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinter.messagebox as messagebox
+import traceback
+
+try:
+    import tkinterdnd2
+except ImportError as e:
+    print(f"Error importing tkinterdnd2: {e}")
+    print("Please install tkinterdnd2: pip install tkinterdnd2")
+    sys.exit(1)
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    try:
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        
+        # Create logs directory if it doesn't exist
+        log_dir = os.path.dirname(os.path.abspath('app.log'))
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        
+        logging.basicConfig(
+            level=logging.INFO,
+            format=log_format,
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('app.log', encoding='utf-8')
+            ]
+        )
+        logging.info("Logging setup completed successfully")
+    except Exception as e:
+        print(f"Error setting up logging: {e}")
+        # Fall back to basic console logging
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # Running as script
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        resource_path = os.path.join(base_path, 'resources')
+        logging.info(f"Resource path determined: {resource_path}")
+        return resource_path
+    except Exception as e:
+        logging.error(f"Error determining resource path: {e}")
+        # Return current directory as fallback
+        return os.path.join(os.getcwd(), 'resources')
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+        
+        # Check if resource directory exists
+        if not os.path.exists(resource_dir):
+            logging.error(f"Resource directory does not exist: {resource_dir}")
+            return False
+        
+        # Check if each required file exists
+        missing_files = []
+        for file in required_files:
+            file_path = os.path.join(resource_dir, file)
+            if not os.path.exists(file_path):
+                missing_files.append(file)
+            else:
+                # Check if file is readable
+                try:
+                    with open(file_path, 'rb') as f:
+                        f.read(1)
+                except Exception as e:
+                    logging.warning(f"File exists but may not be readable: {file} - {e}")
+        
+        # If any required files are missing, return False
+        if missing_files:
+            logging.error(f"Missing resource files: {', '.join(missing_files)}")
+            return False
+        
+        logging.info("All required resource files are present")
+        return True
+    except Exception as e:
+        logging.error(f"Error checking resources: {e}")
+        return False
+
+def show_error_dialog(title, message, details=None):
+    """
+    Show an error dialog to the user.
+    
+    Args:
+        title (str): Dialog title
+        message (str): Error message
+        details (str, optional): Additional error details
+    """
+    try:
+        # Try to create a simple error dialog
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        
+        error_msg = message
+        if details:
+            error_msg += f"\n\nDetails: {details}"
+        
+        messagebox.showerror(title, error_msg)
+        root.destroy()
+    except Exception:
+        # If GUI fails, fall back to console output
+        print(f"ERROR - {title}: {message}")
+        if details:
+            print(f"Details: {details}")
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Set up logging first
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Check Python version
+        if sys.version_info < (3, 7):
+            error_msg = f"Python 3.7 or higher is required. Current version: {sys.version}"
+            logging.error(error_msg)
+            show_error_dialog("Python Version Error", error_msg)
+            sys.exit(1)
+
+        # Check resources
+        try:
+            if not check_resources():
+                error_msg = "Required resource files are missing. Please ensure all resource files are in the 'resources' directory."
+                logging.error(error_msg)
+                show_error_dialog("Resource Error", error_msg)
+                sys.exit(1)
+        except Exception as e:
+            error_msg = f"Error during resource check: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Resource Check Error", error_msg, str(e))
+            sys.exit(1)
+
+        # Initialize main window with drag and drop support
+        try:
+            root = tkinterdnd2.TkinterDnD.Tk()
+            logging.info("Main window initialized successfully")
+        except Exception as e:
+            error_msg = f"Failed to initialize main window: {e}"
+            logging.error(error_msg)
+            show_error_dialog("GUI Initialization Error", error_msg, str(e))
+            sys.exit(1)
+        
+        # Import and create the application instance
+        try:
+            from gui.main_window import AudioTranscriberApp
+            logging.info("GUI module imported successfully")
+        except ImportError as e:
+            error_msg = f"Failed to import GUI module: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Import Error", error_msg, str(e))
+            root.destroy()
+            sys.exit(1)
+        except Exception as e:
+            error_msg = f"Unexpected error importing GUI module: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Import Error", error_msg, str(e))
+            root.destroy()
+            sys.exit(1)
+        
+        # Create the application instance
+        try:
+            app = AudioTranscriberApp(root)
+            logging.info("Application instance created successfully")
+        except Exception as e:
+            error_msg = f"Failed to create application instance: {e}"
+            logging.error(error_msg)
+            logging.error(f"Traceback: {traceback.format_exc()}")
+            show_error_dialog("Application Creation Error", error_msg, str(e))
+            root.destroy()
+            sys.exit(1)
+        
+        # Start the main event loop
+        try:
+            logging.info("Starting main event loop")
+            root.mainloop()
+            logging.info("Application closed normally")
+        except KeyboardInterrupt:
+            logging.info("Application interrupted by user")
+        except Exception as e:
+            error_msg = f"Error in main event loop: {e}"
+            logging.error(error_msg)
+            logging.error(f"Traceback: {traceback.format_exc()}")
+            show_error_dialog("Runtime Error", error_msg, str(e))
+        finally:
+            try:
+                root.destroy()
+            except:
+                pass
+        
+    except SystemExit:
+        # Re-raise SystemExit to allow proper exit
+        raise
+    except KeyboardInterrupt:
+        logging.info("Application startup interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        error_msg = f"Critical application error during startup: {e}"
+        logging.error(error_msg)
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        show_error_dialog("Critical Error", error_msg, str(e))
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

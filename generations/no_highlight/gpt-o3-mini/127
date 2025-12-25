@@ -1,0 +1,89 @@
+import numpy as np
+
+def fit_line(x, y):
+    """
+    Fit a line to the given arrays x and y, and compute the maximum deviation value.
+    
+    The linear model is defined as:
+        y_fit = slope * x + intercept
+        
+    The maximum deviation is the largest absolute difference between the actual y values and the fitted y values.
+    
+    Parameters:
+        x (array_like): 1D array of x-values.
+        y (array_like): 1D array of y-values.
+        
+    Returns:
+        slope (float): The slope of the fitted line.
+        intercept (float): The y-intercept of the fitted line.
+        max_deviation (float): The maximum absolute deviation between actual y and y_fit.
+    """
+    # Compute the means of x and y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Calculate deviations from the mean
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # Compute slope and intercept using least squares method
+    slope = np.sum(x_dev * y_dev) / np.sum(x_dev ** 2)
+    intercept = y_mean - slope * x_mean
+    
+    # Compute the fitted y values and determine deviation
+    y_fit = slope * x + intercept
+    deviations = np.abs(y - y_fit)
+    max_deviation = np.max(deviations)
+    
+    return slope, intercept, max_deviation
+
+def fit_quadratic(x, y):
+    """
+    Fit a quadratic curve to the given arrays x and y, and compute the maximum deviation value.
+    
+    The quadratic model is defined as:
+        y_fit = a * x^2 + b * x + c
+        
+    The maximum deviation is the largest absolute difference between the actual y values
+    and the fitted y values from the quadratic model.
+    
+    Parameters:
+        x (array_like): 1D array of x-values.
+        y (array_like): 1D array of y-values.
+        
+    Returns:
+        coeffs (ndarray): Array of coefficients [a, b, c] for the quadratic fit.
+        max_deviation (float): The maximum absolute deviation between actual y and y_fit.
+    """
+    # Construct the Vandermonde matrix for a quadratic term, a linear term, and constant
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # Perform least squares fitting to find the coefficients for [a, b, c]
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    # Calculate the fitted y values based on the quadratic model
+    y_fit = coeffs[0] * x**2 + coeffs[1] * x + coeffs[2]
+    deviations = np.abs(y - y_fit)
+    max_deviation = np.max(deviations)
+    
+    return coeffs, max_deviation
+
+# Example usage:
+if __name__ == "__main__":
+    # Sample data
+    x = np.linspace(0, 10, 50)
+    y_line = 2 * x + 1 + np.random.normal(0, 2, x.shape)
+    y_quad = 0.5 * x**2 - 3 * x + 4 + np.random.normal(0, 3, x.shape)
+    
+    # Line fitting and maximum deviation calculation
+    slope, intercept, max_dev_line = fit_line(x, y_line)
+    print("Line Fit:")
+    print("  Slope:", slope)
+    print("  Intercept:", intercept)
+    print("  Maximum Deviation:", max_dev_line)
+    
+    # Quadratic curve fitting and maximum deviation calculation
+    coeffs, max_dev_quad = fit_quadratic(x, y_quad)
+    print("\nQuadratic Fit:")
+    print("  Coefficients (a, b, c):", coeffs)
+    print("  Maximum Deviation:", max_dev_quad)

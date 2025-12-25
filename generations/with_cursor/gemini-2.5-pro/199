@@ -1,0 +1,43 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Initialize the result DataFrame *before* the loops.
+# This is the first critical fix, ensuring that the DataFrame is not reset
+# on each iteration and can accumulate all the results.
+# We explicitly set the dtype to 'object' as we plan to store dictionaries in the cells.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        # Create the test DataFrame for the current pclass and fare.
+        # It contains 3 rows to test all three 'Embarked' possibilities.
+        my_df = pd.DataFrame({
+            "Pclass": [pclass]*3,
+            "Name": [24]*3,
+            "Sex": [0]*3,
+            "Age": [19]*3,
+            "SibSp": [0]*3,
+            "Parch": [0]*3,
+            "Fare": [fare]*3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Perform one-hot encoding. Using dtype=int is a more concise way
+        # to get 0s and 1s directly, instead of booleans that need mapping.
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked", dtype=int)
+
+        # Note: For a real model, you would need to ensure the columns in `my_df`
+        # exactly match the order and names of the columns the model was trained on.
+        # This might involve reordering or adding missing columns with a fill_value of 0.
+
+        # Generate predictions for the 3 rows in my_df.
+        knn_preds = knn.predict(my_df)
+        mlp_preds = mlp.predict(my_df)
+
+        # This is the second critical fix to avoid the ValueError.
+        # Use the `.at` indexer for setting a value in a single cell.
+        # It correctly assigns the entire dictionary object to the cell np_df.at[fare, pclass],
+        # whereas `.loc` can misinterpret the dictionary as a Series and fail on alignment.
+        np_df.at[fare, pclass] = {"knn": knn_preds, "mlp": mlp_preds}
+
+print(np_df)

@@ -1,0 +1,122 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, clustering_specs, n_clusters=2, clustering_method='kmeans'):
+    """Realiza la agrupación de datos de manera independiente para diferentes conjuntos de características.
+
+    Args:
+        features_transformed (pandas.DataFrame): DataFrame transformado con parámetros.
+        clustering_specs (dict): Un diccionario donde las claves son los nombres de las nuevas columnas de clúster
+                                 y los valores son tuplas/listas de nombres de columnas para usar en la clusterización.
+                                 Ejemplo: {'Cluster_A': ['col1', 'col2'], 'Cluster_B': ['col3']}
+        n_clusters (int or dict): Número de clústeres. Si es un int, se aplica a todos los conjuntos.
+                                  Si es un dict, debe mapear los nombres de las nuevas columnas de clúster
+                                  al número de clústeres deseado para cada una.
+                                  Ejemplo: {'Cluster_A': 3, 'Cluster_B': 2}
+        clustering_method (str): Método de agrupación ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame con las columnas de etiquetas de clústeres añadidas.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    output_df = features_transformed.copy()
+
+    for cluster_feature_name, feature_list in clustering_specs.items():
+        print(f"--- Realizando clusterización para '{cluster_feature_name}' usando las columnas: {list(feature_list)} ---")
+
+        # Verificar si las columnas especificadas existen en el DataFrame
+        missing_cols = [col for col in feature_list if col not in output_df.columns]
+        if missing_cols:
+            print(f"Error: Las siguientes columnas no se encontraron en el DataFrame: {missing_cols}")
+            continue
+
+        features_for_clustering = output_df[list(feature_list)]
+
+        # Determinar el número de clústeres para la tarea actual
+        current_n_clusters = n_clusters
+        if isinstance(n_clusters, dict):
+            current_n_clusters = n_clusters.get(cluster_feature_name, 2)
+        
+        if features_for_clustering.shape[0] < current_n_clusters:
+            print(f"No se puede realizar la clusterización para '{cluster_feature_name}': el número de muestras ({features_for_clustering.shape[0]}) es menor que el número de clústeres ({current_n_clusters}).")
+            continue
+
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=current_n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(features_for_clustering)
+
+            # Evaluación de la calidad de la agrupación (por ejemplo, utilizando el coeficiente de silueta)
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {current_n_clusters} кластеров ('{cluster_feature_name}'): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для '{cluster_feature_name}' (todas las muestras en un solo clúster).")
+
+        else:
+            print(f"Неподдерживаемый метод кластеризации: {clustering_method}. Omitiendo la clusterización para '{cluster_feature_name}'.")
+            continue
+
+        output_df[cluster_feature_name] = cluster_labels
+        print(f"Кластеризация выполнена. Метки кластеров добавлены в столбец '{cluster_feature_name}'.\n")
+
+    return output_df
+
+# Ejecución de la clusterización (después de la etapa 5 y antes de la etapa 6)
+# Este bloque asume que `features_transformed` es un DataFrame de pandas que existe en el entorno.
+if 'features_transformed' in locals() and features_transformed is not None:
+    
+    numerical_cols = features_transformed.select_dtypes(include=np.number).columns.tolist()
+
+    if len(numerical_cols) >= 3:
+        # Definir especificaciones de clusterización: un dict donde las claves son los nombres
+        # de las nuevas columnas de clúster y los valores son las columnas a utilizar.
+        clustering_specs = {
+            'cluster_set_1': (numerical_cols[0], numerical_cols[1]), 
+            'cluster_set_2': (numerical_cols[2],)
+        }
+        
+        # Definir el número de clústeres para cada tarea de clusterización.
+        # Puede ser un solo número para todas las tareas, o un dict para especificar por tarea.
+        n_clusters_spec = {
+            'cluster_set_1': 3,
+            'cluster_set_2': 2
+        }
+        
+        # Ejecutar la función de clusterización
+        features_clustered = cluster_data(
+            features_transformed,
+            clustering_specs,
+            n_clusters=n_clusters_spec,
+            clustering_method='kmeans'
+        )
+
+        if features_clustered is not None:
+            # Visualización de los resultados de la clusterización
+            # Itera a través de las especificaciones y crea un gráfico para cada clusterización
+            # que se basó en exactamente 2 características.
+            for cluster_col, feature_list in clustering_specs.items():
+                if cluster_col in features_clustered.columns and len(feature_list) == 2:
+                    plt.figure(figsize=(8, 6))
+                    plt.scatter(
+                        features_clustered[feature_list[0]], 
+                        features_clustered[feature_list[1]], 
+                        c=features_clustered[cluster_col], 
+                        cmap='viridis'
+                    )
+                    plt.xlabel(feature_list[0])
+                    plt.ylabel(feature_list[1])
+                    plt.title(f'Результаты кластеризации для "{cluster_col}"')
+                    plt.colorbar(label='Номер кластера')
+                    plt.show()
+                elif cluster_col in features_clustered.columns:
+                    print(f"La visualización del gráfico de dispersión no es aplicable para '{cluster_col}', ya que no se basa en 2 características.")
+    else:
+        print("No hay suficientes columnas numéricas en `features_transformed` para ejecutar el ejemplo de clusterización (se requieren al menos 3).")
+
+else:
+    print("Сначала выполните этап 5 (Преобразование данных). El DataFrame `features_transformed` no está definido.")

@@ -1,0 +1,59 @@
+import random
+
+# Diccionario en inglés
+dictionary = {
+    'apple': 'manzana', 'banana': 'plátano', 'computer': 'computadora', 'hello': 'hola',
+    'world': 'mundo', 'python': 'pitón', 'programming': 'programación', 'language': 'idioma',
+    'keyboard': 'teclado', 'mouse': 'ratón', 'screen': 'pantalla', 'software': 'software',
+    'hardware': 'hardware', 'internet': 'internett', 'website': 'sitio web', 'database': 'base de datos',
+    'algorithm': 'algoritmo', 'function': 'función', 'variable': 'variable', 'loop': 'bucle',
+    'condition': 'condición', 'object': 'objeto', 'class': 'clase', 'method': 'método',
+    'module': 'módulo', 'library': 'biblioteca', 'framework': 'marco de trabajo', 'interface': 'interfaz',
+    'debugging': 'depuración', 'testing': 'pruebas', 'deployment': 'despliegue', 'authentication': 'autenticación',
+    'authorization': 'autorización', 'encryption': 'encriptación', 'decryption': 'desencriptación',
+    'protocol': 'protocolo', 'network': 'red', 'server': 'servidor', 'client': 'cliente',
+    'security': 'seguridad', 'performance': 'rendimiento', 'optimization': 'optimización',
+    'maintenance': 'mantenimiento', 'documentation': 'documentación', 'design': 'diseño',
+    'development': 'desarrollo', 'production': 'producción', 'quality': 'calidad',
+    'testing': 'pruebas', 'integration': 'integración', 'implementation': 'implementación'
+}
+
+def find_words_by_length(length):
+    """Encuentra palabras del diccionario con la longitud especificada"""
+    matching_words = [word for word in dictionary.keys() if len(word) == length]
+    return matching_words
+
+def main():
+    print("Bienvenido al consultor de diccionario en inglés")
+    print("Ingrese el número de caracteres para buscar palabras")
+    
+    while True:
+        try:
+            n = int(input("Número de caracteres (o 0 para salir): "))
+            
+            if n == 0:
+                print("¡Hasta luego!")
+                break
+                
+            if n < 0:
+                print("Por favor, ingrese un número positivo.")
+                continue
+                
+            words = find_words_by_length(n)
+            
+            if not words:
+                print(f"No se encontraron palabras con {n} caracteres.")
+            else:
+                # Seleccionar 10 palabras aleatorias si hay más de 10
+                selected_words = random.sample(words, min(10, len(words)))
+                print(f"\nPalabras con {n} caracteres:")
+                for i, word in enumerate(selected_words, 1):
+                    print(f"{i}. {word}")
+                    
+        except ValueError:
+            print("Por favor, ingrese un número válido.")
+        except Exception as e:
+            print(f"Ocurrió un error: {e}")
+
+if __name__ == "__main__":
+    main()

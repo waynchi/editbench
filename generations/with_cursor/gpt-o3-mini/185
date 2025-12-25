@@ -1,0 +1,270 @@
+import os
+import shutil
+import json
+import pickle
+import torch
+import logging
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+
+# Set up logging configuration for better performance and tracking.
+logging.basicConfig(level=logging.INFO)
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# Optimization Suggestions:
+# 1. Use logging instead of print: Replacing print statements with logging calls enables better
+#    control over log levels and formats, and reduces performance overhead in production.
+# 2. Use os.scandir for directory traversal in clear_directory: This provides performance
+#    improvements over os.listdir when dealing with a large number of files.
+# 3. Avoid redundant work in file I/O: For example, using json.load directly to parse JSON files.
+# 4. Validate inputs early: Check preconditions (e.g., required parameters) to avoid unnecessary processing.
+# 5. Modular error handling: Catch and log exceptions properly to facilitate debugging and minimize disruption.
+# 6. Use lazy loading and caching concepts for model loading if repeatedly needed.
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """
+    Save log history to a JSON file.
+    
+    Optimizations:
+    - Use json.load directly with a file context to reduce unnecessary string manipulations.
+      This should reduce memory overhead when parsing files.
+    - Replacing print calls with logging to have better control over output.
+    
+    Expected Improvements:
+    - Faster file I/O handling especially for large log files.
+    - Easier debugging and log management with different log levels.
+    
+    Trade-offs:
+    - Requires careful configuration of the logging system to avoid too verbose output in production.
+    """
+    current_logs = []
+
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                current_logs = json.load(f)
+                if not isinstance(current_logs, list):
+                    current_logs = []
+        except (json.JSONDecodeError, Exception) as e:
+            logging.warning(f"Error reading {file_path}: {e}. Overwriting file with new logs.")
+            current_logs = []
+
+    if append_latest_only and log_history:
+        current_logs.append(log_history[-1])
+    else:
+        current_logs.extend(log_history)
+
+    try:
+        with open(file_path, "w") as f:
+            json.dump(current_logs, f, indent=4)
+        logging.info(f"Logs saved successfully to {file_path}")
+    except Exception as e:
+        logging.error(f"Error writing to {file_path}: {e}")
+
+def clear_directory(directory, delete_directory=False):
+    """
+    Clears all files and subdirectories in the given directory.
+    
+    Optimizations:
+    - Use os.scandir instead of os.listdir to improve performance, especially for directories
+      with many files.
+    
+    Expected Improvements:
+    - Faster directory traversal and less memory overhead when processing many items.
+    
+    Trade-offs:
+    - Minor changes in how directory entries are obtained, but functionality remains the same.
+    """
+    if not os.path.exists(directory):
+        if not delete_directory:
+            os.makedirs(directory, exist_ok=True)
+            logging.info(f"Directory '{directory}' created.")
+        else:
+            raise ValueError("Directory does not exist and delete_directory is True. Cannot proceed.")
+        return
+
+    try:
+        with os.scandir(directory) as it:
+            for entry in it:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        shutil.rmtree(entry.path)
+                        logging.info(f"Removed directory: {entry.path}")
+                    else:
+                        os.remove(entry.path)
+                        logging.info(f"Removed file: {entry.path}")
+                except OSError as e:
+                    logging.error(f"Failed to delete '{entry.path}'. Reason: {e}")
+                    raise
+    except Exception as e:
+        logging.error(f"Error scanning directory {directory}: {e}")
+        raise
+
+    if delete_directory:
+        try:
+            os.rmdir(directory)
+            logging.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{directory}'. Reason: {e}")
+            raise
+
+def merge_lora_model(
+    model_name="pythia-31M",
+    base_model_repo_name="EleutherAI/",
+    model_load_path=MODEL_PATH,
+    model_save_path=MODEL_PATH,
+):
+    """
+    Merges a LoRA-adapted model with its corresponding base model.
+    
+    Optimizations:
+    - Minimal redundant processing by extracting parameters from the model_name once.
+    - Logging added for better traceability.
+    - Consider caching the base model if this function is called frequently with the same model.
+    
+    Expected Improvements:
+    - Reduced CPU overhead and clearer debugging information.
+    
+    Trade-offs:
+    - Caching may increase memory usage if many models are held in cache.
+    """
+    my_model_path = os.path.join(model_load_path, model_name)
+
+    try:
+        # Extract parameter count from model_name using a more robust approach.
+        param_str = model_name.lower().split("pythia-")[1].split("m")[0]
+    except IndexError:
+        logging.error("Invalid model name format.")
+        raise ValueError("Invalid model name format. Expected format 'pythia-<param>M'.")
+
+    base_model_name = f"pythia-{param_str}M"
+    base_model_path = os.path.join(base_model_repo_name, base_model_name)
+    base_model = AutoModelForCausalLM.from_pretrained(base_model_path)
+    model = PeftModel.from_pretrained(base_model, my_model_path)
+    merged_model = model.merge_and_unload()
+    my_model_save_path = os.path.join(model_save_path, f"{model_name}_merged")
+    merged_model.save_pretrained(my_model_save_path)
+    logging.info(f"Merged model saved at {my_model_save_path}")
+
+def remove_repetition(question, answer):
+    """
+    Removes the question substring from the answer if present.
+    
+    Optimizations:
+    - Uses simple str.replace and is efficient for small substring removal.
+    
+    Expected Improvements:
+    - Minimal performance gains since string operations are already fast.
+    
+    Trade-offs:
+    - Fine as is for small strings; may need to consider performance for very large texts.
+    """
+    if question in answer:
+        return answer.replace(question, "").strip()
+    return answer
+
+def load_model(
+    model_type,
+    model_path=None,
+    blocks_str=None,
+    vanilla_model_name=None,
+    host_model_name=None,
+):
+    """
+    Loads different types of models based on the model_type parameter.
+
+    Optimizations:
+    - Early parameter validation to avoid unnecessary processing.
+    - Lazy loading is encouraged for large models to reduce memory footprint.
+    
+    Expected Improvements:
+    - Reduced chance of runtime errors due to missing arguments.
+    - Improved performance by only loading what is necessary.
+    
+    Trade-offs:
+    - More strict parameter checks might require additional error handling by users.
+    """
+    if model_type == "Tuned Model":
+        if vanilla_model_name is None or not blocks_str:
+            raise ValueError("vanilla_model_name and blocks_str are required for Tuned Model")
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        tuned_model_path = os.path.join(model_path, tuned_model_name)
+        tuned_model = AutoModelForCausalLM.from_pretrained(tuned_model_path)
+        logging.info(f"Tuned model loaded from {tuned_model_path}")
+        return tuned_model
+
+    elif model_type == "Vanilla Model":
+        vanilla_model = AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+        logging.info(f"Vanilla model loaded from {vanilla_model_name}")
+        return vanilla_model
+
+    elif model_type == "Transformed Model":
+        if not host_model_name or not blocks_str:
+            raise ValueError("host_model_name and blocks_str are required for Transformed Model")
+        name = host_model_name.split("/")[-1]
+        save_path = os.path.join(model_path, f"{name}_preGRAFTED_{blocks_str}.pkl")
+        try:
+            with open(save_path, "rb") as f:
+                transformed_model = pickle.load(f)
+            logging.info(f"Transformed model loaded from {save_path}")
+            return transformed_model
+        except Exception as e:
+            logging.error(f"Error loading transformed model from {save_path}: {e}")
+            raise
+
+    elif model_type == "Final Model":
+        if not host_model_name or not blocks_str:
+            raise ValueError("host_model_name and blocks_str are required for Final Model")
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = os.path.join(model_path, model_save_name)
+        try:
+            with open(save_path, "rb") as f:
+                final_model = pickle.load(f)
+            logging.info(f"Final model loaded from {save_path}")
+            return final_model
+        except Exception as e:
+            logging.error(f"Error loading final model from {save_path}: {e}")
+            raise
+
+    elif model_type == "Host Model":
+        host_model = AutoModelForCausalLM.from_pretrained(host_model_name)
+        logging.info(f"Host model loaded from {host_model_name}")
+        return host_model
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+def load_batch_losses(file_path):
+    """
+    Loads batch loss data from a checkpoint file.
+
+    Optimizations:
+    - Setting map_location to CPU to avoid unnecessary GPU memory allocation.
+    - A broader exception catch can capture unforeseen errors for robust logging.
+    
+    Expected Improvements:
+    - Reduced risk of GPU memory overflow when processing checkpoints.
+    - Better error diagnostics in case of file corruption.
+    
+    Trade-offs:
+    - Capturing all exceptions may obscure specific error types that could require detailed handling.
+    """
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses", None)
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        return batch_losses
+    except Exception as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

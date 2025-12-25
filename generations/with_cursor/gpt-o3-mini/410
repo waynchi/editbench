@@ -1,0 +1,66 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+
+  // Now, the current turn is determined dynamically by checking, which side still has units that haven't acted.
+  function getCurrentTurn() {
+    // Jeśli wciąż są jednostki gracza, to tura gracza.
+    if (allyStates.some(unit => !unit.hasActed)) return "player";
+    // Jeśli gracz wykonał już wszystkie akcje, a są jednostki CPU, to tura CPU.
+    if (foeStates.some(unit => !unit.hasActed)) return "cpu";
+    // Obie grupy skończyły akcje – runda się zakończyła.
+    return null;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // Funkcja przechodząca do następnej tury lub rozpoczynająca nową rundę.
+  function nextTurn() {
+    let current = getCurrentTurn();
+
+    // Jeśli jakakolwiek grupa nadal ma jednostki zdolne do działania, ale chcemy ręcznie zakończyć turę,
+    // oznaczmy wszystkie jednostki tej grupy jako, że już działały.
+    if (current === "player") {
+      allyStates.forEach(unit => unit.hasActed = true);
+    } else if (current === "cpu") {
+      foeStates.forEach(unit => unit.hasActed = true);
+    }
+
+    // Po zakończeniu tury, sprawdź ponownie: czy któraś grupa ma jeszcze akcje?
+    // Jeżeli nie – oznacza to, że obie grupy zakończyły swoje akcje i rozpoczynamy nową rundę.
+    if (getCurrentTurn() === null) {
+      // Resetuj akcje dla wszystkich jednostek.
+      allyStates.forEach(unit => unit.hasActed = false);
+      foeStates.forEach(unit => unit.hasActed = false);
+      turnNumber++;
+    }
+
+    // Jeśli po rozpoczęciu nowej rundy lub zakończeniu tur CPU pozostają akcje do wykonania,
+    // a tura należy do CPU – uruchom logikę CPU.
+    if (getCurrentTurn() === "cpu") {
+      cpuTurn();
+    }
+  }
+
+  // Przykładowa logika akcji CPU – można ją zastąpić bardziej złożoną logiką AI.
+  function cpuTurn() {
+    foeStates.forEach(cpuUnit => {
+      if (!cpuUnit.hasActed) {
+        // Tutaj umieść logikę ruchu lub akcji CPU.
+        // Na przykład: console.log("CPU unit działa:", cpuUnit);
+        cpuUnit.hasActed = true;
+      }
+    });
+    // Po wykonaniu akcji CPU, automatycznie przejdź do kolejnej tury (lub rozpocznij nową rundę).
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

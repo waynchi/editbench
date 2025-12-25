@@ -1,0 +1,43 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_int(input_str: str, start_pos: int) -> int:
+        '''
+        Checks for a sequence of digits starting at start_pos using Python's built-in isdigit().
+        Returns the position after the last digit.
+        Raises AssertionError if no digits are found at start_pos.
+        '''
+        max_pos = len(input_str)
+        current_pos = start_pos
+        digit_found = False
+
+        # Loop while the character at the current position is a digit.
+        while current_pos < max_pos and input_str[current_pos].isdigit():
+            digit_found = True
+            current_pos += 1
+    
+        # Ensure at least one digit was found.
+        assert digit_found, "Not an integer"
+        return current_pos
+
+if __name__=="__main__":
+    # Example 1: A valid integer string.
+    # The function should return the index after the last digit.
+    try:
+        end_position = IntegerToken.is_int("1234abcd", 0)
+        print(f"Parsing '1234abcd' from index 0. Integer ends at index: {end_position}")
+    except AssertionError as e:
+        print(f"An unexpected error occurred: {e}")
+
+    # Example 2: A string that does not start with an integer.
+    # The function is expected to raise an AssertionError.
+    try:
+        print("\nTesting 'a123' from index 0...")
+        IntegerToken.is_int("a123", 0)
+    except AssertionError as e:
+        print(f"Successfully caught expected error: {e}")

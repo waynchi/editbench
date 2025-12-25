@@ -1,0 +1,50 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, flattened_size):
+        super(SimpleConvNet1, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == '__main__':
+    # For example, assume the input images are 32x32 with 3 channels.
+    # After conv1:
+    #   - Conv2d reduces size: (32 - 3 + 1 = 30)
+    #   - MaxPool2d with kernel_size=2 reduces it to floor(30/2) = 15
+    # After conv2:
+    #   - Conv2d: (15 - 3 + 1 = 13)
+    #   - MaxPool2d: floor(13/2) = 6
+    #
+    # Thus, the output feature map size after conv2 is: (64 channels, 6, 6)
+    # Flattened size = 64 * 6 * 6 = 2304
+    flattened_size = 64 * 6 * 6
+
+    model = SimpleConvNet1(flattened_size)
+    print(model)
+
+    # Generate a dummy input tensor with shape (batch_size, channels, height, width)
+    dummy_input = torch.randn(1, 3, 32, 32)
+    output = model(dummy_input)
+    print("Output shape:", output.shape)

@@ -1,0 +1,31 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Supongamos que las variables brand_A, brand_B, brand_C y all_data ya están definidas
+# Ejemplo:
+# brand_A = [/* datos para Marca A */]
+# brand_B = [/* datos para Marca B */]
+# brand_C = [/* datos para Marca C */]
+# all_data = brand_A + brand_B + brand_C
+
+# Crear el DataFrame combinando las marcas y los datos de costos
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+df = pd.DataFrame(data)
+
+# Preparar la matriz de diseño de manera "pythónica" utilizando get_dummies
+# Esto evita el uso de la sintaxis de fórmulas estilo R
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)  # Agregar el intercepto
+y = df['Cost']
+
+# Ajustar el modelo OLS
+model = sm.OLS(y, X).fit()
+
+# Realizar el análisis ANOVA utilizando el modelo ajustado
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Imprimir la tabla ANOVA
+print(anova_table)

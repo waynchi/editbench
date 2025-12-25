@@ -1,0 +1,78 @@
+import * as THREE from "three";
+import Globe from "three-globe";
+import * as d3 from "d3";
+
+// Initialize the Globe
+const world = Globe()
+  .globeImageUrl("img/world.topo.200412.3x21600x10800.png")
+  .bumpImageUrl("img/earth-topology.png")
+  .backgroundImageUrl("img/night-sky.png")(document.getElementById("globeViz"));
+
+// Custom globe material for a shiny, watery effect
+const globeMaterial = world.globeMaterial();
+new THREE.TextureLoader().load("img/earth-water.png", (texture) => {
+  globeMaterial.specularMap = texture;
+  globeMaterial.specular = new THREE.Color("grey");
+  globeMaterial.shininess = 10;
+});
+
+// Animate the directional light (sun)
+const directionalLight = world
+  .lights()
+  .find((light) => light.type === "DirectionalLight");
+if (directionalLight) {
+  let angle = 0;
+  const radius = 360; // This is the distance of the light from the center of the scene
+
+  function animateLight() {
+    angle += (2 * Math.PI) / 6000; // Animate a full circle in 60 seconds
+    directionalLight.position.set(
+      radius * Math.cos(angle),
+      10,
+      radius * Math.sin(angle)
+    );
+    requestAnimationFrame(animateLight);
+  }
+
+  animateLight();
+}
+
+// Data visualization layer for countries (GDP)
+const colorScale = d3.scaleSequentialSqrt(d3.interpolateYlOrRd);
+
+// Function to calculate GDP per capita for coloring
+const getVal = (feat) =>
+  feat.properties.GDP_MD_EST / Math.max(1e5, feat.properties.POP_EST);
+
+// Fetch GeoJSON data and add the polygons layer to the existing globe
+fetch("../datasets/ne_110m_admin_0_countries.geojson")
+  .then((res) => res.json())
+  .then((countries) => {
+    const maxVal = Math.max(...countries.features.map(getVal));
+    colorScale.domain([0, maxVal]);
+
+    // Add polygons layer to the 'world' instance
+    world
+      .polygonsData(
+        countries.features.filter((d) => d.properties.ISO_A2 !== "AQ") // Exclude Antarctica
+      )
+      .polygonAltitude(0.06)
+      .polygonCapColor((feat) => colorScale(getVal(feat)))
+      .polygonSideColor(() => "rgba(0, 100, 0, 0.15)")
+      .polygonStrokeColor(() => "#111")
+      .polygonLabel(
+        ({ properties: d }) => `
+          <b>${d.ADMIN} (${d.ISO_A2}):</b> <br />
+          GDP: <i>${d.GDP_MD_EST}</i> M$<br/>
+          Population: <i>${d.POP_EST}</i>
+        `
+      )
+      .onPolygonHover((hoverD) =>
+        world
+          .polygonAltitude((d) => (d === hoverD ? 0.12 : 0.06))
+          .polygonCapColor((d) =>
+            d === hoverD ? "steelblue" : colorScale(getVal(d))
+          )
+      )
+      .polygonsTransitionDuration(300);
+  });

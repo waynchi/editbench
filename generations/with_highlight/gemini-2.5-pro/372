@@ -1,0 +1,69 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Utwórz sesję Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Ponieważ dane pochodzą z API, najpierw wykonujemy żądanie HTTP, aby je pobrać.
+# Zastąp ten URL rzeczywistym punktem końcowym API.
+api_url = "https://api.example.com/data"
+
+try:
+    # Wykonaj żądanie GET do API. W środowisku produkcyjnym może być konieczne dodanie nagłówków uwierzytelniających.
+    # np. response = requests.get(api_url, headers={"Authorization": "Bearer YOUR_TOKEN"})
+    response = requests.get(api_url)
+    response.raise_for_status()  # Sprawdź, czy żądanie zakończyło się powodzeniem (kod 2xx)
+
+    # Przekonwertuj odpowiedź JSON na listę słowników Pythona
+    api_data = response.json()
+
+except requests.exceptions.RequestException as e:
+    # W przypadku błędu sieciowego lub API, użyj danych przykładowych do celów demonstracyjnych
+    # i wydrukuj błąd. W środowisku produkcyjnym obsłuż błąd w odpowiedni sposób.
+    print(f"Nie udało się pobrać danych z API: {e}. Używam danych zastępczych.")
+    api_data = [
+        {"id": 1, "nombre": "Juan", "edad": 30, "ciudad": "Madrid"},
+        {"id": 2, "nombre": "Ana", "edad": 25, "ciudad": "Barcelona"},
+        {"id": 3, "nombre": "Pedro", "edad": 40, "ciudad": "Valencia"}
+    ]
+
+# Krok analizy: Sprawdź strukturę danych
+# Wyświetl pierwszy rekord, aby zrozumieć jego pola
+if api_data:
+    print("Analiza danych: Przykład pierwszego rekordu z API:")
+    # Użyj json.dumps dla ładnego formatowania
+    print(json.dumps(api_data[0], indent=2, ensure_ascii=False))
+
+# Utwórz DataFrame z pobranych danych z API
+# Spark automatycznie wywnioskuje schemat (nazwy i typy kolumn)
+df = spark.createDataFrame(api_data)
+
+# Zweryfikuj, czy DataFrame został utworzony poprawnie, wyświetlając schemat i podgląd
+print("\nSchemat wywnioskowany przez Spark:")
+df.printSchema()
+
+print("\nPodgląd DataFrame:")
+df.show()
+
+
+# Skonfiguruj połączenie z ADL2 używając tożsamości Microsoft ID
+# Nie jest konieczne podawanie poświadczeń jawnie w notebooku Synapse
+# Spark użyje zarządzanej tożsamości notebooka do uwierzytelniania.
+
+# Określ ścieżkę do kontenera i folderu w ADL2
+container_name = "<your_container_name>"  # Zastąp nazwą swojego kontenera
+storage_account_name = "<your_storage_account_name>" # Zastąp nazwą swojego konta magazynu
+folder_path = "<your_folder_path>"  # Zastąp ścieżką do folderu w kontenerze
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Zapisać DataFrame w formacie parquet w ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcjonalnie: odczytać plik parquet w celu weryfikacji
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Zatrzymać sesję Spark
+spark.stop()

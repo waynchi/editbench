@@ -1,0 +1,120 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    # Fix: The original code used a non-existent global 'author' variable.
+    # It should compare the argument 'autor'.
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+
+# New function added as per user instruction to build a hierarchical dictionary
+def build_discussion_hierarchy(comment_object: Comment) -> dict:
+    """
+    Recursively builds a hierarchical dictionary for a given post or comment.
+
+    :param comment_object: A beem.comment.Comment object to process.
+    :return: A dictionary representing the comment and its nested replies.
+    """
+    # Create a node for the current comment/post
+    node = {
+        'author': comment_object['author'],
+        'permlink': comment_object['permlink'],
+        'body': comment_object['body'],
+        'created': str(comment_object['created']),
+        'replies': []  # A list to hold the children (replies)
+    }
+
+    # Fetch all replies for the current comment
+    replies = comment_object.get_replies()
+
+    # Recursively call this function for each reply to build the tree structure
+    for reply in replies:
+        # Optional: You can filter replies here, for example, by a ban list.
+        if is_banned(reply['author']):
+            continue
+        node['replies'].append(build_discussion_hierarchy(reply))
+
+    return node
+
+
+# This is the new implementation of the highlighted section
+discussion_database = {}  # The main dictionary to store the hierarchical data
+
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+print("Начинаем построение иерархического словаря постов и ответов...")
+
+for post in posts_generator:
+    X += 1
+    # We can use the original condition to decide which posts to process fully
+    if post['children'] > n_respuestas_minimas:
+        post_authorperm = post.authorperm
+        print(f"[{X}] Обработка поста с большим количеством ответов: @{post_authorperm}")
+
+        try:
+            # We need a full Comment object to use the .get_replies() method
+            full_post_comment = Comment(post)
+            # Build the hierarchical tree for this post
+            post_hierarchy = build_discussion_hierarchy(full_post_comment)
+            # Store the resulting tree in our database, keyed by authorperm
+            discussion_database[post_authorperm] = post_hierarchy
+        except Exception as e:
+            print(f"Не удалось обработать пост @{post_authorperm}. Ошибка: {e}")
+
+print(f"\nЗавершено. Иерархический словарь создан для {len(discussion_database)} постов.")
+
+# After building the dictionary, you can perform operations on it.
+# The following is an example of how the original logic can be applied to the new data structure.
+print("\nАнализ собранных постов для поиска подходящих для комментирования...")
+for post_authorperm, post_data in discussion_database.items():
+    cnt = 0
+    has_own_comment = False
+
+    # Check the first-level replies for specific conditions
+    for reply in post_data.get('replies', []):
+        # Check if we have already replied to this post
+        if is_own_author(reply['author']):
+            has_own_comment = True
+            break
+        # Check if the reply body contains the target text
+        if procesar(reply['body']):
+            cnt += 1
+
+    # If we already commented, skip to the next post
+    if has_own_comment:
+        continue
+
+    # If the original condition (e.g., more than 3 target replies) is met, print it
+    if cnt > 3:
+        print(f"Условие выполнено для поста: {post_authorperm} ({cnt} подходящих ответов)")
+        # Here you would place the logic to generate and post your own comment, e.g.:
+        # unique_permlink = generar_permlink_unico()
+        # comment_to_post = preparar_comentario(parent_author=post_data['author'], parent_permlink=post_data['permlink'], permlink=unique_permlink)
+        # print(" >> Готовлю комментарий:", comment_to_post)

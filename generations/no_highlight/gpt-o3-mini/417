@@ -1,0 +1,126 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+import tkinter.messagebox as messagebox
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('app.log', encoding='utf-8')
+        ]
+    )
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            return os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # Running as a script
+            return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+    except Exception as exc:
+        logging.error(f"Error determining resource path: {exc}")
+        raise
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+    
+        missing_files = []
+        for file in required_files:
+            if not os.path.exists(os.path.join(resource_dir, file)):
+                missing_files.append(file)
+    
+        if missing_files:
+            logging.error(f"Missing resource files: {', '.join(missing_files)}")
+            return False
+        return True
+    except Exception as e:
+        logging.error(f"Error while checking resources: {e}")
+        return False
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Set up logging
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Check resources
+        if not check_resources():
+            error_message = "Required resource files are missing. Application cannot start."
+            logging.error(error_message)
+            
+            # Initialize a temporary Tkinter root to show error message
+            root_error = tk.Tk()
+            root_error.withdraw()  # Hide the main window
+            messagebox.showerror("Resource Error", error_message)
+            root_error.destroy()
+            
+            sys.exit(1)
+
+        # Initialize the main window with drag and drop support
+        root = tkinterdnd2.TkinterDnD.Tk()
+        
+        # Import here to avoid circular imports
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as ie:
+            logging.error(f"Error importing main window module: {ie}")
+            messagebox.showerror("Import Error", f"Failed to load the application UI module.\n{ie}")
+            sys.exit(1)
+        
+        # Create an instance of the application
+        try:
+            app = AudioTranscriberApp(root)
+        except Exception as app_exc:
+            logging.error(f"Error initializing the AudioTranscriberApp: {app_exc}")
+            messagebox.showerror("Initialization Error", f"Failed to initialize the application.\n{app_exc}")
+            sys.exit(1)
+        
+        # Start the main event loop
+        root.mainloop()
+
+    except Exception as e:
+        logging.error(f"Application error: {e}")
+        # If an error occurs before any Tk window is created, try to create one to show error
+        try:
+            temp_root = tk.Tk()
+            temp_root.withdraw()
+            messagebox.showerror("Application Error", f"An unexpected error occurred:\n{e}")
+            temp_root.destroy()
+        except Exception:
+            # If even this fails, we just print the error
+            print(f"Critical error: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()

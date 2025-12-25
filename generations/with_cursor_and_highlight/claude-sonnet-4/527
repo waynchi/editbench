@@ -1,0 +1,40 @@
+import os
+# importar hashlib
+# importar base64
+
+project_name = "CheckerKMV"
+
+
+def createLicense(secretKey: str) -> None:
+    """
+    Crea un archivo de licencia en la carpeta del proyecto.
+    
+    Args:
+        secretKey (str): La clave secreta para la licencia
+        
+    Raises:
+        OSError: Si hay problemas creando el directorio o escribiendo el archivo
+        TypeError: Si secretKey no es una cadena
+    """
+    try:
+        # Validar que secretKey sea una cadena
+        if not isinstance(secretKey, str):
+            raise TypeError("secretKey debe ser una cadena de texto")
+        
+        # Ruta a la carpeta del proyecto en %appdata%/Local
+        appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+
+        # Crear directorio si no existe
+        if not os.path.exists(appdata_path):
+            os.makedirs(appdata_path)
+
+        # Escribir la licencia al archivo
+        license_file_path = os.path.join(appdata_path, "license.dat")
+        with open(license_file_path, "w", encoding="utf-8") as f:
+            f.write(secretKey)
+            
+        print(f"Licencia creada exitosamente en: {license_file_path}")
+        
+    except Exception as e:
+        print(f"Error al crear la licencia: {e}")
+        raise

@@ -1,0 +1,84 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, lit
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+import json
+
+# Create a Spark session
+spark = SparkSession.builder.appName("APIDataAnalysisAndWrite").getOrCreate()
+
+# Since data comes from an API, we'll need to handle it dynamically
+# Example: Simulating API response data (replace with actual API call)
+# In practice, you would use requests library or similar to fetch data
+api_response_data = [
+    {"id": 1, "nombre": "Juan", "edad": 30, "ciudad": "Madrid"},
+    {"id": 2, "nombre": "Ana", "edad": 25, "ciudad": "Barcelona"},
+    {"id": 3, "nombre": "Pedro", "edad": 40, "ciudad": "Valencia"},
+    {"id": 4, "nombre": "Maria", "edad": None, "ciudad": "Sevilla"},  # Example of missing data
+    {"id": 5, "nombre": "Carlos", "edad": 35, "ciudad": None}  # Example of missing data
+]
+
+# Create DataFrame from API data
+df = spark.createDataFrame(api_response_data)
+
+# First, analyze the data to understand its structure and quality
+print("=== DATA ANALYSIS ===")
+
+# Show schema information
+print("Schema:")
+df.printSchema()
+
+# Show sample data
+print("Sample data:")
+df.show(10, truncate=False)
+
+# Basic statistics for numeric columns
+print("Summary statistics for numeric columns:")
+df.describe().show()
+
+# Check for null values
+print("Null value counts:")
+for column in df.columns:
+    null_count = df.filter(col(column).isNull()).count()
+    print(f"{column}: {null_count} null values")
+
+# Check distinct values for categorical columns
+print("Distinct value counts for categorical columns:")
+for column in df.columns:
+    if column not in [field.name for field in df.schema.fields if isinstance(field.dataType, IntegerType)]:
+        distinct_count = df.select(column).distinct().count()
+        print(f"{column}: {distinct_count} distinct values")
+
+# Data quality checks
+print("Data Quality Checks:")
+print(f"Total rows: {df.count()}")
+print(f"Total columns: {len(df.columns)}")
+
+# Check for duplicate rows
+duplicate_count = df.count() - df.distinct().count()
+print(f"Duplicate rows: {duplicate_count}")
+
+# After analysis, you can decide how to handle the data
+# For example, you might want to clean it before writing
+
+# Set up the connection to ADL2 using the Microsoft ID identity
+# It is not necessary to provide credentials explicitly in a Synapse notebook
+# Spark will use the managed identity of the notebook to authenticate.
+
+# Specify the path to the container and folder in ADL2
+container_name = "<your_container_name>"  # Replace with the name of your container
+storage_account_name = "<your_storage_account_name>"  # Replace with your storage account name
+folder_path = "<your_folder_path>"  # Replace with the path to the folder within the container
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Write the analyzed DataFrame in parquet format to ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+print(f"Data successfully written to: {adl2_path}")
+
+# Optional: read the parquet file to verify
+df_leido = spark.read.parquet(adl2_path)
+print("Verification - reading back the written data:")
+df_leido.show()
+
+# Stop the Spark session
+spark.stop()

@@ -1,0 +1,71 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+  let currentTurn = determineInitialTurn();
+
+  function determineInitialTurn() {
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (allyCanAct && foeCanAct) {
+      return "player"; // По умолчанию начинаем с игрока
+    } else if (allyCanAct) {
+      return "player";
+    } else if (foeCanAct) {
+      return "cpu";
+    }
+    return "player"; // Если все юниты уже действовали, начинаем новый раунд с игрока
+  }
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    // Определяем, какая группа может действовать
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (currentTurn === "player" && foeCanAct) {
+      currentTurn = "cpu";
+      cpuTurn();
+    } else if (currentTurn === "cpu" && allyCanAct) {
+      currentTurn = "player";
+      turnNumber++; // Увеличивать номер хода только после хода игрока
+    } else {
+      // Если ни одна группа не может действовать, начинаем новый раунд
+      resetAllUnits();
+      turnNumber++;
+      currentTurn = "player";
+    }
+  }
+
+  function resetAllUnits() {
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+  }
+
+  function cpuTurn() {
+    // Пример поведения процессора
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // ... ваша логика ИИ для процессора здесь ...
+        cpuUnit.hasActed = true;
+      }
+    }
+
+    // После завершения хода CPU переходим к следующему ходу
+    nextTurn();
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

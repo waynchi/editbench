@@ -1,0 +1,56 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """
+    使用 Ollama API 与本地 LLM 交互。
+
+    :param prompt: LLM 的输入提示。
+    :param base_url: Ollama API 的基础 URL。
+    :return: 来自 LLM 的响应或者错误信息。
+    """
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # 替换为您的模型名称
+        "prompt": prompt,
+        "max_tokens": 2048  # 根据需要调整
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"请求错误: {e}")
+        return None
+
+    # 处理可能的 JSON 解析错误：“额外数据：第2行第1列（字符101）”
+    try:
+        # 尝试直接解析响应为 JSON
+        result = response.json()
+    except json.JSONDecodeError as decode_err:
+        # 如果直接解析失败，尝试修正额外数据问题，仅针对第一个 JSON 对象进行解析
+        print(f"初次 JSON 解析错误: {decode_err}")
+        text = response.text.strip()
+        # 有可能返回的文本包含多个 JSON 对象，我们只取第一个
+        try:
+            # 尝试找到第一个完整 JSON 对象的结尾（以 '}' 结尾）
+            end_index = text.find('}') + 1
+            first_json_text = text[:end_index]
+            result = json.loads(first_json_text)
+        except Exception as inner_err:
+            print(f"修正后 JSON 解析失败: {inner_err}")
+            return None
+
+    return result.get('response', '')
+
+# 示例用法
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response_text = interact_with_local_llm(prompt)
+    if response_text:
+        print(f"LLM Response: {response_text}")
+    else:
+        print("未能获得有效的 LLM 响应。")

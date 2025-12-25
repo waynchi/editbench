@@ -1,0 +1,43 @@
+import pandas as pd
+from main13 import knn, mlp
+
+def main():
+    for pclass in [1, 2, 3]:
+        for fare in range(10, 200, 10):
+            for embarked in ["S", "Q", "C"]:
+                # Creamos un DataFrame de una sola fila
+                my_df = pd.DataFrame({
+                    "Pclass": [pclass],
+                    "Name": ["24"],  # Si se espera un string en lugar de un número
+                    "Sex": [0],
+                    "Age": [19],
+                    "SibSp": [0],
+                    "Parch": [0],
+                    "Fare": [fare],
+                    "Embarked": [embarked]
+                })
+
+                # Aplicamos one-hot encoding para la columna "Embarked"
+                my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+                
+                # Para garantizar que todas las posibles columnas de embarque estén presentes,
+                # las creamos en caso de que falten
+                for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+                    if col not in my_df.columns:
+                        my_df[col] = 0
+
+                # Opcional: Reordenar las columnas si es necesario para que coincidan con el modelo
+                # my_df = my_df[["Pclass", "Name", "Sex", "Age", "SibSp", "Parch", "Fare", 
+                #                "Embarked_C", "Embarked_Q", "Embarked_S"]]
+
+                # Realizamos las predicciones con ambos modelos
+                knn_pred = knn.predict(my_df)
+                mlp_pred = mlp.predict(my_df)
+
+                print("-------------------------------------------------------")
+                print(f"Параметры: класс {pclass}, плата {fare}, embarked {embarked}")
+                print(f"По knn: {knn_pred}")
+                print(f"По mlp: {mlp_pred}")
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,33 @@
+def sum_of_four_nonzero_squares(n):
+    """
+    Проверяет, может ли число n быть выражено как сумма четырех ненулевых квадратов.
+    Возвращает True если возможно, иначе False.
+    """
+    # Перебираем все возможные комбинации четырех ненулевых квадратов
+    for a in range(1, int(n**0.5) + 1):
+        for b in range(1, int((n - a*a)**0.5) + 1):
+            for c in range(1, int((n - a*a - b*b)**0.5) + 1):
+                remainder = n - a*a - b*b - c*c
+                if remainder > 0:
+                    d_sq = remainder
+                    d = int(d_sq**0.5)
+                    if d > 0 and d*d == d_sq:
+                        return True
+    return False
+
+def find_numbers_with_four_nonzero_squares(limit):
+    """
+    Находит все числа до limit, которые могут быть выражены как сумма четырех ненулевых квадратов.
+    """
+    result = []
+    for n in range(1, limit + 1):
+        if sum_of_four_nonzero_squares(n):
+            result.append(n)
+    return result
+
+# Пример использования
+if __name__ == "__main__":
+    limit = 50
+    numbers = find_numbers_with_four_nonzero_squares(limit)
+    print(f"Числа до {limit}, которые могут быть выражены как сумма четырех ненулевых квадратов:")
+    print(numbers)

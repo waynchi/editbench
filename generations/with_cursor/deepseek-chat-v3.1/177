@@ -1,0 +1,30 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# 获取当前脚本的目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 构建到 chromedriver 的相对路径
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# 修复：应该设置 Chrome 浏览器的路径，而不是 chromedriver 的路径
+# 通常 Chrome 浏览器安装在默认位置，或者需要指定 chrome.exe 的路径
+# options.binary_location = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+
+# 移除 use_subprocess=True 参数，这可能是导致连接问题的原因
+print("启动浏览器...")
+try:
+    with uc.Chrome(options=options, driver_executable_path=chromedriver_path) as driver:
+        print("浏览器启动成功")
+        driver.get("https://lmarena.ai/")
+        print("页面加载完成")
+        # 等待页面加载
+        time.sleep(10)
+except Exception as e:
+    print(f"发生错误: {e}")
+    print("请检查:")
+    print("1. Chrome浏览器是否已安装")
+    print("2. chromedriver版本是否与Chrome浏览器版本匹配")
+    print("3. 防火墙或安全软件是否阻止了连接")

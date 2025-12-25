@@ -1,0 +1,110 @@
+import random
+import logging
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
+import time
+
+class SearchModule:
+    def __init__(self, driver, config):
+        self.driver = driver
+        self.config = config
+        self.search_engine = config.get('Search', 'search_engine')
+        self.queries = [q.strip() for q in config.get('Search', 'queries').split(',')]
+        self.random_query = config.getboolean('Search', 'random_query')
+
+    def perform_search(self):
+        try:
+            if not self.queries:
+                logging.error("No queries defined in configuration.")
+                return False
+                
+            query = random.choice(self.queries) if self.random_query else self.queries[0]
+            logging.info(f"Performing search with query: {query}")
+
+            search_engine_urls = {
+                'google': 'https://www.google.com',
+                'yandex': 'https://ya.ru', 
+                'bing': 'https://www.bing.com'
+            }
+            
+            search_selectors = {
+                'google': (By.NAME, "q"),
+                'yandex': (By.CSS_SELECTOR, 'input[placeholder="Найдётся всё"]'),
+                'bing': (By.NAME, "q")
+            }
+
+            if self.search_engine.lower() not in search_engine_urls:
+                logging.error(f"Unsupported search engine: {self.search_engine}")
+                return False
+
+            # Navigate to search engine
+            try:
+                self.driver.get(search_engine_urls[self.search_engine.lower()])
+                time.sleep(random.uniform(1, 2))
+            except WebDriverException as e:
+                logging.error(f"Failed to navigate to search engine: {e}")
+                return False
+
+            # Find search box and perform search
+            try:
+                search_box = self.driver.find_element(*search_selectors[self.search_engine.lower()])
+                search_box.send_keys(query + Keys.RETURN)
+                time.sleep(random.uniform(2, 4))
+                return True
+            except NoSuchElementException:
+                logging.error(f"Search box not found for {self.search_engine}")
+                return False
+            except WebDriverException as e:
+                logging.error(f"Error during search: {e}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Unexpected error in perform_search: {e}")
+            return False
+
+    def navigate_random_link(self):
+        try:
+            logging.info("Navigating to a random search result link.")
+            
+            link_selectors = {
+                'google': 'div.yuRUbf > a',
+                'yandex': 'a.link',
+                'bing': 'li.b_algo h2 a'
+            }
+
+            if self.search_engine.lower() not in link_selectors:
+                logging.error(f"Unsupported search engine: {self.search_engine}")
+                return False
+
+            # Find links on the search results page
+            try:
+                links = self.driver.find_elements(By.CSS_SELECTOR, link_selectors[self.search_engine.lower()])
+            except WebDriverException as e:
+                logging.error(f"Error finding links: {e}")
+                return False
+
+            if not links:
+                logging.warning("No links found on the search results page.")
+                return False
+
+            # Select random link and navigate
+            try:
+                random_link = random.choice(links)
+                href = random_link.get_attribute('href')
+                
+                if not href:
+                    logging.warning("Selected link has no href attribute")
+                    return False
+                    
+                logging.info(f"Navigating to: {href}")
+                self.driver.get(href)
+                time.sleep(random.uniform(3, 6))
+                return True
+            except WebDriverException as e:
+                logging.error(f"Failed to navigate to link: {e}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Unexpected error in navigate_random_link: {e}")
+            return False

@@ -1,0 +1,40 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    # Ahora aceptamos input_shape en lugar de flattened_size y lo usamos para calcularlo automáticamente
+    def __init__(self, input_shape):  # input_shape debe ser una tupla (channels, height, width), por ejemplo (3, 32, 32)
+        super().__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        # Calculamos de forma automática el tamaño aplanado
+        with torch.no_grad():
+            dummy = torch.zeros(1, *input_shape)
+            out = self.conv1(dummy)
+            out = self.conv2(out)
+            flattened_size = out.numel()
+
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x

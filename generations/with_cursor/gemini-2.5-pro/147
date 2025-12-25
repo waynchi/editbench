@@ -1,0 +1,21 @@
+import time
+import undetected_chromedriver as uc
+import os
+
+options = uc.ChromeOptions()
+# Assuming the 'chromedriver-win64' directory is in the same folder as the script,
+# we construct a path relative to the script's location.
+script_path = os.path.dirname(os.path.abspath(__file__))
+driver_executable_path = os.path.join(
+    script_path, "chromedriver-win64", "chromedriver.exe"
+)
+options.binary_location = driver_executable_path
+
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # 为undetected_chromedriver创建ChromeOptions实例
+    # 使用指定选项初始化未检测的Chrome驱动程序
+    time.sleep(10)

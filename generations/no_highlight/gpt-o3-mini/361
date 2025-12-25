@@ -1,0 +1,52 @@
+import math
+
+def find_numbers(max_value):
+    """
+    Znajduje wszystkie liczby <= max_value, które można zapisać jako sumę czterech niezerowych kwadratów.
+    Każdy składnik to kwadrat liczby naturalnej większej od zera.
+    """
+    valid_numbers = set()
+    
+    # Maksymalna wartość liczby, której kwadrat nie przekroczy max_value.
+    # Używamy jej jako ograniczenia pętli.
+    max_base = math.isqrt(max_value)
+    
+    # Przechodzimy po wszystkich kombinacjach czterech niezerowych liczb.
+    for a in range(1, max_base + 1):
+        a2 = a * a
+        # Najmniejsza możliwa suma, używając minimalnych kwadratów dla pozostałych liczb: 1+1+1.
+        if a2 + 1 + 1 + 1 > max_value:
+            break  # dalsze wartości a będą tylko większe
+        for b in range(1, max_base + 1):
+            b2 = b * b
+            if a2 + b2 + 1 + 1 > max_value:
+                break
+            for c in range(1, max_base + 1):
+                c2 = c * c
+                if a2 + b2 + c2 + 1 > max_value:
+                    break
+                for d in range(1, max_base + 1):
+                    total = a2 + b2 + c2 + d * d
+                    if total <= max_value:
+                        valid_numbers.add(total)
+                    else:
+                        # Jeśli suma z d już przekracza max_value, to dla większych d także będzie przekraczać.
+                        break
+    return sorted(valid_numbers)
+
+def main():
+    try:
+        max_value = int(input("Podaj maksymalną liczbę: "))
+        if max_value < 4:
+            print("Nie ma liczb mniejszych niż 4, które da się zapisać jako sumę czterech niezerowych kwadratów.")
+            return
+    except ValueError:
+        print("Błędna wartość wejściowa!")
+        return
+
+    numbers = find_numbers(max_value)
+    print("Liczby, które można wyrazić jako sumę czterech niezerowych kwadratów:")
+    print(numbers)
+
+if __name__ == '__main__':
+    main()

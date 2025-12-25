@@ -1,0 +1,149 @@
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain_community.retrievers import BM25Retriever
+from langchain.callbacks.base import BaseCallbackHandler, CallbackManager
+from os import getenv
+from dotenv import load_dotenv
+import streamlit as st
+from streamlit_chat import message
+import PyPDF2
+import nltk
+from nltk.tokenize import word_tokenize
+
+load_dotenv()
+
+st.title("♥ CardioRAG")
+
+# ------------------------------------------------------------------------------
+# STREAMING CALLBACK HANDLER FOR STREAMLIT
+# ------------------------------------------------------------------------------
+class StreamlitCallbackHandler(BaseCallbackHandler):
+    def __init__(self):
+        # A placeholder on the Streamlit app for streaming tokens.
+        self.streamlit_placeholder = st.empty()
+        # This variable will accumulate all tokens into a complete response.
+        self.full_response = ""
+
+    def on_llm_new_token(self, token: str, **kwargs):
+        self.full_response += token
+        # Update the placeholder with the streaming text so far.
+        self.streamlit_placeholder.markdown(self.full_response)
+
+
+# ------------------------------------------------------------------------------
+# LOAD PDF AND CREATE RETRIEVER (using BM25)
+# ------------------------------------------------------------------------------
+if "retriever" not in st.session_state:
+    st.text("Loading PDF...")
+    prog_bar = st.progress(0)
+    pdf_reader = PyPDF2.PdfReader(open("Moss and Adams 10e Vol 1 & 2.pdf", 'rb'))
+    chunks = []
+    for page_num in range(60, 600):
+        prog_bar.progress((page_num - 60) / (600 - 60))
+        chunks.append(pdf_reader.pages[page_num].extract_text())
+    # Create BM25Retriever with a preprocessing function (using nltk word_tokenize)
+    retriever = BM25Retriever.from_texts(
+        chunks, 
+        metadatas=[{"page_num": p} for p in range(60, 600)], 
+        preprocess_func=word_tokenize
+    )
+    st.session_state["retriever"] = retriever
+st.text("Loaded PDF")
+
+
+# ------------------------------------------------------------------------------
+# INITIALIZE CHAT MESSAGES
+# ------------------------------------------------------------------------------
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Hi, I'm a chatbot who has read the Moss & Adams Cardiology textbook. How can I help you?"}
+    ]
+
+
+# ------------------------------------------------------------------------------
+# PASSWORD INPUT (for access control)
+# ------------------------------------------------------------------------------
+if "password" not in st.session_state:
+    with st.form("pw_input", clear_on_submit=True):
+        password = st.text_input("Enter password", type="password")
+        if st.form_submit_button("Submit"):
+            if password == getenv("PASSWORD"):
+                st.session_state["password"] = password
+            else:
+                st.error("Incorrect password")
+
+
+# ------------------------------------------------------------------------------
+# CHAT INPUT FORM
+# ------------------------------------------------------------------------------
+with st.form("chat_input", clear_on_submit=True):
+    a, b = st.columns([4, 1])
+    user_input = a.text_input(
+        label="Question:",
+        placeholder="What is the incidence of congenital heart disease?",
+        label_visibility="collapsed",
+    )
+    b.form_submit_button("Send", use_container_width=True)
+
+
+# ------------------------------------------------------------------------------
+# DISPLAY PREVIOUS MESSAGES
+# ------------------------------------------------------------------------------
+for i, msg in enumerate(st.session_state.messages):
+    message(msg["content"], is_user=msg["role"] == "user", key=str(i))
+
+
+# ------------------------------------------------------------------------------
+# PROCESS USER INPUT & STREAM RESPONSE
+# ------------------------------------------------------------------------------
+if user_input and st.session_state.get("password"):
+    # Append the user input to the conversation history.
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    message(user_input, is_user=True, key=str(len(st.session_state.messages) - 1))
+
+    # Set up the streaming callback handler.
+    streamlit_handler = StreamlitCallbackHandler()
+    callback_manager = CallbackManager([streamlit_handler])
+
+    # Initialize the LLM with streaming enabled and the callback manager.
+    llm = ChatOpenAI(
+        api_key=getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+        model_name="meta-llama/llama-3.2-3b-instruct",
+        streaming=True,
+        callback_manager=callback_manager
+    )
+
+    # Retrieve relevant documents using BM25.
+    retriever = st.session_state["retriever"]
+    docs = retriever.get_relevant_documents(user_input)
+    DIVIDER = "-" * 10
+    context = DIVIDER.join([
+        f"Page {d.metadata['page_num']}: {d.page_content}" for d in docs
+    ])
+
+    # Create a prompt template.
+    prompt = PromptTemplate(
+        input_variables=["context", "question"],
+        template="""You are a helpful AI assistant who has read the Moss & Adams Cardiology textbook.
+Use the following context to answer the question. If you don't know the answer, just say you don't know.
+
+Context: {context}
+
+Question: {question}
+
+Answer:"""
+    )
+
+    # Set up the LLMChain.
+    chain = LLMChain(llm=llm, prompt=prompt)
+
+    # Run the chain. The response will be streamed via the callback.
+    # Note: chain.run will block until the final answer is generated.
+    response = chain.run(context=context, question=user_input)
+
+    # Once the streaming is complete, append the final response to the chat history.
+    st.session_state['messages'].append({"role": "assistant", "content": streamlit_handler.full_response})
+    # Optionally, show the final response using the message component.
+    message(streamlit_handler.full_response, key=str(len(st.session_state.messages) - 1))

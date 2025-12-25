@@ -1,0 +1,63 @@
+import numpy as np
+
+# Use this file path to read the input. Change it if needed.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    try:
+        list_1, list_2 = read_numbers_from_file(INPUT_FILE_PATH)
+    except Exception as error:
+        print("Błąd podczas czytania pliku:", error)
+        return
+
+    print("Odczytane listy:")
+    print("Lista 1:", list_1)
+    print("Lista 2:", list_2)
+
+    # Ulepszona logika: posortuj listy oraz oblicz sumę bezwzględnych różnic
+    sorted_list1 = sorted(list_1)
+    sorted_list2 = sorted(list_2)
+
+    differences = [abs(a - b) for a, b in zip(sorted_list1, sorted_list2)]
+    total_difference = sum(differences)
+
+    print("Suma bezwzględnych różnic:", total_difference)
+
+def read_numbers_from_file(file_path):
+    """
+    Odczytuje dane z pliku i zwraca dwie listy liczb całkowitych.
+    Każdy wiersz powinien zawierać co najmniej dwie liczby oddzielone białymi znakami.
+    W przypadku błędów w formacie zostanie wygenerowany wyjątek.
+    """
+    list_1 = []
+    list_2 = []
+
+    with open(file_path, 'r') as file:
+        for line_number, line in enumerate(file, start=1):
+            # Usuwamy białe znaki z początku i końca, i pomijamy puste wiersze
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Dzielimy wiersz według dowolnych białych znaków (spacja, tab, itd.)
+            parts = line.split()
+            if len(parts) < 2:
+                raise ValueError(f"Wiersz {line_number} nie zawiera przynajmniej dwóch wartości: '{line}'")
+            
+            try:
+                num1 = int(parts[0])
+                num2 = int(parts[1])
+            except ValueError as e:
+                raise ValueError(f"Wiersz {line_number} zawiera niepoprawne dane (nie całkowite): {e}")
+            
+            list_1.append(num1)
+            list_2.append(num2)
+    
+    # Jeśli liczba elementów w obu listach się nie zgadza, zgłaszamy błąd
+    if len(list_1) != len(list_2):
+        raise ValueError("Liczba elementów w obu kolumnach nie jest równa.")
+    
+    return list_1, list_2
+
+if __name__ == "__main__":
+    main()

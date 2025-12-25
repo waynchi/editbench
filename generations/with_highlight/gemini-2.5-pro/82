@@ -1,0 +1,21 @@
+import React from 'react';
+import { Meta, Story } from '@storybook/react';
+import CharacterStatUI from './CharacterStatUI';
+
+export default {
+  title: 'CharacterStatUI',
+  component: CharacterStatUI
+};
+
+const Template = (args) => <CharacterStatUI {...args} />;
+
+export const Default = Template.bind({});
+Default.args = {
+  name: "Alfonse",
+  level: 40,
+  wpn: "Folkvangr",
+  atk: 50,
+  spd: 50,
+  def: 30,
+  res: 30
+};

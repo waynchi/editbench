@@ -1,0 +1,69 @@
+function createTurnState(allyStates, foeStates) {
+  // Find current turn based wich group still has units that can act
+  function determineCurrentTurn() {
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (allyCanAct && !foeCanAct) {
+      return "player";
+    } else if (!allyCanAct && foeCanAct) {
+      return "cpu";
+    } else if (allyCanAct && foeCanAct) {
+      // Both groups have units that can act, maintain current turn or default to player
+      return currentTurn || "player";
+    } else {
+      // No units can act, start new round with player
+      return "player";
+    }
+  }
+
+  let currentTurn = determineCurrentTurn();
+  let turnNumber = 1;
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    if (currentTurn === "player") {
+      currentTurn = "cpu";
+      // CPU logic here (e.g., AI movement and actions)
+      allyStates.forEach(unit => unit.hasActed = true);
+      foeStates.forEach(unit => unit.hasActed = false);
+      cpuTurn();
+    } else {
+      currentTurn = "player";
+      foeStates.forEach(unit => unit.hasActed = true);
+      allyStates.forEach(unit => unit.hasActed = false);
+      turnNumber++; // Increment turn number only after player's turn
+    }
+     // Reset action availability for all units at the start of a new turn
+  }
+
+  function cpuTurn() {
+    // Example CPU behavior (replace with your actual AI logic)
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // Check if the unit has already acted in this turn
+        // Perform CPU actions (e.g., movement, attack)
+        // ... your CPU AI logic here ...
+
+        cpuUnit.hasActed = true; // Mark the unit as having acted
+      }
+    }
+
+    // After all CPU units have acted (or chosen not to), end the CPU turn
+    nextTurn(); // Automatically switch back to player's turn
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

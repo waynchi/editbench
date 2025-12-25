@@ -1,0 +1,63 @@
+import random
+
+# 英语词典 - 包含不同长度的单词
+english_dictionary = {
+    3: ["cat", "dog", "run", "sun", "car", "bat", "hat", "map", "pen", "box", "cup", "egg", "fan", "gun", "ice"],
+    4: ["book", "tree", "fish", "bird", "hand", "moon", "star", "door", "wind", "fire", "love", "time", "word", "life", "home"],
+    5: ["house", "water", "light", "music", "happy", "world", "green", "black", "white", "table", "chair", "phone", "money", "heart", "smile"],
+    6: ["friend", "family", "school", "garden", "window", "flower", "animal", "person", "mother", "father", "sister", "brother", "summer", "winter", "spring"],
+    7: ["morning", "evening", "kitchen", "bedroom", "library", "picture", "weather", "holiday", "student", "teacher", "chicken", "rainbow", "freedom", "journey", "machine"],
+    8: ["computer", "elephant", "mountain", "sandwich", "birthday", "hospital", "umbrella", "keyboard", "football", "swimming", "building", "magazine", "airplane", "vacation", "princess"],
+    9: ["beautiful", "wonderful", "adventure", "chocolate", "telephone", "butterfly", "newspaper", "basketball", "hamburger", "crocodile", "strawberry", "pineapple", "watermelon", "christmas", "halloween"],
+    10: ["playground", "restaurant", "helicopter", "motorcycle", "strawberry", "basketball", "watermelon", "television", "calculator", "refrigerator", "toothbrush", "skateboard", "sunglasses", "photograph", "typewriter"]
+}
+
+def find_words_by_length(n):
+    """根据字符数查找单词"""
+    if n in english_dictionary:
+        words = english_dictionary[n]
+        # 如果词典中该长度的单词少于10个，返回所有单词
+        if len(words) <= 10:
+            return words
+        else:
+            # 随机选择10个单词
+            return random.sample(words, 10)
+    else:
+        return []
+
+def main():
+    print("英语词典查找程序")
+    print("=" * 30)
+    
+    while True:
+        try:
+            # 获取用户输入
+            n = int(input("\n请输入您要查找的单词字符数 (输入0退出): "))
+            
+            if n == 0:
+                print("谢谢使用！再见！")
+                break
+            
+            if n < 1:
+                print("请输入正数！")
+                continue
+            
+            # 查找单词
+            words = find_words_by_length(n)
+            
+            if words:
+                print(f"\n包含 {n} 个字符的单词：")
+                print("-" * 20)
+                for i, word in enumerate(words, 1):
+                    print(f"{i:2d}. {word}")
+            else:
+                print(f"抱歉，词典中没有包含 {n} 个字符的单词。")
+                
+        except ValueError:
+            print("请输入有效的数字！")
+        except KeyboardInterrupt:
+            print("\n\n程序已退出。")
+            break
+
+if __name__ == "__main__":
+    main()

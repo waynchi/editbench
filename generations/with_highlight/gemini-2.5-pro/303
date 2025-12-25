@@ -1,0 +1,258 @@
+import { useReducer, useEffect, useMemo } from 'react';
+
+// --- Helper Functions and Initial State (defined outside the hook for clarity and performance) ---
+
+/**
+ * Creates the initial date range, defaulting to the last year.
+ */
+const getDefaultDateRange = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(startDate.getFullYear() - 1);
+    return { startDate, endDate };
+};
+
+/**
+ * The initial state for our reducer.
+ */
+const initialState = {
+    customerData: { summary: null, loading: false, customers: [] },
+    websiteStatus: { checking: false },
+    stripeApiKey: "",
+    dateRange: getDefaultDateRange(),
+    error: null,
+};
+
+/**
+ * The reducer function centralizes all state update logic, making it more predictable.
+ */
+function dashboardReducer(state, action) {
+    switch (action.type) {
+        case 'FETCH_SETTINGS_SUCCESS':
+            return { ...state, stripeApiKey: action.payload };
+        case 'FETCH_SETTINGS_ERROR':
+            return { ...state, error: action.payload };
+
+        case 'FETCH_DATA_START':
+            return { ...state, customerData: { ...state.customerData, loading: true }, error: null };
+        case 'FETCH_DATA_SUCCESS':
+            return {
+                ...state,
+                customerData: {
+                    summary: action.payload,
+                    customers: action.payload.customers,
+                    loading: false,
+                },
+            };
+        case 'FETCH_DATA_ERROR':
+            return { ...state, customerData: { ...state.customerData, loading: false }, error: action.payload };
+
+        case 'CHECK_WEBSITES_START':
+            return { ...state, websiteStatus: { checking: true }, error: null };
+        case 'CHECK_WEBSITES_SUCCESS':
+            const newSummary = action.payload.summary;
+            return {
+                ...state,
+                customerData: {
+                    ...state.customerData,
+                    summary: newSummary,
+                    customers: newSummary.customers, // Fixes bug by keeping customer list in sync
+                },
+                websiteStatus: { checking: false },
+            };
+        case 'CHECK_WEBSITES_ERROR':
+             return { ...state, websiteStatus: { checking: false }, error: action.payload };
+
+        case 'SET_DATE_RANGE':
+            if (action.payload.startDate > action.payload.endDate) {
+                return { ...state, error: "Start date cannot be after end date" };
+            }
+            return { ...state, dateRange: action.payload, error: null };
+
+        case 'CLEAR_ERROR':
+            return { ...state, error: null };
+
+        default:
+            throw new Error(`Unhandled action type: ${action.type}`);
+    }
+}
+
+/**
+ * An optimized function to calculate monthly health data.
+ * It iterates through customers only once, making it more performant. O(N+M)
+ */
+function calculateMonthlyHealth(customers, dateRange) {
+    if (!customers || customers.length === 0) return [];
+
+    // 1. Group customer counts by month/year in a single pass for efficiency.
+    const monthlyStats = customers.reduce((acc, customer) => {
+        const customerDate = new Date(customer.created);
+        // Use a reliable key like 'YYYY-M' for grouping.
+        const key = `${customerDate.getFullYear()}-${customerDate.getMonth()}`;
+
+        if (!acc[key]) {
+            acc[key] = { healthy: 0, warning: 0, critical: 0 };
+        }
+        
+        if (customer.status === 'active') acc[key].healthy++;
+        else if (customer.status === 'churned') acc[key].warning++;
+        else if (customer.status === 'delinquent') acc[key].critical++;
+        
+        return acc;
+    }, {});
+
+    // 2. Generate all months within the specified date range to ensure a complete series.
+    const monthsInRange = [];
+    const currentDate = new Date(dateRange.startDate);
+    currentDate.setDate(1); // Normalize to the start of the month.
+
+    while (currentDate <= dateRange.endDate) {
+        const year = currentDate.getFullYear();
+        const monthIndex = currentDate.getMonth();
+        const monthShort = currentDate.toLocaleString("default", { month: "short" });
+        const key = `${year}-${monthIndex}`;
+        
+        monthsInRange.push({
+            monthYear: `${monthShort} ${year}`,
+            ...(monthlyStats[key] || { healthy: 0, warning: 0, critical: 0 }),
+        });
+
+        currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    return monthsInRange;
+}
+
+/**
+ * A custom hook to manage all dashboard-related data, logic, and actions.
+ * This refactored version uses `useReducer` for robust state management and `useMemo`
+ * for optimized calculations, improving performance and maintainability.
+ */
+function useDashboardData(user) {
+    const [state, dispatch] = useReducer(dashboardReducer, initialState);
+    
+    // --- Data Fetching Effects ---
+
+    // Effect to load user settings (e.g., Stripe API key).
+    useEffect(() => {
+        if (!user?.id || state.stripeApiKey) return; // Fetch only if needed.
+
+        const loadSettings = async () => {
+            try {
+                const response = await fetch("/api/db/churnary_user_settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+                        values: [user.id],
+                    }),
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const settings = await response.json();
+                dispatch({ type: 'FETCH_SETTINGS_SUCCESS', payload: settings[0]?.stripe_api_key || "" });
+            } catch (error) {
+                dispatch({ type: 'FETCH_SETTINGS_ERROR', payload: "Failed to load user settings" });
+            }
+        };
+
+        loadSettings();
+    }, [user?.id, state.stripeApiKey]);
+
+    // Effect to load the main customer data.
+    useEffect(() => {
+        if (!user?.id || !state.stripeApiKey) return; // Requires user and API key.
+
+        const loadData = async () => {
+            dispatch({ type: 'FETCH_DATA_START' });
+            try {
+                const response = await fetch("/api/stripe-customer-summary", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId: user.id }),
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch customer summary");
+                const summary = await response.json();
+                if (summary.error) throw new Error(summary.error);
+
+                dispatch({ type: 'FETCH_DATA_SUCCESS', payload: summary });
+            } catch (error) {
+                dispatch({ type: 'FETCH_DATA_ERROR', payload: error.message });
+            }
+        };
+
+        loadData();
+    }, [user?.id, state.stripeApiKey]); // Re-fetches only if user or API key changes.
+
+    // --- Derived State ---
+
+    // `healthData` is derived from state. `useMemo` prevents recalculation on every render.
+    const healthData = useMemo(
+        () => calculateMonthlyHealth(state.customerData.customers, state.dateRange),
+        [state.customerData.customers, state.dateRange]
+    );
+
+    // --- Actions ---
+
+    // `actions` are memoized to provide a stable API to consuming components.
+    const actions = useMemo(() => ({
+        checkWebsites: async () => {
+            if (!state.customerData.customers?.length) return;
+
+            dispatch({ type: 'CHECK_WEBSITES_START' });
+            try {
+                const updatedCustomers = await Promise.all(
+                    state.customerData.customers.map(async (customer) => {
+                        const response = await fetch("/api/website-churn-detector", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ websiteUrl: customer.website }),
+                        });
+                        const health = await response.json();
+                        return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+                    })
+                );
+
+                // Recalculate summary stats based on the new customer statuses.
+                const summary = {
+                    ...state.customerData.summary,
+                    customers: updatedCustomers,
+                    active: updatedCustomers.filter(c => c.status === "active").length,
+                    churned: updatedCustomers.filter(c => c.status === "churned").length,
+                };
+                
+                dispatch({ type: 'CHECK_WEBSITES_SUCCESS', payload: { summary } });
+            } catch (err) {
+                dispatch({ type: 'CHECK_WEBSITES_ERROR', payload: "Failed to check websites. Please try again." });
+            }
+        },
+        
+        setDateRange: (range) => {
+            dispatch({ type: 'SET_DATE_RANGE', payload: range });
+        },
+
+        clearError: () => {
+            dispatch({ type: 'CLEAR_ERROR' });
+        }
+    }), [state.customerData.customers, state.customerData.summary]); // Actions depend on data to perform their work.
+
+
+    // --- Return Value ---
+
+    // Memoize the final `data` object to prevent unnecessary re-renders in consumer components.
+    const data = useMemo(() => ({
+        ...state,
+        healthData,
+    }), [state, healthData]);
+
+    const isLoading = state.customerData.loading || state.websiteStatus.checking;
+
+    return { 
+        data, 
+        actions,
+        isLoading,
+    };
+}
+
+export default useDashboardData;

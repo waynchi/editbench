@@ -1,0 +1,46 @@
+import sys
+
+def load_dictionary(file_path='/usr/share/dict/words'):
+    """
+    Ładuje angielski słownik z domyślnej ścieżki.
+    Możesz podać własną ścieżkę do pliku słownika.
+    """
+    try:
+        with open(file_path, 'r') as file:
+            # Usunięcie nadmiarowych białych znaków
+            words = [word.strip() for word in file if word.strip()]
+        return words
+    except IOError:
+        print("Nie można otworzyć pliku słownika. Upewnij się, że plik istnieje i masz do niego dostęp.")
+        sys.exit(1)
+
+def find_words_of_length(words, length):
+    """
+    Filtruje listę słów, wybierając te, które mają dokładnie 'length' znaków.
+    """
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Wczytanie słownika
+    english_words = load_dictionary()
+
+    try:
+        n = int(input("Podaj liczbę znaków: "))
+    except ValueError:
+        print("Podano nieprawidłową wartość. Upewnij się, że wpisujesz liczbę całkowitą.")
+        return
+
+    # Przeszukiwanie słownika
+    matching_words = find_words_of_length(english_words, n)
+
+    if not matching_words:
+        print(f"Nie znaleziono słów z {n} znakami.")
+        return
+
+    # Wyświetl 10 słów (lub tyle, ile jest dostępnych, jeśli mniej niż 10)
+    print(f"Znaleziono {len(matching_words)} słów z {n} znakami. Oto przykładowe 10 słów:")
+    for word in matching_words[:10]:
+        print(word)
+
+if __name__ == "__main__":
+    main()

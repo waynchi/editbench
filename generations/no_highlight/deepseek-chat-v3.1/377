@@ -1,0 +1,25 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Pobierz katalog bieżącego skryptu
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Poprawiona ścieżka do chromedrivera (nie binary_location dla Chrome)
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# Usunięto błędne ustawienie binary_location - powinno wskazywać na Chrome, nie chromedriver
+# options.binary_location = chromedriver_path  # TO JEST BŁĄD!
+
+print("Inicjalizacja przeglądarki...")
+try:
+    with uc.Chrome(driver_executable_path=chromedriver_path, use_subprocess=True, options=options) as driver:
+        print("Przeglądarka uruchomiona pomyślnie")
+        driver.get("https://lmarena.ai/")
+        print("Strona załadowana")
+        time.sleep(10)
+except Exception as e:
+    print(f"Wystąpił błąd: {e}")
+
+print("Koniec skryptu")

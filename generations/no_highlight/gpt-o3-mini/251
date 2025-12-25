@@ -1,0 +1,55 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+
+TOKEN = "TOKEN"
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+
+chat_id = 111111111
+interval = 5
+continue_periodic = True  # This flag controls the while loop for periodic messages
+
+
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="stop"),
+         types.InlineKeyboardButton(text="Нет", callback_data="continue")]
+    ])
+    await bot.send_message(chat_id=chat_id, text="Ты робот?", reply_markup=markup)
+
+
+@dp.callback_query_handler(text="stop")
+async def on_stop(call: types.CallbackQuery):
+    # b = False  # Uncomment and use if you want to stop periodic messages
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+
+
+@dp.callback_query_handler(text="continue")
+async def on_continue(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+
+
+@dp.message_handler(content_types=['text'])
+async def handle_all_messages(message: types.Message):
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=chat_id, video=vid, caption="Го <censor> ёр селф")
+
+
+async def send_periodic_messages():
+    while continue_periodic:
+        await bot.send_message(chat_id=chat_id, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=chat_id, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(interval)
+
+
+async def main():
+    print("Бот запущен!")
+    # Start periodic messages as a background task
+    asyncio.create_task(send_periodic_messages())
+    await dp.start_polling()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

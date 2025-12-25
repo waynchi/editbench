@@ -1,0 +1,40 @@
+from main13 import knn, mlp
+import pandas as pd
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create initial DataFrame with proper data types
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # One-hot encoding for Embarked column
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Ensure all expected columns exist with proper values
+            expected_columns = ["Embarked_C", "Embarked_Q", "Embarked_S"]
+            for col in expected_columns:
+                if col in my_df.columns:
+                    my_df[col] = my_df[col].astype(int)
+                else:
+                    my_df[col] = 0
+            
+            # Ensure proper column order and data types for the model
+            my_df = my_df.astype(float)
+            
+            # Make predictions
+            knn_prediction = knn.predict(my_df)
+            mlp_prediction = mlp.predict(my_df)
+            
+            print(f"""-------------------------------------------------------
+                  Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+                  По knn: {knn_prediction[0]}
+                  По mlp: {mlp_prediction[0]}""")

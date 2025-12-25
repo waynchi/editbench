@@ -1,0 +1,77 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+
+# =================== MODIFIED SECTION ===================
+def build_hierarchy(discussions_obj, query_obj):
+    posts_generator = discussions_obj.get_discussions("created", query_obj, limit=6000)
+    hierarchy = {}
+    X = 0
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_replies_count = post['children']
+        X += 1
+        if post_replies_count > n_respuestas_minimas:
+            comment_obj = Comment(authorperm=f"{post_author}/{post_permlink}")
+            post_replies_list = comment_obj.get_replies()
+            cnt = 0
+            valid_replies = []
+            for reply in post_replies_list:
+                author = reply['author']
+                text = reply['body']
+                if is_own_author(author):
+                    # Jeśli autor jest własny, pomijamy dalsze przetwarzanie tego komentarza
+                    continue
+                if is_banned(author):
+                    continue
+                if procesar(text):
+                    cnt += 1
+                    valid_replies.append(reply)
+            if cnt > 3:
+                hierarchy[f"{post_author}/{post_permlink}"] = {
+                    "post": post,
+                    "valid_replies": valid_replies
+                }
+    return hierarchy
+
+hierarchy_dict = build_hierarchy(d, q)
+
+for post_id, data in hierarchy_dict.items():
+    print("Post:", post_id)
+    for reply in data["valid_replies"]:
+        print("  Reply:", reply['author'], '/', reply['permlink'])
+# =================== END OF MODIFIED SECTION ===================

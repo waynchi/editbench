@@ -1,0 +1,219 @@
+import os
+import shutil
+import json
+import pickle
+import logging
+from pathlib import Path
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+import torch
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """
+    Saves the log history to a JSON file efficiently.
+    If the file already exists, it appends to it.
+
+    Parameters:
+    - log_history: List of log entries (each entry is a dict).
+    - file_path: Path to the file where logs will be saved.
+    - append_latest_only: If True, only the latest log entry is appended.
+    """
+    path = Path(file_path)
+    
+    # Read existing logs if file exists
+    current_logs = []
+    if path.exists():
+        try:
+            content = path.read_text().strip()
+            if content:
+                current_logs = json.loads(content)
+        except json.JSONDecodeError:
+            logging.warning(f"{file_path} contains invalid JSON. Overwriting file.")
+        except Exception as e:
+            logging.error(f"Error reading {file_path}: {e}")
+            return
+
+    # Append appropriate logs
+    if append_latest_only and log_history:
+        current_logs.append(log_history[-1])
+    else:
+        current_logs.extend(log_history)
+
+    # Save updated logs
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(current_logs, indent=4))
+    except Exception as e:
+        logging.error(f"Error writing to {file_path}: {e}")
+
+
+def clear_directory(directory, delete_directory=False):
+    """
+    Clears all files and subdirectories within a given directory efficiently.
+    Optionally deletes the directory itself.
+
+    Args:
+        directory (str): The path to the directory to clear.
+        delete_directory (bool): If True, delete the directory after clearing its contents.
+
+    Raises:
+        OSError: If any error occurs during file or directory removal.
+    """
+    dir_path = Path(directory)
+    
+    if not dir_path.exists():
+        if delete_directory:
+            raise ValueError("Directory does not exist and delete_directory is True.")
+        dir_path.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Directory '{directory}' created.")
+        return
+
+    # Use shutil.rmtree for better performance on large directories
+    if delete_directory:
+        try:
+            shutil.rmtree(dir_path)
+            logging.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{directory}': {e}")
+            raise
+    else:
+        # Clear contents but keep directory
+        for item in dir_path.iterdir():
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+                logging.debug(f"Removed: {item}")
+            except OSError as e:
+                logging.error(f"Failed to delete '{item}': {e}")
+                raise
+
+
+def merge_lora_model(
+    model_name="pythia-31M",
+    base_model_repo_name="EleutherAI/",
+    model_load_path=MODEL_PATH,
+    model_save_path=MODEL_PATH,
+):
+    """
+    Merges LoRA model with base model efficiently.
+    """
+    my_model_path = Path(model_load_path) / model_name
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model_name = f"pythia-{param_count}M"
+
+    # Load base model with optimized settings
+    base_model = AutoModelForCausalLM.from_pretrained(
+        base_model_repo_name + base_model_name,
+        torch_dtype=torch.float16,  # Use half precision for memory efficiency
+        low_cpu_mem_usage=True
+    )
+    
+    # Load and merge LoRA model
+    model = PeftModel.from_pretrained(base_model, str(my_model_path))
+    merged_model = model.merge_and_unload()
+    
+    # Save merged model
+    my_model_save_path = Path(model_save_path) / f"{model_name}_merged"
+    merged_model.save_pretrained(
+        my_model_save_path,
+        safe_serialization=True  # Use safe serialization for better compatibility
+    )
+
+
+def remove_repetition(question, answer):
+    """
+    Removes question repetition from answer efficiently.
+    """
+    if question and question in answer:
+        return answer.replace(question, "", 1).strip()
+    return answer
+
+
+def load_model(
+    model_type,
+    model_path=None,
+    blocks_str=None,
+    vanilla_model_name=None,
+    host_model_name=None,
+):
+    """
+    Loads different types of models efficiently with optimized loading strategies.
+    """
+    model_path_obj = Path(model_path) if model_path else None
+    
+    if model_type == "Tuned Model":
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        tuned_model_path = model_path_obj / tuned_model_name
+        
+        return AutoModelForCausalLM.from_pretrained(
+            str(tuned_model_path),
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True
+        )
+
+    elif model_type == "Vanilla Model":
+        return AutoModelForCausalLM.from_pretrained(
+            vanilla_model_name,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True
+        )
+
+    elif model_type == "Transformed Model":
+        name = host_model_name.split("/")[-1]
+        save_path = model_path_obj / f"{name}_preGRAFTED_{blocks_str}.pkl"
+        
+        with open(save_path, "rb") as f:
+            return pickle.load(f)
+
+    elif model_type == "Final Model":
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = model_path_obj / model_save_name
+        
+        with open(save_path, "rb") as f:
+            return pickle.load(f)
+
+    elif model_type == "Host Model":
+        return AutoModelForCausalLM.from_pretrained(
+            host_model_name,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True
+        )
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+def load_batch_losses(file_path):
+    """
+    Loads batch loss data from a checkpoint file efficiently.
+    """
+    try:
+        # Use mmap for faster loading of large files
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"), mmap=True)
+        batch_losses = checkpoint.get("batch_losses")
+        
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        
+        return batch_losses
+        
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

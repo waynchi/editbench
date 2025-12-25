@@ -1,0 +1,121 @@
+# entorno: pyAI
+
+import os
+from openai import OpenAI
+import json
+
+# The original code's save_conversation implicitly uses the global conversation_history.
+# This behavior is kept to minimize changes, as it works in this script's context.
+def save_conversation(filename="conversation_history.json"):
+    """Saves the conversation history to a JSON file."""
+    with open(filename, "w") as f:
+        json.dump(conversation_history, f, ensure_ascii=False, indent=4)
+    print(f"Conversation saved to {filename}.")
+
+
+def load_conversation(filename="conversation_history.json"):
+    """Loads a conversation history from a JSON file."""
+    try:
+        with open(filename, "r") as f:
+            history = json.load(f)
+        print(f"Conversation history from {filename} loaded successfully.")
+        return history
+    except FileNotFoundError:
+        print(f"No saved conversation history found for {filename}.")
+        return None
+    except json.JSONDecodeError:
+        print(f"Error: The file {filename} is not a valid JSON file.")
+        return None
+
+
+# token = os.environ["GITHUB_TOKEN"]
+endpoint = "https://models.inference.ai.azure.com"
+model_name = "gpt-4o"
+
+client = OpenAI(
+    base_url=endpoint,
+    api_key="XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+)
+
+# This section is restructured to fix indentation and logic errors.
+
+# Default filename for new conversations or if loading fails.
+# This variable tracks which file to save to at the end.
+save_filename = "conversation_history.json"
+conversation_history = []
+
+# Preguntar al usuario si desea cargar un historial de conversación
+load_history = input("Do you want to load a conversation history? (yes/no): ").strip().lower()
+
+if load_history == "yes":
+    # Obtener todos los archivos de historial de conversaciones en el directorio actual
+    history_files = [f for f in os.listdir() if f.endswith(".json")]
+    if history_files:
+        print("Available conversation history files:")
+        for i, file in enumerate(history_files, 1):
+            print(f"{i}. {file}")
+        
+        choice_str = input("Enter the number of the conversation history file to load: ")
+        
+        try:
+            choice = int(choice_str)
+            if 1 <= choice <= len(history_files):
+                # The chosen file becomes the one we load from and save back to
+                selected_file = history_files[choice - 1]
+                loaded_history = load_conversation(selected_file)
+                if loaded_history is not None:
+                    conversation_history = loaded_history
+                    save_filename = selected_file # Set the save filename to the loaded file
+            else:
+                print("Invalid choice. Initializing new conversation history.")
+        except ValueError:
+            print("Invalid input. Initializing new conversation history.")
+    else:
+        print("No conversation history files found. Initializing new conversation history.")
+
+# If conversation_history is still empty (user said "no", or loading failed/was skipped), initialize it.
+if not conversation_history:
+    print("Initializing new conversation history.")
+    conversation_history = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant.",
+        }
+    ]
+
+# Simular conversación continua
+while True:
+    user_input = input("User: ")
+    if user_input.lower() in ["exit", "quit"]:
+        print("Exiting the conversation.")
+        break
+
+    conversation_history.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    try:
+        response = client.chat.completions.create(
+            messages=conversation_history,
+            temperature=1.0,
+            top_p=1.0,
+            max_tokens=4086,
+            model=model_name
+        )
+
+        # FIX: The response message is an object. It must be converted to a dict for JSON serialization.
+        assistant_message = response.choices[0].message.model_dump()
+        conversation_history.append(assistant_message)
+        
+        print("GPT: ", assistant_message.get('content'))
+
+    except Exception as e:
+        print(f"An error occurred during the API call: {e}")
+        # Remove the last user message so they can try again without it being duplicated.
+        conversation_history.pop()
+
+
+# Guardar el historial de la conversación al final
+# FIX: Pass the correct filename to overwrite the loaded file or use the default for new charts.
+save_conversation(save_filename)

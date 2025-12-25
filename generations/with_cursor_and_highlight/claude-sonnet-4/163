@@ -1,0 +1,89 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# 创建层次字典来存储posts和replies
+hierarchical_dict = {}
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    
+    # 初始化post在层次字典中的条目
+    post_key = f"{post_author}/{post_permlink}"
+    hierarchical_dict[post_key] = {
+        'post_info': {
+            'author': post_author,
+            'permlink': post_permlink,
+            'children_count': post_replies
+        },
+        'replies': []
+    }
+    
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies_list = comment.get_replies()
+        
+        cnt = 0
+        for replies in post_replies_list:
+            author = replies['author']
+            text = replies['body']
+            
+            # 将reply信息添加到层次字典中
+            reply_info = {
+                'author': author,
+                'permlink': replies['permlink'],
+                'body': text,
+                'processed': False,
+                'is_own': False,
+                'is_banned': False
+            }
+            
+            if is_own_author(author):
+                reply_info['is_own'] = True
+                # 重新评估评论
+                break
+            if is_banned(author):
+                reply_info['is_banned'] = True
+                break
+            if procesar(text):
+                reply_info['processed'] = True
+                cnt += 1
+            
+            hierarchical_dict[post_key]['replies'].append(reply_info)
+            
+    if cnt > 3:
+        print("Iterador: ",X)
+        print(replies['author'],'/',replies['permlink'])

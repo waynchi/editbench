@@ -1,0 +1,89 @@
+import aiohttp
+import asyncio
+import xml.etree.ElementTree
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+from typing import Optional
+
+class valute():
+    """Moneda y todo lo relacionado con ella, a través del Banco Central de la Federación de Rusia
+
+Se requieren bibliotecas:
+
+aiohttp
+asyncio
+xml.etree.ElementTree
+matplotlib.pyplot as plt
+pandas as pd
+datetime
+pickle
+json"""
+    
+    def __init__(self, name):
+        self.name = name
+    
+    async def correct_name(self) -> bool:
+        """Verificación asíncrona del nombre de la moneda en el conjunto de monedas. El conjunto se actualiza no más de una vez al día"""
+        info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8")
+        info = json.load(info_opened_file)
+        info_opened_file.close()
+        
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"):
+            # Actualizar la lista de monedas de forma asíncrona
+            set_valutes = await self._update_valutes_set()
+            
+            # Guardar el conjunto actualizado
+            set_valutes_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb")
+            pickle.dump(set_valutes, set_valutes_file_opened)
+            set_valutes_file_opened.close()
+            
+            # Actualizar la hora de la última verificación
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8")
+            json.dump(info, info_opened_file, indent=3, ensure_ascii=False)
+            info_opened_file.close()
+        
+        # Verificar si la moneda está en la lista
+        set_valutes_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb")
+        set_valutes = pickle.load(set_valutes_file_opened)
+        set_valutes_file_opened.close()
+        
+        return self.name in set_valutes
+    
+    async def _update_valutes_set(self) -> set:
+        """Actualizar asíncronamente el conjunto de monedas desde el API"""
+        set_valutes = set()
+        url = "http://www.cbr.ru/scripts/XML_daily.asp"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                content = await response.read()
+                root = xml.etree.ElementTree.fromstring(content)
+                
+                for Valute in root.findall("Valute"):
+                    CharCode = Valute.find("CharCode")
+                    if CharCode.text:
+                        set_valutes.add(CharCode.text)
+        
+        return set_valutes
+    
+    async def CurrentExchangeRate(self) -> Optional[str]:
+        '''Tipo de cambio actual asíncrono de la moneda al rublo'''
+        url = "http://www.cbr.ru/scripts/XML_daily.asp"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                content = await response.read()
+                root = xml.etree.ElementTree.fromstring(content)
+                
+                for Valute in root.findall("Valute"):
+                    CharCode = Valute.find("CharCode")
+                    if CharCode is not None and CharCode.text == self.name:
+                        VunitRate = Valute.find("VunitRate")
+                        if VunitRate is not None:
+                            return VunitRate.text
+        
+        return None

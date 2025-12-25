@@ -1,0 +1,62 @@
+import math
+
+def is_sum_of_four_nonzero_squares(n):
+    """
+    Returns a tuple (a, b, c, d) such that:
+      n = a^2 + b^2 + c^2 + d^2    and     a, b, c, d > 0
+    If no such representation exists, returns None.
+    """
+    # The smallest number representable as 1^2+1^2+1^2+1^2 is 4.
+    if n < 4:
+        return None
+
+    # The maximum candidate for any of a, b, c, d is sqrt(n)
+    max_val = int(math.sqrt(n))
+    for a in range(1, max_val + 1):
+        a2 = a * a
+        if a2 > n:
+            break
+        for b in range(1, max_val + 1):
+            b2 = b * b
+            if a2 + b2 > n:
+                break
+            for c in range(1, max_val + 1):
+                c2 = c * c
+                if a2 + b2 + c2 > n:
+                    break
+                for d in range(1, max_val + 1):
+                    if a2 + b2 + c2 + d * d == n:
+                        return (a, b, c, d)
+    return None
+
+def find_four_squares_sums(limit):
+    """
+    Finds and returns all numbers up to the given limit that can be expressed 
+    as the sum of four nonzero squares.
+    """
+    results = []
+    # Starting from 4 because it's the minimum sum using four nonzero squares.
+    for n in range(4, limit + 1):
+        if is_sum_of_four_nonzero_squares(n):
+            results.append(n)
+    return results
+
+def main():
+    try:
+        limit = int(input("Digite o limite superior: "))
+    except ValueError:
+        print("Por favor, insira um número inteiro.")
+        return
+
+    sums_found = find_four_squares_sums(limit)
+    if sums_found:
+        print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+        for num in sums_found:
+            representation = is_sum_of_four_nonzero_squares(num)
+            a, b, c, d = representation
+            print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+    else:
+        print("Nenhum número encontrado que possa ser expresso como a soma de quatro quadrados não nulos.")
+
+if __name__ == "__main__":
+    main()

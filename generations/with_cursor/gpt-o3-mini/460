@@ -1,0 +1,45 @@
+from pathlib import Path
+import shutil
+
+target_folder = Path('F:/Maverick/desktop/Windows/temp/')
+
+def get_content_delivery_path():
+    """Obtener la ruta de Windows Content Delivery"""
+    base_path = Path('C:/Users/admin/AppData/Local/Packages/')
+    matched = base_path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    if result := next(matched, None):
+        suffix = 'LocalState/Assets/'
+        return result / suffix
+    else:
+        raise Exception('ContentDeliveryManager Not Found')
+
+def jpeg(source_folder, target_folder):
+    """
+    Copiar archivos de la carpeta de origen a la carpeta de destino y agregar el sufijo .jpeg
+
+    Para cada archivo en la carpeta fuente, se copia a la carpeta destino
+    y se le agrega la extensión '.jpeg' al nombre.
+    """
+    # Asegurarse de que la carpeta de destino exista.
+    target_folder.mkdir(parents=True, exist_ok=True)
+
+    # Iterar sobre todos los archivos en la carpeta fuente.
+    for file_path in source_folder.iterdir():
+        if file_path.is_file():
+            # Crear el nuevo nombre de archivo con el sufijo .jpeg
+            new_filename = file_path.name + '.jpeg'
+            target_file = target_folder / new_filename
+
+            # Copiar el archivo a la carpeta de destino con el nuevo nombre.
+            shutil.copy2(file_path, target_file)
+            print(f"Copiado: {file_path} -> {target_file}")
+
+if __name__ == '__main__':
+    try:
+        source_folder = get_content_delivery_path()
+        print(f"Windows Content Delivery path: {source_folder}")
+
+        # Ejecutar la función de copia
+        jpeg(source_folder, target_folder)
+    except Exception as e:
+        print(f"Error: {e}")

@@ -1,0 +1,172 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Solve the linear system Ax = b using the Conjugate Gradient method.
+    
+    Parameters:
+    A : array-like, 2D
+        Symmetric positive definite matrix
+    b : array-like, 1D
+        Right-hand side vector
+    x0 : array-like, 1D, optional
+        Initial guess for solution. If None, uses zero vector
+    tol : float, optional
+        Tolerance for convergence (default: 1e-6)
+    max_iter : int, optional
+        Maximum number of iterations. If None, uses len(b)
+    
+    Returns:
+    x : numpy array
+        Solution vector
+    converged : bool
+        Whether the method converged
+    num_iter : int
+        Number of iterations performed
+    residuals : list
+        History of residual norms
+    """
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float).flatten()
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float).flatten()
+    
+    r = b - A @ x
+    p = r.copy()
+    rs_old = r @ r
+    
+    residuals = [np.sqrt(rs_old)]
+    
+    if np.sqrt(rs_old) < tol:
+        return x, True, 0, residuals
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = r @ r
+        
+        residuals.append(np.sqrt(rs_new))
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, i + 1, residuals
+        
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x, False, max_iter, residuals
+
+def preconditioned_conjugate_gradient(A, b, M, x0=None, tol=1e-6, max_iter=None):
+    """
+    Solve the linear system Ax = b using Preconditioned Conjugate Gradient method.
+    
+    Parameters:
+    A : array-like, 2D
+        Symmetric positive definite matrix
+    b : array-like, 1D
+        Right-hand side vector
+    M : array-like, 2D or function
+        Preconditioner matrix or function that solves Mz = r
+    x0 : array-like, 1D, optional
+        Initial guess for solution. If None, uses zero vector
+    tol : float, optional
+        Tolerance for convergence (default: 1e-6)
+    max_iter : int, optional
+        Maximum number of iterations. If None, uses len(b)
+    
+    Returns:
+    x : numpy array
+        Solution vector
+    converged : bool
+        Whether the method converged
+    num_iter : int
+        Number of iterations performed
+    residuals : list
+        History of residual norms
+    """
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float).flatten()
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float).flatten()
+    
+    r = b - A @ x
+    
+    # Preconditioning step
+    if callable(M):
+        z = M(r)
+    else:
+        z = np.linalg.solve(M, r)
+    
+    p = z.copy()
+    rs_old = r @ z
+    
+    residuals = [np.sqrt(r @ r)]
+    
+    if np.sqrt(rs_old) < tol:
+        return x, True, 0, residuals
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        # Preconditioning step
+        if callable(M):
+            z = M(r)
+        else:
+            z = np.linalg.solve(M, r)
+        
+        rs_new = r @ z
+        residuals.append(np.sqrt(r @ r))
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, i + 1, residuals
+        
+        p = z + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x, False, max_iter, residuals
+
+# Example usage and test
+if __name__ == "__main__":
+    # Create a symmetric positive definite matrix
+    n = 100
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n) * 0.1  # Make it positive definite
+    
+    # Create exact solution and right-hand side
+    x_exact = np.ones(n)
+    b = A @ x_exact
+    
+    # Solve using conjugate gradient
+    x, converged, num_iter, residuals = conjugate_gradient(A, b)
+    
+    print(f"Converged: {converged}")
+    print(f"Iterations: {num_iter}")
+    print(f"Final residual: {residuals[-1]:.2e}")
+    print(f"Error norm: {np.linalg.norm(x - x_exact):.2e}")
+    
+    # Plot convergence history
+    import matplotlib.pyplot as plt
+    plt.semilogy(residuals)
+    plt.xlabel('Iteration')
+    plt.ylabel('Residual norm')
+    plt.title('Conjugate Gradient Convergence')
+    plt.grid(True)
+    plt.show()

@@ -1,0 +1,30 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# The DataFrame to hold results must be initialized *before* the loops,
+# otherwise it gets reset in every iteration.
+# We set dtype=object to explicitly allow storing dictionaries in the cells.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+        # A more direct way to get one-hot encoded columns with integer (0/1) values.
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked", dtype=int)
+
+        # The error 'ValueError: Incompatible indexer with Series' is caused by
+        # trying to assign a dictionary (containing arrays) to a single cell using .loc.
+        # The fix is to use `.at` for fast, scalar assignment, which treats the
+        # dictionary as a single object to be placed in the cell.
+        np_df.at[fare, pclass] = {"knn": knn.predict(my_df), "mlp": mlp.predict(my_df)}
+        
+print(np_df)

@@ -1,0 +1,106 @@
+from collections import deque
+
+class Graph:
+    def __init__(self):
+        self.adjacency_list = {}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adjacency_list:
+            self.adjacency_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2):
+        # This implementation requires vertices to exist before adding an edge.
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            self.adjacency_list[vertex1].append(vertex2)
+            self.adjacency_list[vertex2].append(vertex1)
+
+    def __str__(self):
+        return str(self.adjacency_list)
+
+    def remove_vertex(self, vertex):
+        if vertex in self.adjacency_list:
+            # For each neighbor, remove the edge connecting to the vertex being removed.
+            # We iterate over a copy of the list because we are modifying the graph structure.
+            for neighbor in self.adjacency_list[vertex][:]:
+                self.remove_edge(vertex, neighbor)
+            # Finally, remove the vertex itself from the adjacency list.
+            del self.adjacency_list[vertex]
+
+    def remove_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            # Use try-except for robust removal, avoiding errors if edge doesn't exist.
+            try:
+                self.adjacency_list[vertex1].remove(vertex2)
+            except ValueError:
+                pass
+            try:
+                self.adjacency_list[vertex2].remove(vertex1)
+            except ValueError:
+                pass
+
+    def dfs(self, start_vertex, visited=None):
+        """
+        Perform a depth-first search (DFS) starting from the given vertex.
+        Args:
+            start_vertex: The starting vertex for the DFS.
+            visited (set, optional): A set of already visited vertices. Defaults to None.
+        Returns:
+            None
+        """
+        if start_vertex not in self.adjacency_list:
+            print(f"Vertex '{start_vertex}' not found in graph.")
+            return
+
+        if visited is None:
+            visited = set()
+        
+        visited.add(start_vertex)
+        print(start_vertex, end=' ')
+        
+        for neighbor in self.adjacency_list[start_vertex]:
+            if neighbor not in visited:
+                self.dfs(neighbor, visited)
+    
+    def bfs(self, start_vertex):
+        """
+        Perform a breadth-first search (BFS) starting from the given vertex.
+        This implementation uses collections.deque for an efficient queue.
+        """
+        if start_vertex not in self.adjacency_list:
+            print(f"Vertex '{start_vertex}' not found in graph.")
+            return
+
+        visited = set()
+        queue = deque([start_vertex])
+        visited.add(start_vertex)
+        
+        while queue:
+            vertex = queue.popleft()
+            print(vertex, end=' ')
+            
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+# 示例用法：
+g = Graph()
+
+# Add vertices before adding edges
+g.add_vertex('A')
+g.add_vertex('B')
+g.add_vertex('C')
+
+# Add edges between existing vertices
+g.add_edge('A', 'B')
+g.add_edge('A', 'C')
+g.add_edge('B', 'C')
+
+print(g)
+print("\nDFS starting from vertex 'A':")
+g.dfs('A')
+print()  # for a newline after the output
+
+print("\nBFS starting from vertex 'A':")
+g.bfs('A')
+print()  # for a newline after the output

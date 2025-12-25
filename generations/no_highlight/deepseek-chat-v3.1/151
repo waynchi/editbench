@@ -1,0 +1,27 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+
+def main():
+    lines = parse_input_file()
+    
+    # Parse and transpose the data
+    cols = [line.split() for line in lines if line.strip()]
+    cols = np.array(cols).T.astype(int)
+    
+    # Sort both lists
+    sorted_list_1 = sorted(cols[0])
+    sorted_list_2 = sorted(cols[1])
+    
+    # Calculate absolute differences between sorted elements
+    total_distance = sum(abs(a - b) for a, b in zip(sorted_list_1, sorted_list_2))
+    
+    print(f"Total distance: {total_distance}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().splitlines()
+    return [line for line in lines if line.strip()]
+
+if __name__ == "__main__":
+    main()

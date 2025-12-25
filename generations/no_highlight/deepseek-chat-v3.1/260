@@ -1,0 +1,107 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Решает систему линейных уравнений Ax = b методом сопряженных градиентов.
+    
+    Параметры:
+    A : двумерный массив или разреженная матрица
+        Матрица системы, должна быть симметричной и положительно определенной
+    b : одномерный массив
+        Вектор правой части системы
+    x0 : одномерный массив, необязательный
+        Начальное приближение. Если не задано, используется нулевой вектор
+    tol : float, необязательный
+        Допуск для критерия остановки (по умолчанию 1e-6)
+    max_iter : int, необязательный
+        Максимальное количество итераций. Если не задано, равно размерности системы
+    
+    Возвращает:
+    x : одномерный массив
+        Приближенное решение системы
+    converged : bool
+        Флаг сходимости
+    num_iter : int
+        Количество выполненных итераций
+    residuals : list
+        История невязок
+    """
+    
+    n = len(b)
+    
+    # Установка максимального количества итераций
+    if max_iter is None:
+        max_iter = n
+    
+    # Инициализация начального приближения
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    # Вычисление начальной невязки
+    r = b - A @ x
+    p = r.copy()
+    
+    # Норма начальной невязки
+    r_norm_sq = np.dot(r, r)
+    r0_norm = np.sqrt(r_norm_sq)
+    
+    # Критерий остановки
+    tolerance = tol * r0_norm
+    
+    # История невязок
+    residuals = [r0_norm]
+    
+    # Основной цикл метода
+    for k in range(max_iter):
+        # Проверка сходимости
+        if np.sqrt(r_norm_sq) < tolerance:
+            return x, True, k, residuals
+        
+        # Вычисление Ap
+        Ap = A @ p
+        
+        # Коэффициент альфа
+        alpha = r_norm_sq / np.dot(p, Ap)
+        
+        # Обновление решения и невязки
+        x += alpha * p
+        r_new = r - alpha * Ap
+        
+        # Коэффициент бета
+        r_new_norm_sq = np.dot(r_new, r_new)
+        beta = r_new_norm_sq / r_norm_sq
+        
+        # Обновление направления
+        p = r_new + beta * p
+        
+        # Обновление невязки для следующей итерации
+        r = r_new
+        r_norm_sq = r_new_norm_sq
+        
+        # Сохранение нормы невязки
+        residuals.append(np.sqrt(r_norm_sq))
+    
+    # Проверка сходимости после всех итераций
+    converged = np.sqrt(r_norm_sq) < tolerance
+    return x, converged, max_iter, residuals
+
+# Пример использования
+if __name__ == "__main__":
+    # Создаем симметричную положительно определенную матрицу
+    n = 100
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n) * 0.1  # Делаем матрицу хорошо обусловленной
+    
+    # Создаем точное решение и правую часть
+    x_exact = np.random.randn(n)
+    b = A @ x_exact
+    
+    # Решаем систему методом сопряженных градиентов
+    x, converged, num_iter, residuals = conjugate_gradient(A, b)
+    
+    print(f"Сходимость: {converged}")
+    print(f"Количество итераций: {num_iter}")
+    print(f"Норма ошибки: {np.linalg.norm(x - x_exact):.2e}")
+    print(f"Финальная невязка: {residuals[-1]:.2e}")

@@ -1,0 +1,48 @@
+import random
+import nltk
+
+# Ensure the NLTK words corpus is available; if not, download it.
+try:
+    from nltk.corpus import words
+except LookupError:
+    nltk.download('words')
+    from nltk.corpus import words
+
+def lookup_words(n):
+    """
+    Returns a list of English words that have exactly n characters.
+    """
+    all_words = words.words()
+    filtered_words = [word for word in all_words if len(word) == n]
+    return filtered_words
+
+def main():
+    try:
+        n = int(input("Enter the number of characters for the words: "))
+    except ValueError:
+        print("Invalid input. Please enter an integer.")
+        return
+
+    if n <= 0:
+        print("Please enter a positive integer.")
+        return
+        
+    word_list = lookup_words(n)
+    
+    if not word_list:
+        print(f"No words found with {n} characters.")
+        return
+
+    # If there are fewer than 10 words, display them all; otherwise, pick 10 at random.
+    if len(word_list) < 10:
+        print("Fewer than 10 words found:")
+        for word in word_list:
+            print(word)
+    else:
+        selected_words = random.sample(word_list, 10)
+        print(f"Here are 10 random words with {n} characters:")
+        for word in selected_words:
+            print(word)
+
+if __name__ == "__main__":
+    main()

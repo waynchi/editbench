@@ -1,0 +1,56 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def show_datetime():
+    current_time = datetime.now()
+    formatted_time = current_time.strftime("%Y年%m月%d日 %H:%M:%S")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>当前日期和时间</title>
+        <meta charset="utf-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                text-align: center;
+                margin-top: 100px;
+                background-color: #f0f0f0;
+            }}
+            .datetime-container {{
+                background-color: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                display: inline-block;
+            }}
+            h1 {{
+                color: #333;
+                margin-bottom: 20px;
+            }}
+            .time {{
+                font-size: 24px;
+                color: #007bff;
+                font-weight: bold;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="datetime-container">
+            <h1>当前日期和时间</h1>
+            <div class="time">{formatted_time}</div>
+            <br>
+            <a href="/" style="color: #007bff; text-decoration: none;">刷新页面</a>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
+if __name__ == '__main__':
+    app.run(debug=True)

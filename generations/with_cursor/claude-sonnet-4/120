@@ -1,0 +1,77 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Create a Spark session
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Fetch data from API
+api_url = "<your_api_endpoint>"  # Replace with your actual API endpoint
+headers = {
+    "Content-Type": "application/json",
+    # Add any required headers like authorization tokens
+    # "Authorization": "Bearer <your_token>"
+}
+
+try:
+    # Make API request
+    response = requests.get(api_url, headers=headers)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    
+    # Parse JSON response
+    api_data = response.json()
+    
+    # Analyze the structure of the API data
+    print("API Response Structure Analysis:")
+    print(f"Response type: {type(api_data)}")
+    print(f"Response keys (if dict): {api_data.keys() if isinstance(api_data, dict) else 'Not a dictionary'}")
+    print(f"Sample data: {json.dumps(api_data, indent=2)[:500]}...")  # Show first 500 chars
+    
+    # Create DataFrame from API data
+    # Adjust this based on your API response structure
+    if isinstance(api_data, list):
+        df = spark.createDataFrame(api_data)
+    elif isinstance(api_data, dict) and 'data' in api_data:
+        df = spark.createDataFrame(api_data['data'])
+    else:
+        # Handle other structures as needed
+        df = spark.createDataFrame([api_data])
+    
+    # Analyze DataFrame structure
+    print("\nDataFrame Analysis:")
+    print("Schema:")
+    df.printSchema()
+    print(f"Row count: {df.count()}")
+    print("Sample rows:")
+    df.show(5, truncate=False)
+    
+except requests.exceptions.RequestException as e:
+    print(f"Error fetching data from API: {e}")
+    # Fallback to example data for testing
+    print("Using example data for testing...")
+    data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+    df = spark.createDataFrame(data)
+
+# Set up the connection to ADL2 using the Microsoft ID identity
+# It is not necessary to provide credentials explicitly in a Synapse notebook
+# Spark will use the managed identity of the notebook to authenticate.
+
+# Specify the path to the container and folder in ADL2
+container_name = "<your_container_name>"  # Replace with the name of your container
+folder_path = "<your_folder_path>"  # Replace with the path to the folder within the container
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Write the DataFrame in parquet format to ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Optional: read the parquet file to verify
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Stop the Spark session
+spark.stop()

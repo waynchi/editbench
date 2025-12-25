@@ -1,0 +1,114 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Проверяет, может ли число n быть выражено как сумма четырех ненулевых квадратов
+    """
+    if n < 4:  # Минимальная сумма четырех ненулевых квадратов: 1+1+1+1 = 4
+        return False
+    
+    # Перебираем все возможные комбинации четырех квадратов
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        if a*a >= n:
+            break
+        for b in range(1, max_val):
+            if a*a + b*b >= n:
+                break
+            for c in range(1, max_val):
+                if a*a + b*b + c*c >= n:
+                    break
+                d_squared = n - a*a - b*b - c*c
+                if d_squared > 0:
+                    d = int(d_squared**0.5)
+                    if d > 0 and d*d == d_squared:
+                        return True, (a, b, c, d)
+    
+    return False
+
+def find_sum_of_four_nonzero_squares(n):
+    """
+    Находит представление числа n в виде суммы четырех ненулевых квадратов
+    """
+    if n < 4:
+        return None
+    
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        if a*a >= n:
+            break
+        for b in range(1, max_val):
+            if a*a + b*b >= n:
+                break
+            for c in range(1, max_val):
+                if a*a + b*b + c*c >= n:
+                    break
+                d_squared = n - a*a - b*b - c*c
+                if d_squared > 0:
+                    d = int(d_squared**0.5)
+                    if d > 0 and d*d == d_squared:
+                        return (a, b, c, d)
+    
+    return None
+
+def generate_numbers_as_sum_of_four_squares(limit):
+    """
+    Генерирует все числа до limit, которые могут быть выражены 
+    как сумма четырех ненулевых квадратов
+    """
+    results = []
+    
+    for n in range(4, limit + 1):
+        representation = find_sum_of_four_nonzero_squares(n)
+        if representation:
+            a, b, c, d = representation
+            results.append({
+                'number': n,
+                'squares': (a*a, b*b, c*c, d*d),
+                'values': (a, b, c, d),
+                'equation': f"{n} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}"
+            })
+    
+    return results
+
+def print_results(results, max_display=20):
+    """
+    Выводит результаты в удобном формате
+    """
+    print(f"Числа, которые могут быть выражены как сумма четырех ненулевых квадратов:")
+    print("=" * 70)
+    
+    for i, result in enumerate(results[:max_display]):
+        print(f"{result['equation']}")
+    
+    if len(results) > max_display:
+        print(f"\n... и еще {len(results) - max_display} чисел")
+    
+    print(f"\nВсего найдено: {len(results)} чисел")
+
+# Основная программа
+if __name__ == "__main__":
+    # Находим все числа до 100, которые можно выразить как сумму четырех ненулевых квадратов
+    limit = 100
+    results = generate_numbers_as_sum_of_four_squares(limit)
+    
+    # Выводим результаты
+    print_results(results, max_display=25)
+    
+    # Дополнительная статистика
+    print(f"\nСтатистика для чисел от 4 до {limit}:")
+    total_numbers = limit - 3  # числа от 4 до limit
+    percentage = (len(results) / total_numbers) * 100
+    print(f"Процент чисел, представимых суммой четырех ненулевых квадратов: {percentage:.1f}%")
+    
+    # Примеры проверки конкретных чисел
+    print("\nПроверка конкретных чисел:")
+    test_numbers = [10, 25, 50, 77, 100]
+    
+    for num in test_numbers:
+        representation = find_sum_of_four_nonzero_squares(num)
+        if representation:
+            a, b, c, d = representation
+            print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+        else:
+            print(f"{num} не может быть представлено как сумма четырех ненулевых квадратов")

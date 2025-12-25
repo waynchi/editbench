@@ -1,0 +1,77 @@
+import sys
+
+INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file(file_path):
+    """
+    Reads the input file and returns a list of non-empty lines.
+    """
+    try:
+        with open(file_path, 'r') as f:
+            # Using splitlines() to avoid empty trailing strings
+            lines = f.read().splitlines()
+    except FileNotFoundError:
+        sys.exit(f"Error: File '{file_path}' not found.")
+    
+    # Filter out any blank lines
+    return [line for line in lines if line.strip()]
+
+def extract_columns(lines, separator=None):
+    """
+    Splits each line into columns.
+    If no separator is provided, split() will split on any whitespace.
+    Returns two lists corresponding to the first and second columns.
+    """
+    col1 = []
+    col2 = []
+    
+    for line in lines:
+        # If there is a known custom separator (like "   ") you can pass it;
+        # otherwise, splitting on whitespace is more robust.
+        parts = line.split(separator) if separator is not None else line.split()
+        if len(parts) < 2:
+            # Skip or handle lines that don't have at least 2 columns.
+            continue
+        try:
+            # Convert values to integer
+            col1.append(int(parts[0]))
+            col2.append(int(parts[1]))
+        except ValueError:
+            sys.exit("Error: Unable to convert input values to integers.")
+    
+    return col1, col2
+
+def compute_total_minimal_distance(list1, list2):
+    """
+    Computes the total of the minimal distances by pairing the smallest available
+    elements from both lists. Instead of using a while loop with pop and argmin,
+    we sort both lists and compute the sum of the absolute differences pairwise.
+    
+    This approach is more efficient (O(n log n) for sorting and O(n) for the summing)
+    compared to repeatedly searching for minimum elements.
+    """
+    if len(list1) != len(list2):
+        sys.exit("Error: The two lists must have the same number of elements.")
+
+    sorted_list1 = sorted(list1)
+    sorted_list2 = sorted(list2)
+    
+    return sum(abs(a - b) for a, b in zip(sorted_list1, sorted_list2))
+
+def main():
+    lines = parse_input_file(INPUT_FILE_PATH)
+    
+    if not lines:
+        sys.exit("Error: No valid data found in the input file.")
+    
+    # You can specify a custom separator if needed. For now, we'll use the default whitespace splitting.
+    list1, list2 = extract_columns(lines)
+    
+    if not list1 or not list2:
+        sys.exit("Error: Could not extract two valid columns from the input file.")
+    
+    total_distance = compute_total_minimal_distance(list1, list2)
+    print("Total minimal distance:", total_distance)
+
+if __name__ == "__main__":
+    main()

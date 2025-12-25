@@ -1,0 +1,76 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_analysis(
+    shap_json_file="Vuori_Final_Approval_2024_09_24.json",
+    system_prompt_file="system.prompt",
+    model="llama3.2",
+    base_url="http://localhost:11434",
+    client_kwargs=None
+):
+    """
+    生成基于SHAP值的分析响应
+    
+    Args:
+        shap_json_file (str): SHAP值JSON文件路径
+        system_prompt_file (str): 系统提示文件路径
+        model (str): 使用的模型名称
+        base_url (str): 模型服务的基础URL
+        client_kwargs (dict): 客户端额外配置参数
+    
+    Returns:
+        str: 模型生成的响应内容
+    """
+    
+    # 初始化 ChatOllama 模型
+    if client_kwargs:
+        chat_model = ChatOllama(
+            model=model,
+            base_url=base_url,
+            client_kwargs=client_kwargs
+        )
+    else:
+        chat_model = ChatOllama(model=model, base_url=base_url)
+    
+    # 从 JSON 文件加载 SHAP 值
+    with open(shap_json_file, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # 从文件加载系统提示
+    with open(system_prompt_file, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # 准备消息
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # 生成响应
+    user_input = json.dumps(shap_values_json)  # 准备用户输入
+    
+    chain = prompt | chat_model
+    
+    # 获取响应
+    response = chain.invoke(user_input)
+    return response.content
+
+# 使用示例
+if __name__ == "__main__":
+    # 默认配置调用
+    result = generate_shap_analysis()
+    print(result)
+    
+    # 或者使用自定义配置调用
+    # custom_client_kwargs = {
+    #     "headers": {"authorization": "Bearer <已隐藏>"}
+    # }
+    # result = generate_shap_analysis(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs=custom_client_kwargs
+    # )
+    # print(result)

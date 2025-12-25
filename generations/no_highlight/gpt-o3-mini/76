@@ -1,0 +1,44 @@
+import { messages } from "./messages.js";
+
+$(document).ready(function() {
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+    const $generateTaxButton = $('#generateTaxButton');
+    const $loadMessages = $('#loading-messages');
+
+    // Retrieve values from localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Log retrieved data for debugging purposes
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $generateTaxButton.on('click', function() {
+        // Fade out the main section
+        $main.fadeOut(500, function() {
+            // After main fades out, display the loading section
+            $loading.css('display', 'flex');
+
+            // Using cumulative delay for sequential message updates
+            let cumulativeDelay = 0;
+            messages.forEach(message => {
+                cumulativeDelay += message.time;
+                setTimeout(function() {
+                    $loadMessages.text(message.text);
+                    console.log('Loading message:', message.text, 'at', message.time, 'ms');
+                }, cumulativeDelay);
+            });
+
+            // Transition to the payment section after all messages are displayed
+            setTimeout(function() {
+                console.log('Transitioning to payment section');
+                $loading.css('display', 'none');
+                $payment.css('display', 'block');
+                $info.css('display', 'block');
+            }, cumulativeDelay + 500); // additional 500ms delay after last message
+        });
+    });
+});

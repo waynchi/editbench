@@ -1,0 +1,279 @@
+import os
+import shutil
+import json
+import pickle
+import logging
+from pathlib import Path
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+import torch
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """
+    Saves the log history to a JSON file.
+    If the file already exists, it appends to it.
+
+    Parameters:
+    - log_history: List of log entries (each entry is a dict).
+    - file_path: Path to the file where logs will be saved.
+    - append_latest_only: If True, only the latest log entry is appended.
+    """
+    file_path = Path(file_path)
+    current_logs = []
+    
+    # Load existing logs if file exists
+    if file_path.exists():
+        try:
+            content = file_path.read_text().strip()
+            if content:
+                current_logs = json.loads(content)
+        except json.JSONDecodeError:
+            logging.warning(f"{file_path} contains invalid JSON. Overwriting file.")
+        except Exception as e:
+            logging.error(f"Error reading {file_path}: {e}")
+            return
+
+    # Append new logs
+    if append_latest_only and log_history:
+        current_logs.append(log_history[-1])
+    else:
+        current_logs.extend(log_history)
+
+    # Save updated logs
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with file_path.open("w") as f:
+            json.dump(current_logs, f, indent=4)
+    except Exception as e:
+        logging.error(f"Error writing to {file_path}: {e}")
+
+
+def clear_directory(directory, delete_directory=False):
+    """
+    Clears all files and subdirectories within a given directory. Optionally deletes the directory itself.
+    Creates the directory if it doesn't exist and delete_directory is False.
+
+    Args:
+        directory (str): The path to the directory to clear.
+        delete_directory (bool): If True, delete the directory after clearing its contents.
+
+    Raises:
+        OSError: If any error occurs during file or directory removal.
+    """
+    directory = Path(directory)
+    
+    if not directory.exists():
+        if delete_directory:
+            raise ValueError("Directory does not exist and delete_directory is True. Cannot proceed.")
+        directory.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Directory '{directory}' created.")
+        return
+
+    # Use pathlib for more efficient directory operations
+    for item_path in directory.iterdir():
+        try:
+            if item_path.is_dir():
+                shutil.rmtree(item_path)
+            else:
+                item_path.unlink()
+            logging.debug(f"Removed: {item_path}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{item_path}'. Reason: {e}")
+            raise
+
+    if delete_directory:
+        try:
+            directory.rmdir()
+            logging.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{directory}'. Reason: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name="pythia-31M",
+    base_model_repo_name="EleutherAI/",
+    model_load_path=MODEL_PATH,
+    model_save_path=MODEL_PATH,
+):
+    """
+    Merge LoRA model with base model and save the merged model.
+    """
+    my_model_path = Path(model_load_path) / model_name
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model_name = f"pythia-{param_count}M"
+    full_base_model_name = f"{base_model_repo_name.rstrip('/')}/{base_model_name}"
+
+    # Load base model with optimized settings
+    base_model = AutoModelForCausalLM.from_pretrained(
+        full_base_model_name,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        low_cpu_mem_usage=True
+    )
+    
+    # Load and merge LoRA model
+    model = PeftModel.from_pretrained(base_model, str(my_model_path))
+    merged_model = model.merge_and_unload()
+    
+    # Save merged model
+    my_model_save_path = Path(model_save_path) / f"{model_name}_merged"
+    my_model_save_path.mkdir(parents=True, exist_ok=True)
+    merged_model.save_pretrained(str(my_model_save_path))
+
+
+def remove_repetition(question, answer):
+    """
+    Remove question repetition from answer.
+    """
+    if question and answer and question in answer:
+        return answer.replace(question, "").strip()
+    return answer
+
+
+_MODEL_CACHE = {}
+
+def load_model(
+    model_type,
+    model_path=None,
+    blocks_str=None,
+    vanilla_model_name=None,
+    host_model_name=None,
+    use_cache=True
+):
+    """
+    Loads different types of models based on the model_type parameter with caching support.
+
+    Parameters:
+    model_type (str): The type of model to load. One of 'Tuned Model', 'Vanilla Model',
+                      'Transformed Model', 'Final Model', or 'Host Model'.
+    model_path (str): The base path where models are stored.
+    blocks_str (str): A string representing the layers or blocks used in model naming.
+    vanilla_model_name (str): The name or path of the vanilla (base) model.
+    host_model_name (str): The name or path of the host model.
+    use_cache (bool): Whether to use caching for model loading.
+
+    Returns:
+    model: The loaded model object.
+    """
+    # Create cache key
+    cache_key = f"{model_type}_{vanilla_model_name or ''}_{host_model_name or ''}_{blocks_str or ''}"
+    
+    if use_cache and cache_key in _MODEL_CACHE:
+        logging.info(f"Loading {model_type} from cache")
+        return _MODEL_CACHE[cache_key]
+
+    model_path_obj = Path(model_path) if model_path else None
+
+    if model_type == "Tuned Model":
+        if not all([vanilla_model_name, model_path, blocks_str]):
+            raise ValueError("Missing required parameters for Tuned Model")
+        
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        tuned_model_path = model_path_obj / tuned_model_name
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            str(tuned_model_path),
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            low_cpu_mem_usage=True
+        )
+
+    elif model_type == "Vanilla Model":
+        if not vanilla_model_name:
+            raise ValueError("vanilla_model_name is required for Vanilla Model")
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            vanilla_model_name,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            low_cpu_mem_usage=True
+        )
+
+    elif model_type == "Transformed Model":
+        if not all([host_model_name, model_path, blocks_str]):
+            raise ValueError("Missing required parameters for Transformed Model")
+        
+        name = host_model_name.split("/")[-1]
+        save_path = model_path_obj / f"{name}_preGRAFTED_{blocks_str}.pkl"
+        
+        with save_path.open("rb") as f:
+            model = pickle.load(f)
+
+    elif model_type == "Final Model":
+        if not all([host_model_name, model_path, blocks_str]):
+            raise ValueError("Missing required parameters for Final Model")
+        
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = model_path_obj / model_save_name
+        
+        with save_path.open("rb") as f:
+            model = pickle.load(f)
+
+    elif model_type == "Host Model":
+        if not host_model_name:
+            raise ValueError("host_model_name is required for Host Model")
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            host_model_name,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            low_cpu_mem_usage=True
+        )
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+    if use_cache:
+        _MODEL_CACHE[cache_key] = model
+
+    return model
+
+
+def clear_model_cache():
+    """Clear the model cache to free memory."""
+    global _MODEL_CACHE
+    _MODEL_CACHE.clear()
+    logging.info("Model cache cleared")
+
+
+def load_batch_losses(file_path):
+    """
+    Loads batch loss data from a checkpoint file.
+
+    Parameters:
+    file_path (str): The path to the checkpoint file.
+
+    Returns:
+    list or None: The batch losses if available, None otherwise.
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        logging.error(f"Checkpoint file not found: {file_path}")
+        return None
+
+    try:
+        # Use mmap for faster loading of large files
+        checkpoint = torch.load(str(file_path), map_location=torch.device("cpu"), mmap=True)
+        batch_losses = checkpoint.get("batch_losses")
+        
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        
+        return batch_losses
+        
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

@@ -1,0 +1,64 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Решение системы линейных уравнений Ax = b методом сопряжённых градиентов
+    
+    Параметры:
+    A : array_like, shape (n, n)
+        Симметричная положительно определённая матрица
+    b : array_like, shape (n,)
+        Вектор правой части
+    x0 : array_like, shape (n,), optional
+        Начальное приближение (по умолчанию нулевой вектор)
+    tol : float, optional
+        Точность решения (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию 1000)
+    
+    Возвращает:
+    x : ndarray, shape (n,)
+        Решение системы уравнений
+    iterations : int
+        Количество выполненных итераций
+    """
+    
+    A = np.array(A)
+    b = np.array(b)
+    n = len(b)
+    
+    # Начальное приближение
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0)
+    
+    # Начальный остаток
+    r = b - A @ x
+    p = r.copy()
+    
+    for i in range(max_iter):
+        # Проверка критерия остановки
+        if np.linalg.norm(r) < tol:
+            return x, i
+        
+        # Вычисление шага
+        Ap = A @ p
+        alpha = (r @ r) / (p @ Ap)
+        
+        # Обновление решения
+        x = x + alpha * p
+        
+        # Новый остаток
+        r_new = r - alpha * Ap
+        
+        # Коэффициент для обновления направления поиска
+        beta = (r_new @ r_new) / (r @ r)
+        
+        # Новое направление поиска
+        p = r_new + beta * p
+        
+        # Обновление остатка
+        r = r_new
+    
+    return x, max_iter

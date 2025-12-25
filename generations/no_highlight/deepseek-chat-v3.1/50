@@ -1,0 +1,30 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    def is_digit(input_str: str, start_pos: int) -> bool:
+        '''Returns True if the character at the specified position is a digit'''
+        if start_pos >= len(input_str):
+            return False
+        return input_str[start_pos].isdigit()
+    
+    def is_int(input_str: str, start_pos: int) -> int:
+        '''Returns the ending position of the integer token if valid, otherwise returns -1'''
+        if start_pos >= len(input_str) or not input_str[start_pos].isdigit():
+            return -1
+            
+        current_pos = start_pos
+        while current_pos < len(input_str) and input_str[current_pos].isdigit():
+            current_pos += 1
+        
+        return current_pos
+
+if __name__ == "__main__":
+    print(IntegerToken.is_int("1234", 0))  # Should return 4
+    print(IntegerToken.is_int("a123", 0))  # Should return -1
+    print(IntegerToken.is_int("123a", 0))  # Should return 3
+    print(IntegerToken.is_int("", 0))      # Should return -1
+    print(IntegerToken.is_int("123", 5))   # Should return -1 (out of bounds)

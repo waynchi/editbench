@@ -1,0 +1,106 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Verifica se um número pode ser expresso como soma de quatro quadrados não nulos.
+    
+    Args:
+        n (int): O número a ser verificado
+        
+    Returns:
+        bool: True se o número pode ser expresso como soma de quatro quadrados não nulos, False caso contrário
+    """
+    if n < 4:
+        return False
+    
+    # Para números menores que 4, não é possível somar quatro quadrados não nulos
+    # já que o menor quadrado não nulo é 1² = 1, e 1+1+1+1 = 4
+    
+    # Testa todas as combinações possíveis de quatro quadrados não nulos
+    # Limitamos os limites para otimização
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        if a*a > n:
+            break
+        for b in range(a, max_val):
+            if a*a + b*b > n:
+                break
+            for c in range(b, max_val):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, max_val):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+                    elif a*a + b*b + c*c + d*d > n:
+                        break
+    return False
+
+def find_decomposition(n):
+    """
+    Encontra uma decomposição de n como soma de quatro quadrados não nulos.
+    
+    Args:
+        n (int): O número a ser decomposto
+        
+    Returns:
+        tuple: Uma tupla (a, b, c, d) onde a² + b² + c² + d² = n, ou None se não for possível
+    """
+    if n < 4:
+        return None
+    
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        if a*a > n:
+            break
+        for b in range(a, max_val):
+            if a*a + b*b > n:
+                break
+            for c in range(b, max_val):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, max_val):
+                    if a*a + b*b + c*c + d*d == n:
+                        return (a, b, c, d)
+                    elif a*a + b*b + c*c + d*d > n:
+                        break
+    return None
+
+def generate_numbers_with_four_square_decomposition(limit=100):
+    """
+    Gera uma lista de números que podem ser expressos como soma de quatro quadrados não nulos.
+    
+    Args:
+        limit (int): Limite superior para buscar números
+        
+    Returns:
+        list: Lista de números que podem ser expressos como soma de quatro quadrados não nulos
+    """
+    result = []
+    for i in range(4, limit + 1):
+        if can_be_sum_of_four_nonzero_squares(i):
+            result.append(i)
+    return result
+
+# Exemplo de uso
+if __name__ == "__main__":
+    # Testando alguns exemplos
+    test_numbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    
+    print("Números que podem ser expressos como soma de quatro quadrados não nulos:")
+    print("-" * 60)
+    
+    for num in test_numbers:
+        can_be_decomposed = can_be_sum_of_four_nonzero_squares(num)
+        if can_be_decomposed:
+            decomposition = find_decomposition(num)
+            if decomposition:
+                a, b, c, d = decomposition
+                print(f"{num} = {a}² + {b}² + {c}² + {d}²")
+            else:
+                print(f"{num}: Pode ser decomposto, mas não encontramos a decomposição")
+        else:
+            print(f"{num}: Não pode ser expresso como soma de quatro quadrados não nulos")
+    
+    print("\nLista dos primeiros 50 números com essa propriedade:")
+    numbers = generate_numbers_with_four_square_decomposition(50)
+    print(numbers)

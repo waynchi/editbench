@@ -1,0 +1,131 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+
+def is_own_author (autor: str):
+    return autor == 'subidu'
+
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies (replies: Comment):
+    pass
+
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico(post, replies_list, cnt):
+    """
+    Tworzy hierarchiczny słownik dla posta i jego odpowiedzi
+    """
+    post_key = f"{post['author']}/{post['permlink']}"
+    
+    post_data = {
+        'author': post['author'],
+        'permlink': post['permlink'],
+        'title': post.get('title', ''),
+        'body': post.get('body', ''),
+        'children_count': post['children'],
+        'valid_replies_count': cnt,
+        'replies': {}
+    }
+    
+    # Dodaj odpowiedzi do hierarchii
+    for reply in replies_list:
+        if not is_banned(reply['author']) and not is_own_author(reply['author']):
+            reply_key = f"{reply['author']}/{reply['permlink']}"
+            post_data['replies'][reply_key] = {
+                'author': reply['author'],
+                'permlink': reply['permlink'],
+                'body': reply['body'],
+                'processed': procesar(reply['body']),
+                'parent_author': reply.get('parent_author', ''),
+                'parent_permlink': reply.get('parent_permlink', '')
+            }
+    
+    return post_key, post_data
+
+def dodaj_do_slownika_hierarchicznego(post_key, post_data):
+    """
+    Dodaje dane posta do globalnego słownika hierarchicznego
+    """
+    global diccionario
+    diccionario[post_key] = post_data
+
+def wyswietl_hierarchie(slownik, poziom=0):
+    """
+    Wyświetla hierarchiczną strukturę słownika
+    """
+    indent = "  " * poziom
+    for post_key, post_data in slownik.items():
+        print(f"{indent}POST: {post_key}")
+        print(f"{indent}  Author: {post_data['author']}")
+        print(f"{indent}  Valid replies: {post_data['valid_replies_count']}")
+        print(f"{indent}  Total children: {post_data['children_count']}")
+        
+        if post_data['replies']:
+            print(f"{indent}  REPLIES:")
+            for reply_key, reply_data in post_data['replies'].items():
+                print(f"{indent}    {reply_key}")
+                print(f"{indent}      Processed: {reply_data['processed']}")
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    valid_replies = []
+    
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies_list = comment.get_replies()
+        
+        cnt = 0
+        for replies in post_replies_list:
+            author = replies['author']
+            text = replies['body']
+            
+            if is_own_author(author):
+                # Ponownie ocenić komentarz
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+                valid_replies.append(replies)
+    
+    if cnt > 3:
+        print("Iterador: ", X)
+        print(f"{post_author}/{post_permlink}")
+        
+        # Tworzenie hierarchicznego słownika
+        post_key, post_data = crear_diccionario_jerarquico(post, valid_replies, cnt)
+        dodaj_do_slownika_hierarchicznego(post_key, post_data)
+
+# Wyświetlenie hierarchicznej struktury na końcu
+print("\n=== HIERARCHICZNA STRUKTURA SŁOWNIKA ===")
+wyswietl_hierarchie(diccionario)

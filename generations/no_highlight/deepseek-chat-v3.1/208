@@ -1,0 +1,62 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+  let currentTurn = "player"; // 默认从玩家开始
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function hasActionableUnits(units) {
+    return units.some(unit => !unit.hasActed);
+  }
+
+  function nextTurn() {
+    // 检查当前回合是否还有可以行动的单位
+    const currentUnits = currentTurn === "player" ? allyStates : foeStates;
+    
+    if (hasActionableUnits(currentUnits)) {
+      // 当前回合还有可以行动的单位，不切换回合
+      return;
+    }
+
+    // 切换回合
+    if (currentTurn === "player") {
+      currentTurn = "cpu";
+      foeStates.forEach(unit => unit.hasActed = false);
+      cpuTurn();
+    } else {
+      currentTurn = "player";
+      allyStates.forEach(unit => unit.hasActed = false);
+      turnNumber++; // 仅在玩家回合后增加回合数
+    }
+  }
+
+  function cpuTurn() {
+    // 示例 CPU 行为（用您实际的 AI 逻辑替换）
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // 执行CPU动作（例如，移动，攻击）
+        // ...在这里编写你的CPU AI逻辑...
+
+        cpuUnit.hasActed = true;
+      }
+    }
+
+    // 检查是否所有CPU单位都已行动
+    if (!hasActionableUnits(foeStates)) {
+      nextTurn(); // 自动切换回玩家的回合
+    }
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

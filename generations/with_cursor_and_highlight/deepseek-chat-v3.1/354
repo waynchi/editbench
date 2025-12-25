@@ -1,0 +1,43 @@
+import nltk
+from nltk.corpus import words
+
+# Pobierz słownik angielski
+nltk.download('words')
+word_list = words.words()
+
+def find_words_by_length(length, count=10):
+    """Znajdź słowa o określonej długości"""
+    matching_words = [word for word in word_list if len(word) == length]
+    return matching_words[:count]
+
+def main():
+    print("English Dictionary Word Finder")
+    print("Enter the number of characters to find words (or 'quit' to exit)")
+    
+    while True:
+        user_input = input("\nNumber of characters: ").strip().lower()
+        
+        if user_input == 'quit':
+            print("Goodbye!")
+            break
+            
+        try:
+            length = int(user_input)
+            if length <= 0:
+                print("Please enter a positive number.")
+                continue
+                
+            found_words = find_words_by_length(length)
+            
+            if found_words:
+                print(f"\nFound {len(found_words)} words with {length} characters:")
+                for i, word in enumerate(found_words, 1):
+                    print(f"{i}. {word}")
+            else:
+                print(f"No words found with {length} characters.")
+                
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+
+if __name__ == "__main__":
+    main()

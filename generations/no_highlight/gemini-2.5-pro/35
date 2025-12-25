@@ -1,0 +1,135 @@
+import streamlit as st
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.retrievers import BM25Retriever
+from os import getenv
+from dotenv import load_dotenv
+import PyPDF2
+import nltk
+from nltk.tokenize import word_tokenize
+
+# Load environment variables
+load_dotenv()
+
+# Download NLTK tokenizer models if not already present
+try:
+    nltk.data.find('tokenizers/punkt')
+except nltk.downloader.DownloadError:
+    nltk.download('punkt')
+
+st.title("♥ CardioRAG")
+
+# --- INITIALIZATION ---
+
+# Load PDF and create retriever only once
+if "retriever" not in st.session_state:
+    with st.spinner("Reading Cardiology Textbook... (this may take a minute)"):
+        try:
+            pdf_reader = PyPDF2.PdfReader(open("Moss and Adams 10e Vol 1 & 2.pdf", 'rb'))
+            chunks = []
+            # Focusing on a relevant range of pages for efficiency
+            for page_num in range(60, 600):
+                page_text = pdf_reader.pages[page_num].extract_text()
+                if page_text:
+                    chunks.append(page_text)
+            
+            # Create a BM25 retriever
+            retriever = BM25Retriever.from_texts(
+                texts=chunks, 
+                metadatas=[{"page_num": p} for p in range(60, 600)], 
+                preprocess_func=word_tokenize
+            )
+            st.session_state["retriever"] = retriever
+        except FileNotFoundError:
+            st.error("Error: The PDF file 'Moss and Adams 10e Vol 1 & 2.pdf' was not found. Please make sure it is in the same directory as the script.")
+            st.stop()
+        except Exception as e:
+            st.error(f"An error occurred while loading the PDF: {e}")
+            st.stop()
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Hi, I'm a chatbot who has read the Moss & Adams Cardiology textbook. How can I help you?"}
+    ]
+
+# --- PASSWORD AUTHENTICATION ---
+
+# Gate the main application behind a password check
+if "password_correct" not in st.session_state:
+    st.session_state["password_correct"] = False
+    
+# Use a form for the password to handle submission correctly
+with st.sidebar.form("pw_input", clear_on_submit=True):
+    password = st.text_input("Enter password", type="password")
+    submitted = st.form_submit_button("Submit")
+    if submitted:
+        if password == getenv("PASSWORD"):
+            st.session_state["password_correct"] = True
+            st.rerun()  # Rerun the script to remove the password form
+        else:
+            st.error("Incorrect password")
+
+# If password is not correct, stop the app from proceeding further
+if not st.session_state["password_correct"]:
+    st.warning("Please enter the correct password in the sidebar to proceed.")
+    st.stop()
+
+# --- CHAT INTERFACE ---
+
+# Display chat messages from history
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+# Accept user input
+if user_input := st.chat_input("What is the incidence of congenital heart disease?"):
+    # Add user message to chat history and display it
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.chat_message("user").write(user_input)
+
+    # --- RAG AND LLM STREAMING RESPONSE ---
+
+    # Setup LLM with streaming enabled
+    llm = ChatOpenAI(
+        api_key=getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+        model_name="meta-llama/llama-3-8b-instruct", # Updated for better performance
+        streaming=True
+    )
+    
+    # Retrieve relevant documents from the PDF
+    retriever = st.session_state["retriever"]
+    docs = retriever.get_relevant_documents(user_input)
+    DIVIDER = "\n---\n"
+    context = DIVIDER.join([f"Source (Page {d.metadata.get('page_num', 'N/A')}):\n{d.page_content}" for d in docs])
+
+    # Define the prompt template
+    prompt = PromptTemplate(
+        input_variables=["context", "question"],
+        template="""You are a helpful AI assistant specializing in cardiology. 
+You have read the Moss & Adams Cardiology textbook. Use the provided context from the textbook to answer the question accurately.
+If the answer is not found in the context, explicitly state that the information is not in the provided textbook pages. Do not make up information.
+
+Context: 
+{context}
+
+Question: {question}
+
+Answer:"""
+    )
+    
+    # Create the LCEL (LangChain Expression Language) chain
+    parser = StrOutputParser()
+    chain = prompt | llm | parser
+
+    # Stream the response to the app
+    with st.chat_message("assistant"):
+        # Use st.write_stream to display the streamed content
+        response = st.write_stream(chain.stream({
+            "context": context,
+            "question": user_input
+        }))
+
+    # Add the full assistant response to the chat history
+    st.session_state.messages.append({"role": "assistant", "content": response})

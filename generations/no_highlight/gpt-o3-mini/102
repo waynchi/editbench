@@ -1,0 +1,65 @@
+import numpy as np
+
+# Update the input file path as needed
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    if not lines:
+        print("The input file is empty or could not be read.")
+        return
+
+    # Convert each line into a list of individual characters.
+    # This ensures that the resulting grid is 2D.
+    grid = np.array([list(line) for line in lines if line])
+    
+    # Check if we indeed have a 2D grid
+    if grid.ndim != 2:
+        print("Error: The input does not form a valid two-dimensional grid.")
+        return
+
+    print("Grid:")
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+
+    # Check horizontally
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Check vertically 
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col])
+        count += col_str.count(str_to_match)
+
+    # Check diagonally (top-left to bottom-right)
+    # The number of diagonals is determined by offset values.
+    for offset in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Check diagonally (top-right to bottom-left)
+    flipped_grid = np.fliplr(grid)
+    for offset in range(-(flipped_grid.shape[0]-1), flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of '{str_to_match}'")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            # Split by newline and remove empty lines (if any)
+            lines = [line.strip() for line in f.read().splitlines() if line.strip()]
+        return lines
+    except IOError as e:
+        print(f"Error opening file: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

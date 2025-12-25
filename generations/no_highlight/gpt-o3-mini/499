@@ -1,0 +1,114 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+def cluster_data(features_transformed, cluster_columns_mapping, n_clusters=2, clustering_method='kmeans'):
+    """
+    Realiza la agrupación de datos de forma independiente para cada conjunto de columnas especificado.
+    
+    Args:
+        features_transformed (pandas.DataFrame): DataFrame transformado con parámetros.
+        cluster_columns_mapping (dict): Diccionario donde las claves son los nombres de las columnas
+                                        nuevas donde se guardarán las etiquetas de los clústeres y 
+                                        los valores son tuplas o listas con los nombres de las columnas a usar.
+                                        Ejemplo: {'Cluster1': ('columna1', 'columna2'), 'Cluster2': ('columna3',)}
+        n_clusters (int): Número de clústeres para cada agrupación.
+        clustering_method (str): Método de agrupación ('kmeans').
+    
+    Returns:
+        pandas.DataFrame: DataFrame con las nuevas columnas de etiquetas de clústeres añadidas.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_out = features_transformed.copy()
+
+    # Iteramos sobre cada conjunto de columnas especificado en el diccionario
+    for new_col_name, cols in cluster_columns_mapping.items():
+        # Asegurarse de que cols es una lista o tupla
+        if not isinstance(cols, (list, tuple)):
+            print(f"Las columnas para {new_col_name} deben estar en una lista o tupla.")
+            continue
+        
+        # Verificar que todas las columnas especificadas existan en el DataFrame
+        missing_cols = [col for col in cols if col not in features_out.columns]
+        if missing_cols:
+            print(f"Las siguientes columnas no existen en el DataFrame para {new_col_name}: {missing_cols}")
+            continue
+        
+        features_subset = features_out[list(cols)].copy()
+        
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(features_subset)
+            
+            # Evaluación de la calidad de la agrupación utilizando el coeficiente de silueta
+            if len(np.unique(cluster_labels)) > 1:  # Comprobación para el caso en que todos los puntos se asignan a un solo clúster
+                silhouette_avg = silhouette_score(features_subset, cluster_labels)
+                print(f"Коэффициент силуэта для '{new_col_name}' con {n_clusters} clústeres: {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта para '{new_col_name}' con {n_clusters} кластер (todos los puntos en un clúster).")
+        
+        else:
+            print("Неподдерживаемый метод кластеризации para", new_col_name)
+            continue
+
+        # Agregar la columna de etiquetas de clústeres al DataFrame de salida
+        features_out[new_col_name] = cluster_labels
+        print(f"Clusterización realizada para '{new_col_name}'. Etiquetas de clústeres añadidas.")
+
+    return features_out
+
+# Ejemplo de ejecución de la clusterización (después de la etapa 5 y antes de la etapa 6)
+if __name__ == '__main__':
+    # Supongamos que ya tenemos un DataFrame 'features_transformed' transformado.
+    # Para este ejemplo, creamos un DataFrame simulado.
+    np.random.seed(42)
+    features_transformed = pd.DataFrame({
+        'columna1': np.random.rand(100),
+        'columna2': np.random.rand(100),
+        'columna3': np.random.rand(100),
+        'otra': np.random.rand(100)
+    })
+    
+    # Diccionario que especifica los conjuntos de columnas para la clusterización.
+    # Por ejemplo, 'Cluster1' utiliza las columnas 'columna1' y 'columna2',
+    # y 'Cluster2' utiliza la columna 'columna3'.
+    cluster_columns_mapping = {
+        'Cluster1': ('columna1', 'columna2'),
+        'Cluster2': ('columna3',)
+    }
+    
+    n_clusters = 3  # Número de clústeres para cada agrupación
+    features_transformed = cluster_data(features_transformed, cluster_columns_mapping, n_clusters)
+    
+    # Visualización de los clústeres para 'Cluster1' (solo si existen al menos 2 características numéricas)
+    if 'Cluster1' in features_transformed.columns:
+        numerical_features = features_transformed.select_dtypes(include=np.number)
+        if numerical_features.shape[1] >= 2:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(numerical_features.iloc[:, 0], numerical_features.iloc[:, 1],
+                        c=features_transformed['Cluster1'], cmap='viridis')
+            plt.xlabel(numerical_features.columns[0])
+            plt.ylabel(numerical_features.columns[1])
+            plt.title('Результаты кластеризации para Cluster1')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+        else:
+            print("Недостаточно числовых признаков para visualizar Cluster1 en plano 2D.")
+    else:
+        print("La columna 'Cluster1' no está presente en el DataFrame.")
+    
+    # Visualización de los clúстерes para 'Cluster2' si se desea (por ejemplo, histograma de la columna)
+    if 'Cluster2' in features_transformed.columns:
+        plt.figure(figsize=(8, 4))
+        plt.hist(features_transformed['Cluster2'], bins=n_clusters, rwidth=0.8, color='skyblue')
+        plt.xlabel('Etiqueta de clúster')
+        plt.ylabel('Frecuencia')
+        plt.title('Distribución de clústeres para Cluster2')
+        plt.show()
+    else:
+        print("La columna 'Cluster2' no está presente en el DataFrame.")

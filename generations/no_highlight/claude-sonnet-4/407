@@ -1,0 +1,50 @@
+import { messages } from "./messages.js";
+
+document.addEventListener('DOMContentLoaded', () => {
+    const loading = document.querySelector('.container-loading');
+    const payment = document.querySelector('.payment-section');
+    const info = document.querySelector('.user-info');
+    const main = document.querySelector('.main');
+
+    // Pobierz wartości z localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Użyj pobranych danych według potrzeb
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    document.getElementById('generateTaxButton').addEventListener('click', () => {
+        // Fade out effect using CSS transition
+        main.style.opacity = '0';
+        main.style.transition = 'opacity 0.5s';
+        
+        setTimeout(() => {
+            main.style.display = 'none';
+            loading.style.display = 'flex';
+
+            let lastTimeout = 0;
+            messages.forEach(message => {
+                lastTimeout = lastTimeout + message.time;
+            });
+            console.log(`intervalo: ${lastTimeout}`);
+
+            const loadMessages = document.getElementById('loading-messages');
+            messages.forEach(element => {
+                console.log(element.text);
+                console.log(element.time);
+                const timeout = element.time;
+                setTimeout(() => {
+                    loadMessages.textContent = element.text;
+                }, timeout);
+            });
+
+            setTimeout(() => {
+                console.log('pagamento');
+                loading.style.display = 'none';
+                payment.style.display = 'block';
+                info.style.display = 'block';
+            }, lastTimeout + 500);
+        }, 500);
+    });
+});

@@ -1,0 +1,44 @@
+import random
+
+def load_dictionary():
+    # Словарь для примера - в реальной программе можно загрузить из файла
+    return [
+        "apple", "banana", "cherry", "date", "elderberry", 
+        "fig", "grape", "honeydew", "kiwi", "lemon",
+        "mango", "nectarine", "orange", "papaya", "quince",
+        "raspberry", "strawberry", "tangerine", "watermelon", "blueberry"
+    ]
+
+def find_words_by_length(words, n):
+    """Находит 10 слов с заданным количеством символов"""
+    matching_words = [word for word in words if len(word) == n]
+    return matching_words[:10]  # Возвращаем максимум 10 слов
+
+def main():
+    dictionary = load_dictionary()
+    
+    while True:
+        try:
+            n = int(input("Введите количество символов: "))
+            if n <= 0:
+                print("Пожалуйста, введите положительное число.")
+                continue
+                
+            result = find_words_by_length(dictionary, n)
+            
+            if result:
+                print(f"Слова с {n} символами:")
+                for i, word in enumerate(result, 1):
+                    print(f"{i}. {word}")
+            else:
+                print(f"Нет слов с {n} символами в словаре.")
+                
+        except ValueError:
+            print("Пожалуйста, введите целое число.")
+        
+        continue_search = input("\nХотите продолжить? (д/н): ").lower()
+        if continue_search != 'д' and continue_search != 'y':
+            break
+
+if __name__ == "__main__":
+    main()

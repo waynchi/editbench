@@ -1,0 +1,105 @@
+import aiohttp # для асинхронных запросов к API
+import aiofiles # для асинхронной работы с файлами
+import xml.etree.ElementTree #для обработки xml-ответа API
+import matplotlib.pyplot as plt #для построения графиков
+import pandas as pd #для создания датафрейма и разденеия всех свечей на два типа: close и open
+import datetime #для дат по оси иксов
+import pickle #для хранения переменных в файле
+import json
+
+# класс валюта
+class valute():
+    """Валюта и всё с ней связанное, через ЦБ РФ \n
+    Требуются библеотеки: \n
+    aiohttp \n
+    aiofiles \n
+    xml.etree.ElementTree \n
+    matplotlib.pyplot as plt \n
+    pandas as pd \n
+    datetime \n
+    pickle \n
+    json \n
+    """
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """Асинхронная проверка имени валюты на наличие в множестве валют. Множество обновляется не чаще раза в день."""
+        info_path = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+        valutes_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+
+        # Асинхронно читаем файл с информацией. Используем try-except на случай, если файла еще нет.
+        try:
+            async with aiofiles.open(info_path, "r", encoding="utf-8") as f:
+                content = await f.read()
+                info = json.loads(content)
+        except FileNotFoundError:
+            # Если файла нет, создаем структуру, чтобы гарантировать обновление при первом запуске.
+            info = {"last_day_check": {"valute": str(datetime.datetime.min)}}
+
+        # Проверяем условие, что дата перезаписи списка валют это хотя бы 1 день назад
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"):
+            # Если отличается более чем на 1 день, то переписываем список (множество) валют:
+            set_valutes = set()
+            url = "http://www.cbr.ru/scripts/XML_daily.asp"
+            
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        response.raise_for_status() # Проверка на ошибки HTTP (4xx, 5xx)
+                        content = await response.read()
+                
+                root = xml.etree.ElementTree.fromstring(content)
+                
+                for Valute_node in root.findall("Valute"):
+                    CharCode = Valute_node.find("CharCode")
+                    if CharCode is not None and CharCode.text:
+                        set_valutes.add(CharCode.text)
+                
+                # Асинхронно записываем бинарный файл с множеством валют
+                async with aiofiles.open(valutes_path, "wb") as f:
+                    await f.write(pickle.dumps(set_valutes))
+                
+                # Поменяем время последнего обновления
+                info["last_day_check"]["valute"] = str(datetime.datetime.now())
+                
+                # Асинхронно записываем обновленный JSON
+                async with aiofiles.open(info_path, "w", encoding="utf-8") as f:
+                    await f.write(json.dumps(info, indent=3, ensure_ascii=False))
+            except (aiohttp.ClientError, xml.etree.ElementTree.ParseError):
+                # В случае ошибки сети или парсинга XML, обновление пропускается.
+                # Будут использоваться старые данные, если они есть.
+                pass
+
+        # Теперь просто проверим есть ли валюта в списке валют
+        try:
+            async with aiofiles.open(valutes_path, "rb") as f:
+                data = await f.read()
+                set_valutes = pickle.loads(data)
+        except (FileNotFoundError, pickle.UnpicklingError):
+            # Если файл не найден или поврежден, считаем, что проверка не пройдена.
+            return False
+            
+        return self.name in set_valutes
+
+    async def CurrentExchangeRate(self):
+        '''Асинхронно получает текущий курс обмена валюты на рубль'''
+        url = "http://www.cbr.ru/scripts/XML_daily.asp" #Api ЦБ РФ
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    content = await response.read()
+
+            root = xml.etree.ElementTree.fromstring(content)
+            
+            for Valute_node in root.findall("Valute"): #ищем контейнеры валюты
+                CharCode = Valute_node.find("CharCode") #ищем контейнеры чаркодов
+                if CharCode is not None and CharCode.text == self.name: #находим контейнер с нужной валютой
+                    RateNode = Valute_node.find("VunitRate")
+                    if RateNode is not None:
+                        return RateNode.text
+            return None # Валюта не найдена
+        except (aiohttp.ClientError, xml.etree.ElementTree.ParseError):
+            # В случае ошибки сети или парсинга возвращаем None
+            return None

@@ -1,0 +1,116 @@
+import random
+import collections
+import sys
+
+def load_dictionary(file_path='/usr/share/dict/words'):
+    """
+    从文件加载词典，并按单词长度进行分组。
+    如果文件不存在，则使用一个内置的备用列表。
+
+    Args:
+        file_path (str): 词典文件的路径。
+
+    Returns:
+        collections.defaultdict: 一个以单词长度为键，单词列表为值的字典。
+    """
+    print("正在加载词典...")
+    words_by_length = collections.defaultdict(list)
+    try:
+        # 尝试以 UTF-8 编码打开文件
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                # 移除首尾空白（如换行符）并转为小写
+                word = line.strip().lower()
+                # 确保单词只包含英文字母，以过滤掉缩写、带连字符的词等
+                if word.isalpha():
+                    words_by_length[len(word)].append(word)
+        print(f"词典加载成功！共处理了 {sum(len(v) for v in words_by_length.values())} 个单词。")
+    except FileNotFoundError:
+        print(f"警告：词典文件 '{file_path}' 未找到。")
+        print("将使用一个内置的备用单词列表。")
+        # 一个小型的备用单词列表
+        fallback_words = [
+            'a', 'be', 'to', 'of', 'and', 'in', 'that', 'have', 'it', 'for',
+            'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but',
+            'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an',
+            'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so',
+            'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me',
+            'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know',
+            'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could',
+            'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only',
+            'come', 'its', 'over', 'think', 'also', 'back', 'after', 'use',
+            'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new',
+            'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
+            'python', 'programming', 'dictionary', 'language', 'computer',
+            'application', 'development', 'learning', 'example', 'search'
+        ]
+        for word in fallback_words:
+            words_by_length[len(word)].append(word)
+    except Exception as e:
+        print(f"加载词典时发生错误: {e}")
+        sys.exit(1) # 发生未知错误时退出程序
+
+    return words_by_length
+
+def find_words_by_length(dictionary):
+    """
+    主循环，用于接收用户输入并查找单词。
+
+    Args:
+        dictionary (collections.defaultdict): 预处理过的词典。
+    """
+    while True:
+        user_input = input("\n请输入您想查找的单词长度 (输入 'q' 或 'quit' 退出): ")
+
+        if user_input.lower() in ('q', 'quit', 'exit'):
+            print("感谢使用，再见！")
+            break
+
+        try:
+            # 将用户输入转换为整数
+            length = int(user_input)
+            if length <= 0:
+                print("无效输入，请输入一个大于零的整数。")
+                continue
+
+            # 从预处理好的词典中获取相应长度的单词列表
+            # .get() 方法可以安全地获取键，如果键不存在则返回默认值（这里是[]）
+            candidate_words = dictionary.get(length, [])
+
+            if not candidate_words:
+                print(f"抱歉，未在词典中找到长度为 {length} 的单词。")
+            else:
+                # 确定要抽取的单词数量，最多10个
+                num_to_sample = min(10, len(candidate_words))
+                
+                # 从候选单词中随机抽取指定数量的单词
+                selected_words = random.sample(candidate_words, num_to_sample)
+                
+                print(f"找到了 {len(candidate_words)} 个长度为 {length} 的单词。以下是随机抽取的 {num_to_sample} 个示例:")
+                # 打印出选中的单词
+                for word in selected_words:
+                    print(f"  - {word}")
+
+        except ValueError:
+            # 如果用户输入的不是数字，则捕获异常
+            print("无效输入。请输入一个数字或 'q' 来退出。")
+
+def main():
+    """
+    程序主入口函数。
+    """
+    # 加载词典数据
+    # 在 Windows 上，可以指定一个本地文件路径，例如: 'C:\\path\\to\\words.txt'
+    # 在 macOS/Linux 上，'/usr/share/dict/words' 是一个常见路径
+    words_dictionary = load_dictionary()
+    
+    # 如果词典为空（例如，备用列表也加载失败），则不继续
+    if not words_dictionary:
+        print("无法加载任何单词，程序即将退出。")
+        return
+
+    # 启动用户交互循环
+    find_words_by_length(words_dictionary)
+
+if __name__ == "__main__":
+    main()

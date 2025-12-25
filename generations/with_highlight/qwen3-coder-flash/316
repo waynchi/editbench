@@ -1,0 +1,115 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                              std=[0.229, 0.224, 0.225])
+        ])
+    def create_unrelated_pairs(self, image_text_pairs):
+        """Создает несвязанные пары изображение-текст, перемешивая текстовые описания"""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """Создает семантически похожие текстовые пары, используя наборы данных парафраз."""
+        dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+        textual_pairs = []
+        for item in dataset:
+            if item['is_duplicate'] == 1:
+                pair = (item['question1'], item['question2'])
+                textual_pairs.append(pair)
+        return textual_pairs[:self.sample_size]
+    def create_visual_pairs(self, image_text_pairs):
+        """Создает увеличенные пары изображений, сохраняя семантическое значение"""
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+        
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                augmented = augmentation_transforms(image)
+                visual_pairs.append((image, augmented))
+        return visual_pairs
+
+    def load_mscoco_dataset(self):
+        """Загружает и предварительно обрабатывает набор данных MSCOCO с улучшенной фильтрацией"""
+        # Используем более надежный способ загрузки данных
+        try:
+            dataset = load_dataset(
+                "shunk031/MSCOCO",
+                year=2014,
+                coco_task="captions",
+                split='train',
+                streaming=False  # Отключаем потоковую загрузку для избежания проблем с файлами
+            )
+            
+            image_text_pairs = []
+            count = 0
+            
+            # Проходим через ограниченное количество примеров
+            for item in dataset['train']:
+                if count >= self.sample_size:
+                    break
+                    
+                # Проверяем наличие изображения и заголовков
+                if 'image' in item and 'captions' in item and len(item["captions"]) > 0:
+                    # Выбрать наиболее описательный заголовок на основе длины
+                    best_caption = max(item["captions"], key=len)
+                    if len(best_caption.split()) >= 5:  # Отфильтровать слишком короткие подписи
+                        image_text_pairs.append((item["image"], best_caption))
+                        count += 1
+                        
+            return image_text_pairs
+            
+        except Exception as e:
+            print(f"Error loading MSCOCO dataset: {e}")
+            # Возвращаем пустой список как резервный вариант
+            return []
+
+def main():
+    # Инициализация создателя набора данных
+    creator = AlignmentDatasetCreator(sample_size=100)
+    
+    # Загрузить и создать наборы данных
+    print("Loading MSCOCO dataset...")
+    image_text_pairs = creator.load_mscoco_dataset()
+    
+    if not image_text_pairs:
+        print("Warning: No image-text pairs loaded. Creating dummy data for demonstration.")
+        # Создаем фиктивные данные для демонстрации
+        dummy_image = Image.new('RGB', (224, 224), color='red')
+        image_text_pairs = [(dummy_image, "This is a sample caption"), 
+                           (dummy_image, "Another sample description")]
+    
+    print("Creating unrelated pairs...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+    
+    print("Creating textual pairs...")
+    textual_pairs = creator.create_textual_pairs()
+    
+    print("Creating visual pairs...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+    
+    # Вывести образец из каждого набора данных
+    print("Dataset Samples:")
+    print(f"Image-Text Pair: {image_text_pairs[0]}")
+    print(f"Unrelated Pair: {unrelated_pairs[0]}")
+    print(f"Textual Pair: {textual_pairs[0]}")
+    print(f"Visual Pair: {visual_pairs[0]}")
+
+if __name__ == "__main__":
+    main()

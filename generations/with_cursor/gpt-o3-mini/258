@@ -1,0 +1,53 @@
+import random
+
+def load_dictionary(path="/usr/share/dict/words"):
+    """
+    Загружает слова из системного словаря.
+    Если файл не найден или возникает ошибка, возвращает пустой список.
+    """
+    try:
+        with open(path, "r") as file:
+            words = file.read().splitlines()
+        return words
+    except Exception as error:
+        print(f"Ошибка при чтении файла словаря: {error}")
+        return []
+
+def filter_words_by_length(words, length):
+    """
+    Фильтрует список слов, возвращая только те, длина которых равна length.
+    """
+    return [word for word in words if len(word) == length]
+
+def main():
+    try:
+        n = int(input("Введите желаемое количество символов в слове: "))
+        if n <= 0:
+            print("Пожалуйста, введите положительное число.")
+            return
+
+        dictionary = load_dictionary()
+        if not dictionary:
+            print("Словарь не удалось загрузить.")
+            return
+
+        matching_words = filter_words_by_length(dictionary, n)
+        
+        if not matching_words:
+            print(f"Слов с {n} символами не найдено.")
+        else:
+            # Если найдено больше 10 слов, случайным образом выбираем 10 из них,
+            # иначе выводим все найденные слова.
+            if len(matching_words) > 10:
+                selected_words = random.sample(matching_words, 10)
+            else:
+                selected_words = matching_words
+            
+            print(f"Найдено {len(selected_words)} слово(а/слов) с {n} символами:")
+            for word in selected_words:
+                print(word)
+    except ValueError:
+        print("Некорректный ввод. Пожалуйста, введите целое число.")
+
+if __name__ == "__main__":
+    main()

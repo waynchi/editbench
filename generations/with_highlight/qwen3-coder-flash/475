@@ -1,0 +1,42 @@
+# Carpeta con todas las fotos / carpeta con fotos para entrenamiento
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Leemos los nombres de los directorios, que son el tipo de eclipse
+ECLIPSE_LIST = {i:name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+
+# Carpeta con fotos para validación
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Carpeta con fotos para prueba
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+
+# Proporción de imágenes en la validación
+VAL_FRAC = 0.3
+
+
+# Dividimos el conjunto de datos train en train y val
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # Leemos el conjunto de imágenes.
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Ordenamos las imágenes para la determinación
+    images_filename = sorted(os.listdir(eclipse_path))
+    
+    # Seleccionamos parte de las imágenes para validación
+    # Seleccionamos imágenes aleatorias de la muestra para validación, con random_state establecido
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+    indices = sample_without_replacement(num_images, num_val, random_state=42)
+    val_images = np.take(images_filename, indices)
+
+    print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+    
+    # Movemos las imágenes de validación del conjunto de train al conjunto de val
+    for image_filename in val_images:
+        source = os.path.join(TRAIN_DIR, eclipse, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.move(source, destination)

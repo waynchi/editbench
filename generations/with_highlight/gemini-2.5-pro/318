@@ -1,0 +1,75 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+
+def generate_analysis(json_path, prompt_path, model_config):
+    """
+    Инициализирует модель, загружает данные, создает и выполняет цепочку для получения ответа.
+
+    _Эта функция инкапсулирует выделенный в задаче код._
+
+    Args:
+        json_path (str): Путь к JSON-файлу со значениями SHAP.
+        prompt_path (str): Путь к файлу с системным промптом.
+        model_config (dict): Словарь с параметрами для инициализации ChatOllama.
+
+    Returns:
+        langchain_core.messages.ai.AIMessage: Объект ответа от модели.
+    """
+    # Инициализировать модель ChatOllama
+    chat_model = ChatOllama(**model_config)
+
+    # Загрузить значения SHAP из файла JSON
+    with open(json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Загрузить системный запрос из файла
+    with open(prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Подготовить сообщения
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Сгенерировать ответ
+    user_input = json.dumps(shap_values_json)  # Подготовить ввод пользователя
+
+    chain = prompt | chat_model
+
+    # Вызвать цепочку и вернуть ответ
+    response = chain.invoke(user_input)
+    return response
+
+
+# --- Пример использования функции ---
+
+# Конфигурация модели. Раскомментируйте нужный вариант.
+
+# Вариант 1: Локальная модель
+model_parameters = {"model": "llama3.2", "base_url": "http://localhost:11434"}
+
+# Вариант 2: Удаленная модель с авторизацией
+# model_parameters = {
+#     "model": "llama3.1:70b",
+#     "base_url": "http://ada-open-webui.serveo.net/ollama",
+#     "client_kwargs": {
+#         "headers": {"authorization": "Bearer <MASKED>"}
+#     },
+# }
+
+# Пути к файлам
+shap_file = "Vuori_Final_Approval_2024_09_24.json"
+system_prompt_file = "system.prompt"
+
+# Вызвать функцию для получения ответа
+response = generate_analysis(
+    json_path=shap_file, prompt_path=system_prompt_file, model_config=model_parameters
+)
+
+# Вывести ответ
+print(response.content)

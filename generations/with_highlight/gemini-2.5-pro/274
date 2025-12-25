@@ -1,0 +1,73 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Поскольку данные поступают из API, мы сначала их получим и проанализируем.
+try:
+    # 1. ПОЛУЧЕНИЕ ДАННЫХ ИЗ API
+    # Замените 'your_api_url' на реальный URL-адрес вашего API.
+    # В этом примере код закомментирован, и мы используем фиктивные данные.
+    #
+    # api_url = "https://your_api_url/data"
+    # response = requests.get(api_url)
+    # response.raise_for_status()  # Проверка на ошибки HTTP (например, 404, 500)
+    # data_from_api = response.json() # Преобразование ответа в формат Python (обычно список словарей)
+
+    # --- Начало: Фиктивные данные для примера (замените их реальным вызовом API) ---
+    data_from_api = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+    # --- Конец: Фиктивные данные для примера ---
+
+    # 2. АНАЛИЗ ДАННЫХ
+    # Прежде чем создавать DataFrame, полезно посмотреть на сырые данные.
+    print("Тип полученных данных:", type(data_from_api))
+    if isinstance(data_from_api, list) and data_from_api:
+        print("Пример первой записи:", data_from_api[0])
+    else:
+        print("Полученные данные (или их часть):", str(data_from_api)[:500])
+
+    # 3. СОЗДАНИЕ DATAFRAME
+    # Теперь, когда мы знаем структуру данных (список словарей), мы можем создать DataFrame.
+    # Если бы данные были вложены, например, {"results": [...]},
+    # мы бы использовали: spark.createDataFrame(data_from_api["results"])
+    df = spark.createDataFrame(data_from_api)
+
+    # 4. АНАЛИЗ DATAFRAME
+    # После создания DataFrame проверим его схему и содержимое.
+    print("\nСхема DataFrame:")
+    df.printSchema()
+    print("\nПредварительный просмотр DataFrame:")
+    df.show()
+
+except Exception as e:
+    print(f"Произошла ошибка при получении или обработке данных API: {e}")
+    # В случае ошибки останавливаем выполнение, так как DataFrame не может быть создан.
+    spark.stop()
+    exit()
+
+
+# Настроить подключение к ADL2 с использованием идентификатора Microsoft ID
+# В блокноте Synapse не нужно явно указывать учетные данные
+# Spark будет использовать управляемую идентичность блокнота для аутентификации.
+
+# Указать путь к контейнеру и папке в ADL2
+container_name = "<your_container_name>"  # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"  # Заменить на путь к папке внутри контейнера
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате parquet в ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Опционально: прочитать файл parquet для проверки
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Остановить сессию Spark
+spark.stop()

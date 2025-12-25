@@ -1,0 +1,61 @@
+import math
+
+def numbers_as_sum_of_four_nonzero_squares(limit: int):
+    """
+    生成所有小于等于 limit 并且可以表示为四个非零整数平方和的数字。
+    Generates all numbers up to a given limit that can be expressed as the
+    sum of four non-zero squares (e.g., n = a² + b² + c² + d² where a,b,c,d >= 1).
+    
+    Args:
+        limit: The upper bound for the numbers to generate.
+    
+    Returns:
+        A sorted list of integers that are sums of four non-zero squares.
+    """
+    result = set()
+    # The largest possible base integer is sqrt(limit).
+    max_base = int(math.sqrt(limit)) + 1
+    
+    # To avoid permutations and redundant calculations, we enforce a >= b >= c >= d >= 1.
+    # This ensures that each combination of four squares is generated only once.
+    for d in range(1, max_base):
+        d2 = d * d
+        # Optimization: The smallest sum starting with this 'd' is 4*d².
+        # If it's over the limit, no larger 'd' will work.
+        if 4 * d2 > limit:
+            break
+        for c in range(d, max_base):
+            c2 = c * c
+            # Optimization: Smallest sum with 'd' and 'c' is d² + 3*c² (since b>=c, a>=c).
+            if d2 + 3 * c2 > limit:
+                break
+            for b in range(c, max_base):
+                b2 = b * b
+                # Optimization: Smallest sum with d, c, b is d² + c² + 2*b² (since a>=b).
+                if d2 + c2 + 2 * b2 > limit:
+                    break
+                for a in range(b, max_base):
+                    a2 = a * a
+                    current_sum = a2 + b2 + c2 + d2
+                    if current_sum > limit:
+                        break
+                    result.add(current_sum)
+    
+    return sorted(list(result))
+
+if __name__ == '__main__':
+    # Define an upper limit for the search.
+    limit = 100
+    
+    # Get the list of numbers.
+    four_square_numbers = numbers_as_sum_of_four_nonzero_squares(limit)
+    
+    # Print the results.
+    print(f"可以表示为四个非零平方和且不大于 {limit} 的数字是:")
+    print(four_square_numbers)
+    
+    # Example: Check which numbers from 1 to 'limit' cannot be represented.
+    all_numbers = set(range(1, limit + 1))
+    exceptions = sorted(list(all_numbers - set(four_square_numbers)))
+    print(f"\n在 1 到 {limit} 之间，不能表示为四个非零平方和的数字是:")
+    print(exceptions)

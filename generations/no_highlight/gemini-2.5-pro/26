@@ -1,0 +1,147 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000, verbose=True):
+    """
+    Реализует метод сопряжённых градиентов для решения системы линейных
+    алгебраических уравнений Ax = b.
+
+    Метод применим к системам, где матрица A является симметричной и
+    положительно определённой.
+
+    Параметры:
+    ----------
+    A : np.ndarray
+        Матрица коэффициентов системы (n x n). Должна быть симметричной и
+        положительно определённой.
+    b : np.ndarray
+        Вектор правой части (n x 1).
+    x0 : np.ndarray, optional
+        Начальное приближение для решения x. Если не указано,
+        используется нулевой вектор.
+    tol : float, optional
+        Допустимая погрешность для евклидовой нормы невязки, используемая
+        в качестве критерия остановки.
+    max_iter : int, optional
+        Максимальное количество итераций.
+    verbose : bool, optional
+        Если True, выводит сообщения о ходе выполнения и результате.
+
+    Возвращает:
+    -----------
+    x : np.ndarray
+        Приближённое решение системы Ax = b.
+    """
+
+    n = A.shape[0]
+
+    # Проверка на симметричность (опционально, но полезно)
+    if not np.allclose(A, A.T):
+        if verbose:
+            print("Предупреждение: Матрица A не является симметричной.")
+    
+    # Инициализация начального приближения
+    if x0 is None:
+        x = np.zeros(n, dtype=np.float64)
+    else:
+        x = x0.astype(np.float64)
+
+    # r_0 = b - Ax_0 (начальная невязка)
+    r = b - np.dot(A, x)
+    
+    # Проверка, не является ли начальное приближение уже решением
+    if np.linalg.norm(r) < tol:
+        if verbose:
+            print("Начальное приближение уже является решением.")
+        return x
+
+    # p_0 = r_0 (начальное направление спуска)
+    p = r.copy()
+    
+    # rs_old = r_k^T * r_k
+    rs_old = np.dot(r, r)
+
+    # Итерационный процесс
+    for i in range(max_iter):
+        # Вычисляем произведение A * p_k
+        Ap = np.dot(A, p)
+        
+        # Вычисляем коэффициент шага alpha_k
+        alpha = rs_old / np.dot(p, Ap)
+        
+        # Обновляем решение: x_{k+1} = x_k + alpha_k * p_k
+        x = x + alpha * p
+        
+        # Обновляем невязку: r_{k+1} = r_k - alpha_k * A * p_k
+        r = r - alpha * Ap
+        
+        # Вычисляем квадрат нормы новой невязки
+        rs_new = np.dot(r, r)
+        
+        # Проверка критерия остановки по норме невязки
+        if np.sqrt(rs_new) < tol:
+            if verbose:
+                print(f"Сходимость достигнута на итерации {i+1}.")
+            break
+            
+        # Обновляем направление спуска: p_{k+1} = r_{k+1} + beta_k * p_k
+        # где beta_k = rs_new / rs_old
+        p = r + (rs_new / rs_old) * p
+        
+        # Обновляем значение квадрата нормы невязки для следующей итерации
+        rs_old = rs_new
+    else:  # Выполняется, если цикл завершился без break
+        if verbose:
+            print(f"Достигнуто максимальное число итераций ({max_iter}) без сходимости.")
+            print(f"Текущая норма невязки: {np.sqrt(rs_new):.6e}")
+
+    return x
+
+
+if __name__ == '__main__':
+    # --- Пример использования ---
+
+    # 1. Зададим симметричную положительно определённую матрицу A
+    A = np.array([[4, 1, 0],
+                  [1, 3, -1],
+                  [0, -1, 2]], dtype=float)
+
+    # 2. Зададим вектор b
+    b = np.array([1, 2, 3], dtype=float)
+
+    # 3. Начальное приближение (можно не указывать, тогда будет нулевой вектор)
+    x0 = np.array([0, 0, 0], dtype=float)
+
+    print("--- Запуск метода сопряжённых градиентов ---")
+    
+    # 4. Вызов функции метода сопряжённых градиентов
+    x_cg = conjugate_gradient(A, b, x0=x0, tol=1e-9, max_iter=100)
+
+    print(f"\nРешение, полученное методом сопряжённых градиентов:\n{x_cg}")
+    
+    # 5. Проверка результата
+    # Найдём точное решение с помощью встроенной функции numpy
+    x_exact = np.linalg.solve(A, b)
+    print(f"\nТочное решение (numpy.linalg.solve):\n{x_exact}")
+    
+    # Сравним результаты
+    print(f"\nОшибка (норма разности): {np.linalg.norm(x_exact - x_cg):.6e}")
+    
+    # Проверим невязку b - Ax для нашего решения
+    residual_norm = np.linalg.norm(b - np.dot(A, x_cg))
+    print(f"Норма невязки ||b - Ax||: {residual_norm:.6e}")
+    
+    # --- Пример с большей размерностью ---
+    print("\n" + "="*50)
+    print("Пример с матрицей большей размерности (10x10)")
+    
+    # Создаем случайную симметричную положительно определенную матрицу
+    np.random.seed(42)
+    size = 10
+    rand_matrix = np.random.rand(size, size)
+    A_large = np.dot(rand_matrix, rand_matrix.T) + np.eye(size) * 0.1 # A*A^T + A - симм. и полож. опр.
+    b_large = np.random.rand(size)
+    
+    x_large_cg = conjugate_gradient(A_large, b_large, tol=1e-12)
+    x_large_exact = np.linalg.solve(A_large, b_large)
+
+    print(f"\nОшибка (норма разности): {np.linalg.norm(x_large_exact - x_large_cg):.6e}")

@@ -1,0 +1,27 @@
+import pygame
+import math
+
+# Zainicjuj Pygame
+pygame.init()
+
+# Ustaw wyświetlacz
+screen_width = 800
+screen_height = 600
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption('Basic Screen')
+
+# Główna pętla
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # Wypełnij ekran kolorem (np. czarnym)
+    screen.fill((0, 0, 0))
+
+    # Zaktualizuj wyświetlacz
+    pygame.display.flip()
+
+# Zakończ Pygame
+pygame.quit()

@@ -1,0 +1,71 @@
+import numpy as np
+
+def gradientes_conjugados(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Resuelve el sistema de ecuaciones lineales Ax = b usando el método de gradientes conjugados.
+    
+    Parámetros:
+    A: matriz del sistema (n x n)
+    b: vector de términos independientes (n)
+    x0: aproximación inicial (opcional)
+    tol: tolerancia para el criterio de parada
+    max_iter: número máximo de iteraciones
+    
+    Retorna:
+    x: solución aproximada
+    convergencia: lista con la norma del residuo en cada iteración
+    """
+    n = len(b)
+    
+    # Inicialización
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    r = b - np.dot(A, x)  # Residuo inicial
+    p = r.copy()          # Dirección de búsqueda inicial
+    convergencia = [np.linalg.norm(r)]
+    
+    # Iteraciones
+    for k in range(max_iter):
+        Ap = np.dot(A, p)  # Producto matriz-vector
+        
+        # Coeficiente alpha
+        alpha = np.dot(r, r) / np.dot(p, Ap)
+        
+        # Actualizar solución y residuo
+        x = x + alpha * p
+        r_new = r - alpha * Ap
+        
+        # Verificar convergencia
+        norm_r = np.linalg.norm(r_new)
+        convergencia.append(norm_r)
+        
+        if norm_r < tol:
+            break
+        
+        # Coeficiente beta y nueva dirección
+        beta = np.dot(r_new, r_new) / np.dot(r, r)
+        p = r_new + beta * p
+        
+        # Actualizar residuo para la siguiente iteración
+        r = r_new
+    
+    return x, convergencia
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    # Matriz simétrica y definida positiva
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    
+    # Resolver con gradientes conjugados
+    x, convergencia = gradientes_conjugados(A, b)
+    
+    print("Solución:", x)
+    print("Residuo final:", convergencia[-1])
+    print("Iteraciones:", len(convergencia) - 1)
+    
+    # Verificación
+    print("A*x - b:", np.dot(A, x) - b)

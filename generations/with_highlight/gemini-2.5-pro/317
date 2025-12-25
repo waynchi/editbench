@@ -1,0 +1,31 @@
+import os
+import hashlib
+import base64
+
+project_name = "CheckerKMV"
+
+
+def createLicense(secretKey: str) -> None:
+    """
+    Создает файл лицензии, сохраняя хеш секретного ключа.
+    Это безопаснее, чем хранить ключ в открытом виде.
+    """
+    # Путь к папке проекта в %APPDATA% (обычно C:\Users\Username\AppData\Roaming)
+    appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+
+    # Создаем директорию, если она не существует. exist_ok=True предотвращает ошибку, если папка уже есть.
+    os.makedirs(appdata_path, exist_ok=True)
+
+    # 1. Преобразуем строку с ключом в байты для хеширования
+    secret_key_bytes = secretKey.encode('utf-8')
+
+    # 2. Хешируем байты с использованием SHA-256
+    hashed_key = hashlib.sha256(secret_key_bytes).digest()
+    
+    # 3. Кодируем бинарный хеш в Base64, чтобы получить текстоподобное представление в байтах
+    encoded_for_storage = base64.b64encode(hashed_key)
+
+    # Открываем файл в режиме бинарной записи ('wb')
+    with open(os.path.join(appdata_path, "license.dat"), "wb") as f:
+        # Записываем закодированный хеш. Ошибки TypeError больше нет, так как мы записываем байты.
+        f.write(encoded_for_storage)

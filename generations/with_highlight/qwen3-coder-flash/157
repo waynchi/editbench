@@ -1,0 +1,54 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-10, max_iter=None):
+    """
+    共轭梯度法求解线性方程组 Ax = b
+    
+    参数:
+    A: 对称正定矩阵 (或其numpy数组)
+    b: 右端向量
+    x0: 初始猜测值 (可选)
+    tol: 收敛容差
+    max_iter: 最大迭代次数
+    
+    返回:
+    x: 解向量
+    """
+    import numpy as np
+    
+    # 初始化
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = x0.astype(float)
+    
+    r = b - A @ x  # 残差
+    p = r.copy()   # 共轭方向
+    
+    rsold = r @ r  # 残差的平方和
+    
+    # 如果初始残差已经足够小，直接返回
+    if np.sqrt(rsold) < tol:
+        return x
+    
+    # 设置最大迭代次数
+    if max_iter is None:
+        max_iter = len(b)
+    
+    # 迭代求解
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        rsnew = r @ r
+        
+        # 检查收敛性
+        if np.sqrt(rsnew) < tol:
+            break
+            
+        # 计算新的共轭方向
+        beta = rsnew / rsold
+        p = r + beta * p
+        rsold = rsnew
+    
+    return x

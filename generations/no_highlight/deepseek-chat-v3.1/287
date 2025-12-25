@@ -1,0 +1,120 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import skew
+
+def medcouple(data):
+    data = np.sort(data)
+    n = len(data)
+    median = np.median(data)
+
+    # Разделить данные на левую и правую части относительно медианы
+    left = data[data <= median]
+    right = data[data >= median]
+
+    # Ядро функции h(xi, xj)
+    def h(xi, xj):
+        if xi != xj:
+            return ((xj - median) - (median - xi)) / (xj - xi)
+        return 0
+
+    # Специальное ядро для случаев с повторяющимися медианами
+    def special_h(i, j, k):
+        if i + j - 1 < k:
+            return -1
+        elif i + j - 1 == k:
+            return 0
+        elif i + j - 1 > k:
+            return 1
+
+    # Сгенерировать все возможные h(xi, xj)
+    k = len(data[data == median])  # Количество повторяющихся медианных значений
+
+    if k > 1:
+        # Для случая с повторяющимися медианами используем поэлементную обработку
+        h_values = []
+        for i, xi in enumerate(left):
+            for j, xj in enumerate(right):
+                if xi == xj == median:
+                    h_values.append(special_h(i, j, k))
+                else:
+                    h_values.append(h(xi, xj))
+    else:
+        # Для обычного случая используем векторизованный подход
+        xi, xj = np.meshgrid(left, right, indexing='ij')
+        h_values = h(xi, xj).flatten()
+
+    # Возвращаем медиану всех значений h
+    return np.median(h_values)
+
+def adjusted_boxplot_bounds(data):
+    """Вычисляет границы скорректированного boxplot с учетом skewness-adjusted fences."""
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    _medcouple = medcouple(data)
+
+    if _medcouple > 0:
+        lower_fence = q1 - 1.5 * np.exp(-4 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(3 * _medcouple) * iqr
+    else:
+        lower_fence = q1 - 1.5 * np.exp(-3 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(4 * _medcouple) * iqr
+
+    return lower_fence, upper_fence
+
+def normalize_column(data):
+    """Нормализация с использованием скорректированного ящичного графика."""
+    lower_fence, upper_fence = adjusted_boxplot_bounds(data)
+    return (data - lower_fence) / (upper_fence - lower_fence)
+
+# Генерация данных
+np.random.seed(42)
+data_normal = np.random.normal(loc=50, scale=10, size=10000)
+data_skewed = np.random.exponential(scale=20, size=10000)
+data_skewed = np.concatenate([data_skewed[5:], [200, 250, 300, -100, -50]])
+data_with_outliers = np.concatenate([data_normal, [150, 160, 170]])
+
+# Нормализация
+df = pd.DataFrame({
+    "Normal": data_normal,
+    "Skewed": data_skewed,
+    "With_outliers": data_with_outliers,
+})
+
+normalized_df = df.apply(normalize_column)
+
+plt.figure(figsize=(16, 4), dpi=250)
+
+bins = np.linspace(-5, 200, 206)
+bin_width = bins[1] - bins[0]  # Width одного бина
+
+for col in df.columns:
+    hist, _ = np.histogram(df[col], bins=bins)
+
+    # Позиции столбиков для каждой гистограммы
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    # Смещение для каждого набора данных
+    offset = bin_width / 4
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', alpha=0.2, label=f'{col}')
+    plt.legend()
+    plt.title(f"Histogram Before Normalization")
+plt.xlim(-10, 200)
+plt.show()
+
+bins = np.linspace(-2, 2, 101)
+bin_width = bins[1] - bins[0]  # Ширина одного интервала
+
+plt.figure(figsize=(16, 4), dpi=250)
+for col in normalized_df.columns:
+    hist, _ = np.histogram(normalized_df[col], bins=bins)
+
+    # Позиции столбиков для каждой гистограммы
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    # Смещение для каждого набора данных
+    offset = bin_width / 2
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', label=f'{col}', alpha=0.2)
+    plt.legend()
+    plt.title(f"Histogram After Normalization")
+plt.show()

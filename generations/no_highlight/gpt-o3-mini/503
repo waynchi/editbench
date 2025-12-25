@@ -1,0 +1,173 @@
+import time
+import torch
+import numpy as np
+from torch.utils.data import DataLoader
+from transformers import TrainerCallback, default_data_collator
+
+def check_answer_factual(output_str, expected_answer):
+    # Esta función debe retornar 1 si la respuesta es factualmente correcta, 0 en caso contrario.
+    # Implementa aquí la lógica de validación factual.
+    # Por defecto, se retorna 1 si las cadenas son iguales (este es solo un ejemplo).
+    return int(output_str.strip() == expected_answer.strip())
+
+def check_answer_format(output_str, hard=True):
+    # Esta función debe retornar 1 si el formato de la respuesta cumple la validación (duro o suave) y 0 en caso contrario.
+    # Implementa aquí la lógica de validación de formato.
+    # Por defecto, retorna 1 (este es solo un ejemplo).
+    return 1
+
+def factual_score_dataloader(
+    model,
+    tokenizer,
+    batched_tokenized_questions,
+    expected_answers,
+    max_new_tokens=32,
+    output_format=False,
+    random_state=42,
+    device=None,
+    verbose=False,
+):
+    """
+    Evalúa la precisión factual de las respuestas generadas por un modelo de lenguaje,
+    calculando promedios móviles a medida que se procesan los lotes.
+
+    Args:
+        model: El modelo de lenguaje.
+        tokenizer: El tokenizador.
+        batched_tokenized_questions: DataLoader con las preguntas tokenizadas.
+        expected_answers: DataLoader con las respuestas esperadas.
+        max_new_tokens: Número máximo de tokens a generar.
+        output_format: Si se debe evaluar el formato de salida.
+        random_state: Semilla aleatoria para el muestreo.
+        device: Dispositivo para ejecutar (por defecto, CUDA si está disponible, sino CPU).
+        verbose: Si se debe imprimir información adicional.
+
+    Returns:
+        Si output_format es True, retorna una tupla (factual_accuracy, format_hard_avg, format_soft_avg)
+        Caso contrario, retorna factual_accuracy (valor promedio móvil).
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    # Inicializar variables para medias móviles
+    fact_mean = 0.0
+    count = 0
+    if output_format:
+        format_hard_mean = 0.0
+        format_soft_mean = 0.0
+
+    for batch, expected_ans in zip(batched_tokenized_questions, expected_answers):
+        # Procesar solo las entradas relevantes y moverlas al dispositivo adecuado
+        batch = {k: v.to(device) for k, v in batch.items() if k in ["input_ids", "attention_mask"]}
+
+        with torch.no_grad():
+            outputs = model.generate(
+                **batch,
+                max_new_tokens=max_new_tokens,
+                pad_token_id=tokenizer.pad_token_id
+            )
+            # Decodificar tanto las entradas como las salidas
+            detokenized_inputs = tokenizer.batch_decode(batch["input_ids"], skip_special_tokens=True)
+            # Tomar solo la parte generada
+            output_strings = tokenizer.batch_decode(
+                outputs[:, batch["input_ids"].shape[-1]:], skip_special_tokens=True
+            )
+
+            # Calcular la precisión factual para el lote actual
+            new_fact_results = [
+                check_answer_factual(output_str, expected)
+                for output_str, expected in zip(output_strings, expected_ans)
+            ]
+            batch_size = len(new_fact_results)
+            # Actualización de la media móvil para precisión factual
+            fact_mean = (fact_mean * count + sum(new_fact_results)) / (count + batch_size)
+            count += batch_size
+
+            if output_format:
+                # Calcular los valores de formato (duro y suave) para el lote actual
+                new_hard_results = [
+                    check_answer_format(output_str, hard=True) for output_str in output_strings
+                ]
+                new_soft_results = [
+                    check_answer_format(output_str, hard=False) for output_str in output_strings
+                ]
+                # Actualización de la media móvil para formato (usando el mismo count que factual)
+                format_hard_mean = (format_hard_mean * (count - batch_size) + sum(new_hard_results)) / count
+                format_soft_mean = (format_soft_mean * (count - batch_size) + sum(new_soft_results)) / count
+
+    if output_format:
+        return fact_mean, format_hard_mean, format_soft_mean
+    else:
+        return fact_mean
+
+class FactualAccuracyCallbackBETTER(TrainerCallback):
+    """Un callback para evaluar y registrar la precisión factual (y de formato) del modelo durante el entrenamiento."""
+
+    def __init__(
+        self, model, tokenizer, dataset, batch_size, verbose=False, output_format=False
+    ):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.n_samp = len(dataset)
+        self.verbose = verbose
+        self.output_format = output_format
+
+        tokenized_questions = dataset.map(
+            lambda examples: tokenizer(
+                examples["question"],
+                padding="max_length",
+                truncation=True,
+                max_length=512,
+            ),
+            batched=True,
+        )
+        self.batched_tokenized_questions = DataLoader(
+            tokenized_questions,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=default_data_collator
+        )
+        self.batched_expected_answers = DataLoader(
+            dataset['answer'],
+            batch_size=batch_size,
+            shuffle=False
+        )
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """Se llama después de registrar los últimos logs."""
+        if model is not None:
+            self.model = model
+        elif self.model is None:
+            return
+
+        if not state.is_local_process_zero:
+            return
+
+        start_time = time.time()
+        try:
+            with torch.no_grad():
+                results = factual_score_dataloader(
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    batched_tokenized_questions=self.batched_tokenized_questions,
+                    expected_answers=self.batched_expected_answers,
+                    output_format=self.output_format,
+                )
+                if self.output_format:
+                    factual_accuracy_avg, format_hard_avg, format_soft_avg = results
+                else:
+                    factual_accuracy_avg = results
+
+                if len(state.log_history) > 0:
+                    state.log_history[-1]["factual_accuracy"] = factual_accuracy_avg
+                    if self.output_format:
+                        state.log_history[-1]["format_hard"] = format_hard_avg
+                        state.log_history[-1]["format_soft"] = format_soft_avg
+        except Exception as e:
+            print(f"Error during factual accuracy evaluation: {e}")
+        finally:
+            time_taken = time.time() - start_time
+            if self.verbose:
+                print(f"[TIME] {time_taken:.2f} seconds: Model evaluated on FactualAccuracy.")

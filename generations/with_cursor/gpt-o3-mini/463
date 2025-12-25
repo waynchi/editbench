@@ -1,0 +1,285 @@
+import asyncio
+import aiohttp
+import aiofiles
+import xml.etree.ElementTree as ET
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+
+# Clase ticker con implementación asíncrona
+class ticker:
+    """
+    Ticker de acciones y todo lo relacionado con él, a través de MoexApi (versión asíncrona).
+
+    Se requieren bibliotecas:
+      aiohttp, aiofiles, xml.etree.ElementTree, matplotlib.pyplot, pandas, datetime, pickle, json
+    """
+    def __init__(self, name: str):
+        """
+        self.name - nombre del ticker
+        self.tech_dict - diccionario de análisis técnico
+        """
+        self.name = name
+        # Configuración inicial del análisis técnico
+        self.tech_dict = {
+            "value": {"use": False, "has_periods": False, "need_graph_space": True},
+            "sma":   {"use": False, "has_periods": True, "periods": [], "need_graph_space": False},
+            "ema":   {"use": False, "has_periods": True, "periods": [], "need_graph_space": False}
+        }
+
+    async def correct_name(self):
+        """
+        Verificación del nombre del ticker en el conjunto de tickers.
+        El conjunto se actualiza no más de una vez al día.
+        """
+        info_path = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+        tickers_bin_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin"
+
+        # Leer información del archivo Info.json de forma asíncrona
+        async with aiofiles.open(info_path, mode="r", encoding="utf-8") as f:
+            info_content = await f.read()
+        info = json.loads(info_content)
+
+        last_check = datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            # Actualizamos la lista de tickers
+            set_tickers = set()
+            url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    content = await response.read()
+            root = ET.fromstring(content)
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID"))
+            # Guardar el conjunto de tickers de forma asíncrona usando pickle
+            async with aiofiles.open(tickers_bin_path, mode="wb") as f:
+                await f.write(pickle.dumps(set_tickers))
+            # Actualizar la hora de la última actualización y escribir el archivo Info.json
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            async with aiofiles.open(info_path, mode="w", encoding="utf-8") as f:
+                await f.write(json.dumps(info, indent=3, ensure_ascii=False))
+        
+        # Leer el conjunto de tickers actualizado
+        async with aiofiles.open(tickers_bin_path, mode="rb") as f:
+            bin_data = await f.read()
+        set_tickers = pickle.loads(bin_data)
+        return self.name in set_tickers
+
+    async def CurrentPrice(self):
+        """
+        Precio actual para este ticker.
+        """
+        url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                content = await response.read()
+        root = ET.fromstring(content)
+        for data in root.findall("data"):
+            if data.get("id") == "marketdata":
+                rows = data.find("rows")
+                row = rows.find("row")
+                return row.get("LAST")
+
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """
+        Lista de velas para este ticker.
+
+        candles_name - componente necesario de las velas
+          (open, close, high, low, value, volume, begin, end)
+        timeframe - marco de tiempo:
+          1 - 1 min, 10 - 10 min, 60 - 1h, 24 - 1d, 7 - 1s, 31 - 1mes, 4 - 4meses
+        start, end - inicio y fin del período, formato "AAAA-MM-DD HH:MM:SS"
+        """
+        url = ("https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" +
+               self.name +
+               f"/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                content = await response.read()
+        root = ET.fromstring(content)
+        data_elem = root.find("data")
+        rows = data_elem.find("rows")
+        listcandles = []
+        if candles_name in ["begin", "end"]:
+            for row in rows.findall("row"):
+                datetime_str = row.get(candles_name)
+                dt = datetime.datetime(
+                    int(datetime_str[0:4]),
+                    int(datetime_str[5:7]),
+                    int(datetime_str[8:10]),
+                    int(datetime_str[11:13]),
+                    int(datetime_str[14:16]),
+                    int(datetime_str[17:])
+                )
+                listcandles.append(dt)
+        else:
+            for row in rows.findall("row"):
+                listcandles.append(float(row.get(candles_name)))
+        return listcandles
+
+    async def setattr_candles_dataframe(self, timeframe="24", start="", end=""):
+        """
+        Crea un dataframe de velas con el timeframe, start y end correspondientes y lo coloca en self.candles_dataframe.
+        """
+        # Se construye el dataframe utilizando las llamadas asíncronas para obtener las velas
+        open_list = await self.candles("open", timeframe, start, end)
+        close_list = await self.candles("close", timeframe, start, end)
+        high_list = await self.candles("high", timeframe, start, end)
+        low_list = await self.candles("low", timeframe, start, end)
+        value_list = await self.candles("value", timeframe, start, end)
+        begin_list = await self.candles("begin", timeframe, start, end)
+        candles_dataframe = pd.DataFrame({
+            "open": open_list,
+            "close": close_list,
+            "high": high_list,
+            "low": low_list,
+            "value": value_list,
+            "begin": begin_list
+        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+
+    async def graphic(self, timeframe="24", start="", end=""):
+        """
+        Devuelve un gráfico de velas del precio en el período indicado.
+
+        timeframe - marco de tiempo:
+          1 - 1 min, 10 - 10 min, 60 - 1h, 24 - 1d, 7 - 1s, 31 - 1mes, 4 - 4meses
+        start, end - inicio y fin del período, formato "AAAA-MM-DD HH:MM:SS"
+        """
+        await self.setattr_candles_dataframe(timeframe, start, end)
+        # Dividir el dataframe en velas al alza y a la baja
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+
+        # Establecer anchos de las velas según el marco temporal
+        if timeframe == "1":      # minuto
+            width_big = 1 / 24 / 60
+        elif timeframe == "10":   # 10 minutos
+            width_big = 1 / 24 / 6
+        elif timeframe == "60":   # hora
+            width_big = 1 / 24
+        elif timeframe == "24":   # día
+            width_big = 1
+        elif timeframe == "7":    # semana
+            width_big = 7
+        elif timeframe == "31":   # mes
+            width_big = 30
+        elif timeframe == "4":    # 4 meses
+            width_big = 90
+        else:
+            width_big = 0
+        width_small = width_big / 10
+        setattr(self, "width_big", width_big)
+
+        # Determinar el número de gráficas adicionales requeridas para herramientas de análisis técnico
+        number_of_additional_graphics = 0
+        for tech in self.tech_dict:
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]:
+                number_of_additional_graphics += 1
+
+        if number_of_additional_graphics != 0:
+            height_ratios_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics
+            fig, axs = plt.subplots(nrows=1 + number_of_additional_graphics,
+                                    ncols=1, sharex=True,
+                                    gridspec_kw={'height_ratios': height_ratios_list})
+            plt.suptitle(self.name, fontsize=15)
+            axs[0].grid(True)
+            # Velas alcistas (up)
+            axs[0].bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            axs[0].bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            axs[0].bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            # Velas bajistas (down)
+            axs[0].bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            axs[0].bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            axs[0].bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            # Agregar herramientas de análisis técnico
+            add_graph_index = 0
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    if not self.tech_dict[tech]["need_graph_space"]:
+                        tech_func(axs[0])
+                    else:
+                        # Asignar cada herramienta a su gráfico adicional
+                        axs[add_graph_index + 1].grid(True)
+                        tech_func(axs[add_graph_index + 1])
+                        add_graph_index += 1
+        else:
+            fig = plt.figure()
+            plt.title(self.name, fontsize=15)
+            ax = fig.add_subplot()
+            ax.grid(True)
+            ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(ax)
+        # Guardar la gráfica como imagen y retornarla abierta para enviar
+        graphic_path = r"D:\Python files\!MoexApiBot\graphic.png"
+        fig.savefig(graphic_path)
+        # Se abre el archivo de la imagen de forma binaria y se retorna
+        async with aiofiles.open(graphic_path, mode="rb") as f:
+            image_data = await f.read()
+        return image_data
+
+    def sma(self, ax):
+        """
+        Cálculo del SMA (media móvil simple) y su representación en el gráfico.
+        """
+        for period in self.tech_dict["sma"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                sma_list = []
+                sma_list.append(sum(self.candles_dataframe.close[0: period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period]) / period)
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list)
+
+    def ema(self, ax):
+        """
+        Cálculo del EMA (media móvil exponencial) y su representación en el gráfico.
+        """
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1) * ema_list[i - period] + 2 * self.candles_dataframe.close[i]) / (period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+
+    def value(self, ax):
+        """
+        Representación del "value" mediante barras en el gráfico.
+        """
+        ax.bar(x=self.up.begin, height=self.up.value, width=self.width_big, color="green")
+        ax.bar(x=self.down.begin, height=self.down.value, width=self.width_big, color="red")
+        ax.set_title("Value", fontsize=7)
+
+# Ejemplo de uso asíncrono
+# Para probar estas funciones, se puede ejecutar un bloque similar a este:
+# async def main():
+#     beb = ticker("SBER")
+#     if await beb.correct_name():
+#         price = await beb.CurrentPrice()
+#         print("Precio actual:", price)
+#         # Configuramos herramientas de análisis
+#         beb.tech_dict["sma"]["use"] = True
+#         beb.tech_dict["sma"]["periods"] = [20, 10]
+#         beb.tech_dict["ema"]["use"] = True
+#         beb.tech_dict["ema"]["periods"] = [150, 250]
+#         beb.tech_dict["value"]["use"] = True
+#         image_data = await beb.graphic("24", "2024-01-01", "2024-05-01")
+#         # Aquí se podría guardar o enviar image_data según se requiera
+#
+# asyncio.run(main())

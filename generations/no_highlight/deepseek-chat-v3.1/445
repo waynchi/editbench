@@ -1,0 +1,41 @@
+def binary_search(arr, target):
+    """
+    Realiza una búsqueda binaria en un arreglo ordenado.
+    
+    Args:
+        arr: Lista ordenada de elementos comparables.
+        target: Elemento a buscar en la lista.
+    
+    Returns:
+        int: Índice del elemento si se encuentra, -1 si no se encuentra.
+    """
+    left = 0
+    right = len(arr) - 1
+    
+    while left <= right:
+        mid = (left + right) // 2
+        
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    
+    return -1
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    # Lista ordenada para probar la función
+    sorted_list = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+    
+    # Buscar elementos en la lista
+    target1 = 7
+    target2 = 10
+    
+    result1 = binary_search(sorted_list, target1)
+    result2 = binary_search(sorted_list, target2)
+    
+    print(f"Lista: {sorted_list}")
+    print(f"Elemento {target1} encontrado en índice: {result1}")
+    print(f"Elemento {target2} encontrado en índice: {result2}")

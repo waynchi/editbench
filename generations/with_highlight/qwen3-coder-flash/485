@@ -1,0 +1,96 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """ Crea una matriz de tamaño rows x cols, llena con el valor fill_value.
+    Parámetros:
+    rows (int): número de filas.
+    cols (int): número de columnas.
+    fill_value (cualquier tipo): valor para llenar la matriz.
+    Retorna: list: matriz como lista de listas.
+    """
+    matrix = []
+    for i in range(rows):
+        row = []
+        for j in range(cols):
+            row.append(fill_value)
+        matrix.append(row)
+    return matrix
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """ Suma dos matrices del mismo tamaño.
+    Parámetros:
+    matrix_a (list): primera matriz.
+    matrix_b (list): segunda matriz.
+    Retorna: list: resultado de la suma de matrices.
+    """
+    rows = len(matrix_a)
+    cols = len(matrix_a[0])
+    result = create_matrix(rows, cols, 0)
+    for i in range(rows):
+        for j in range(cols):
+            result[i][j] = matrix_a[i][j] + matrix_b[i][j]
+    return result
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """ Multiplica todos los elementos de la matriz por un escalar.
+    Parámetros:
+    matrix (list): matriz original.
+    scalar (float): número por el cual se multiplican los elementos de la matriz.
+    Retorna: list: resultado de la multiplicación de la matriz por el escalar.
+    """
+    rows = len(matrix)
+    cols = len(matrix[0])
+    result = create_matrix(rows, cols, 0)
+    for i in range(rows):
+        for j in range(cols):
+            result[i][j] = matrix[i][j] * scalar
+    return result
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """ Multiplica dos matrices.
+    Parámetros:
+    matrix_a (list): primera matriz.
+    matrix_b (list): segunda matriz.
+    Retorna: list: resultado de la multiplicación de matrices.
+    """
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0])
+    rows_b = len(matrix_b)
+    cols_b = len(matrix_b[0])
+    
+    if cols_a != rows_b:
+        raise ValueError("No se puede multiplicar: el número de columnas de la primera matriz debe coincidir con el número de filas de la segunda matriz.")
+    
+    result = create_matrix(rows_a, cols_b, 0)
+    for i in range(rows_a):
+        for j in range(cols_b):
+            for k in range(cols_a):
+                result[i][j] += matrix_a[i][k] * matrix_b[k][j]
+    return result
+
+def transpose_matrix(matrix: list) -> list:
+    """ Transpone una matriz.
+    Parámetros:
+    matrix (list): matriz original.
+    Retorna: list: matriz transpuesta.
+    """
+    rows = len(matrix)
+    cols = len(matrix[0])
+    result = create_matrix(cols, rows, 0)
+    for i in range(rows):
+        for j in range(cols):
+            result[j][i] = matrix[i][j]
+    return result
+
+def determinant_3x3(matrix: list) -> float:
+    """ Calcula el determinante de una matriz 3x3.
+    Parámetros:
+    matrix (list): matriz original de tamaño 3x3.
+    Retorna: float: determinante de la matriz.
+    """
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+    
+    det = (a11 * (a22 * a33 - a23 * a32) 
+           - a12 * (a21 * a33 - a23 * a31) 
+           + a13 * (a21 * a32 - a22 * a31))
+    return det

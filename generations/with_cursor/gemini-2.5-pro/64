@@ -1,0 +1,36 @@
+import uuid
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Card:
+    """A data class to hold card and user information."""
+    # The 'id' field was referenced in the original __repr__ but not defined.
+    # It's added here and will be automatically initialized.
+    id: str = field(init=False)
+
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str
+
+    def __post_init__(self):
+        """
+        Initializes fields that depend on other fields or need to be
+        generated. Here, we generate a unique ID for the card instance.
+        """
+        self.id = str(uuid.uuid4())
+
+    # The original __repr__ was buggy and has been removed.
+    # The default __repr__ provided by @dataclass is correct and will be used.
+    # It will now correctly include the 'id' field.

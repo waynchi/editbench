@@ -1,0 +1,28 @@
+# Написать бинарный поиск
+
+def binary_search(arr, target):
+    """
+    Выполняет бинарный поиск элемента в отсортированном списке.
+
+    Args:
+        arr (list): Отсортированный список для поиска.
+        target: Элемент, который нужно найти.
+
+    Returns:
+        int or None: Индекс элемента, если он найден, иначе None.
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        guess = arr[mid]
+
+        if guess == target:
+            return mid
+        elif guess > target:
+            high = mid - 1
+        else:
+            low = mid + 1
+
+    return None

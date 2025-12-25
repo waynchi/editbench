@@ -1,0 +1,43 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("AnalisisDatosAPI").getOrCreate()
+
+# Leer datos desde la fuente de origen (API, JSON, CSV, etc.)
+# Reemplazar con la lógica adecuada para leer tus datos de API
+# Por ejemplo, si son datos JSON de una API:
+# json_data = spark.read.json("ruta_a_tu_api_endpoint")
+# o si están en un archivo temporal:
+datos_api_path = "<ruta_a_los_datos_desde_api>"  # Reemplazar con la ruta real
+df = spark.read.format("json").load(datos_api_path)  # Cambiar "json" según el formato
+
+# Analizar el esquema para entender la estructura de los datos
+print("Esquema de los datos:")
+df.printSchema()
+
+# Mostrar las primeras filas para examinar los datos
+print("Primeras filas de datos:")
+df.show(truncate=False)
+
+# Mostrar estadísticas básicas y recuento
+print(f"Número total de registros: {df.count()}")
+print("Resumen estadístico para columnas numéricas:")
+df.describe().show()
+
+# Opcional: Análisis adicional - contar valores nulos
+print("Conteo de valores nulos por columna:")
+from pyspark.sql.functions import isnull, when, count, col
+
+nulos_df = df.select([count(when(isnull(c), c)).alias(c) for c in df.columns])
+nulos_df.show()
+
+# Opcional: Ver valores únicos para columnas categóricas
+print("Valores únicos en columnas de texto (primeros 10):")
+for col_name, col_type in df.dtypes:
+    if col_type in ["string", "timestamp"]:
+        print(f"Columna: {col_name}")
+        df.select(col_name).distinct().show(10, truncate=False)
+
+# Detener la sesión Spark
+spark.stop()

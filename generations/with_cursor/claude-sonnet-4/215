@@ -1,0 +1,138 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    try:
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        logging.basicConfig(
+            level=logging.INFO,
+            format=log_format,
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('app.log', encoding='utf-8')
+            ]
+        )
+    except Exception as e:
+        print(f"Failed to setup logging: {e}")
+        raise
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # 作为编译后的可执行文件运行
+            return os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # 作为脚本运行
+            return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+    except Exception as e:
+        logging.error(f"Failed to get resource path: {e}")
+        raise
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+        
+        # 检查资源目录是否存在
+        if not os.path.exists(resource_dir):
+            logging.error(f"Resource directory does not exist: {resource_dir}")
+            return False
+        
+        # 检查每个所需文件是否存在
+        missing_files = []
+        for file in required_files:
+            file_path = os.path.join(resource_dir, file)
+            if not os.path.exists(file_path):
+                missing_files.append(file)
+        
+        # 如果有任何必需的文件丢失，则返回 False
+        if missing_files:
+            logging.error(f"Missing resource files: {', '.join(missing_files)}")
+            return False
+        return True
+    except Exception as e:
+        logging.error(f"Error checking resources: {e}")
+        return False
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # 设置日志记录
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # 检查资源
+        if not check_resources():
+            logging.error("Required resource files are missing. Application cannot start.")
+            sys.exit(1)
+
+        # 初始化支持拖放的主窗口
+        try:
+            root = tkinterdnd2.TkinterDnD.Tk()
+        except Exception as e:
+            logging.error(f"Failed to initialize tkinterdnd2: {e}")
+            # 回退到普通的 tkinter
+            root = tk.Tk()
+            logging.warning("Using standard tkinter without drag-and-drop support")
+        
+        # 在这里导入以避免循环导入
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as e:
+            logging.error(f"Failed to import AudioTranscriberApp: {e}")
+            sys.exit(1)
+        
+        # 创建应用程序实例
+        try:
+            app = AudioTranscriberApp(root)
+        except Exception as e:
+            logging.error(f"Failed to create application instance: {e}")
+            sys.exit(1)
+        
+        # 启动主事件循环
+        try:
+            root.mainloop()
+        except KeyboardInterrupt:
+            logging.info("Application interrupted by user")
+        except Exception as e:
+            logging.error(f"Error in main event loop: {e}")
+            raise
+        
+    except Exception as e:
+        logging.error(f"Application error: {e}")
+        # 显示错误对话框给用户
+        try:
+            import tkinter.messagebox as messagebox
+            messagebox.showerror("Application Error", f"An error occurred: {e}")
+        except:
+            print(f"Critical error: {e}")
+        sys.exit(1)
+    finally:
+        logging.info("Application shutting down")
+
+if __name__ == "__main__":
+    main()

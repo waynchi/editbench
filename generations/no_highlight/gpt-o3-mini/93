@@ -1,0 +1,64 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def generate_chat_response(shap_file_path: str, system_prompt_path: str, model: str = "llama3.2", base_url: str = "http://localhost:11434") -> str:
+    """
+    Generates a chat response using ChatOllama model based on SHAP values stored in a JSON file
+    and a system prompt from a file.
+
+    Parameters:
+        shap_file_path (str): Path to the JSON file containing shap_values.
+        system_prompt_path (str): Path to the file containing the system prompt.
+        model (str): The model identifier for ChatOllama. Default is "llama3.2".
+        base_url (str): The base URL for the ChatOllama service. Default is "http://localhost:11434".
+
+    Returns:
+        str: The generated chat response content.
+    """
+
+    # Initialize the ChatOllama model
+    chat_model = ChatOllama(model=model, base_url=base_url)
+    # Alternative initialization example (commented out):
+    # chat_model = ChatOllama(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     },
+    # )
+
+    # Load SHAP values from JSON file
+    with open(shap_file_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Load system prompt from file
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Prepare the prompt template with system and human roles
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Serialize the shap values as a JSON string for user input
+    user_input = json.dumps(shap_values_json)
+
+    # Create the chain of prompt and chat model
+    chain = prompt | chat_model
+
+    # Generate and return the chat response
+    response = chain.invoke(user_input)
+    return response.content
+
+if __name__ == "__main__":
+    # File paths for SHAP values and system prompt
+    shap_file = "Vuori_Final_Approval_2024_09_24.json"
+    system_prompt_file = "system.prompt"
+
+    # Generate and print response
+    response_text = generate_chat_response(shap_file, system_prompt_file)
+    print(response_text)

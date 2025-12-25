@@ -1,0 +1,121 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+def czyPoprawny(obrazek): # обрезок содержит список строк и можно использовать побитовый оператор
+                            # obraz[i][j]
+    for wiersz in obrazek[:-1]: # не учитываем из последней строки, там находятся биты четности
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]: # не учитываем из последней строки, там находятся биты четности
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+           bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """Вход представляет собой текстовый файл, содержащий данные черно-белого изображения, 
+закодированные как пиксели. 0 - белый пиксель, 1 - черный пиксель. Каждая строка и столбец содержат 
+в конце бит четности. Бит четности равен 0, если количество единиц в строке (или в столбце для 
+столбцов) четное, и 1, если нечетное.
+Например, если строка выглядит как "011011", то последний бит является битом четности и может быть 
+неверным. Функция должна найти поврежденные изображения, если они исправимы (содержат не более 
+одного неправильного бита четности строки и не более одного неправильного бита четности столбца), 
+и исправить их. Результат должен содержать список из двух изображений: первое – исходное (с ошибкой), 
+второе – исправленное."""
+    
+    # Сохраняем копию исходного изображения (ошибочного)
+    obrazek_err = obrazek[:]  # так как строки неизменяемы, достаточно списка ссылок
+
+    # Найдём индекс строки с ошибкой и индекс столбца с ошибкой (если есть)
+    error_row = None
+    error_col = None
+
+    # По строкам (только первые 20 строк содержат данные, последний байт каждой строки — бит четности)
+    for i in range(20):
+        wiersz = obrazek[i]
+        data = wiersz[:-1]
+        parity = int(wiersz[-1])
+        if data.count('1') % 2 != parity:
+            error_row = i
+            break
+
+    # По столбцам (для столбцов берём данные из первых 20 строк, а бит четности из 21-й строки)
+    for j in range(20):
+        col_data = ""
+        for i in range(20):
+            col_data += obrazek[i][j]
+        col_parity = int(obrazek[20][j])
+        if col_data.count('1') % 2 != col_parity:
+            error_col = j
+            break
+    
+    # Создаем модифицированную копию для исправления; так как строки неизменяемы, преобразуем в список символов
+    corrected = obrazek.copy()
+    
+    # Если ошибка обнаружена в данных пикселей (пересечение строки и столбца)
+    if error_row is not None and error_col is not None:
+        # Исправляем бит в пересечении: переворачиваем '0' в '1' и наоборот
+        row_list = list(corrected[error_row])
+        row_list[error_col] = '1' if row_list[error_col] == '0' else '0'
+        corrected[error_row] = "".join(row_list)
+    # Если ошибка только в строке (то, скорее всего, неверен бит четности строки)
+    elif error_row is not None:
+        row_list = list(corrected[error_row])
+        # Фиксируем последний символ (бит четности)
+        row_list[-1] = '1' if row_list[-1] == '0' else '0'
+        corrected[error_row] = "".join(row_list)
+    # Если ошибка только в столбце (вероятно ошибка в бите четности столбца, который находится в последней строке)
+    elif error_col is not None:
+        row_list = list(corrected[20])
+        row_list[error_col] = '1' if row_list[error_col] == '0' else '0'
+        corrected[20] = "".join(row_list)
+    # Если ошибок не обнаружено, то ничего не меняем
+
+    wynik = [obrazek_err, corrected]
+    return wynik
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip() # удаляем пробелы, например, enter
+   # wiersz = wiersz[:-1]  # только данные изображения без бита четности, теперь читаем всю строку данных
+    obrazek.append(wiersz)
+    if len(obrazek) == 21: # у нас 21 строка, то есть весь рисунок вместе со строками битов четности
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+
+    if len(obrazek) == 22:  # после 22 строки очищаем изображение, чтобы читать строки следующего изображения
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

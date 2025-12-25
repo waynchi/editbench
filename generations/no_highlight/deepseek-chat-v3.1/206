@@ -1,0 +1,202 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+function useDashboardData(user) {
+  const [customerData, setCustomerData] = useState({
+    summary: null,
+    loading: false,
+    customers: []
+  });
+  const [healthData, setHealthData] = useState([]);
+  const [websiteStatus, setWebsiteStatus] = useState({ checking: false });
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRange] = useState({
+    startDate: (() => {
+      const date = new Date();
+      date.setFullYear(date.getFullYear() - 1);
+      return new Date(date);
+    })(),
+    endDate: new Date(),
+  });
+  const [error, setError] = useState(null);
+
+  // 计算健康数据
+  const calculateHealthData = useCallback((customerSummary, range) => {
+    if (!customerSummary?.customers) return [];
+    
+    const months = [];
+    const currentDate = new Date(range.startDate);
+    
+    while (currentDate <= range.endDate) {
+      months.push({
+        month: currentDate.toLocaleString("default", { month: "short" }),
+        year: currentDate.getFullYear(),
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return months.map(({ month, year }) => {
+      const monthYear = `${month} ${year}`;
+      const monthCustomers = customerSummary.customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === new Date(`${year}-${month}-01`).getMonth() &&
+               customerDate.getFullYear() === year;
+      });
+
+      return {
+        monthYear,
+        healthy: monthCustomers.filter(c => c.status === "active").length,
+        warning: monthCustomers.filter(c => c.status === "churned").length,
+        critical: monthCustomers.filter(c => c.status === "delinquent").length,
+      };
+    });
+  }, []);
+
+  // 加载用户设置
+  const loadSettings = useCallback(async () => {
+    if (!user?.id || stripeApiKey) return;
+    
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      
+      setStripeApiKey(settings[0]?.stripe_api_key || "");
+    } catch (error) {
+      setError("Failed to load user settings");
+    }
+  }, [user?.id, stripeApiKey]);
+
+  // 加载客户数据
+  const loadData = useCallback(async () => {
+    if (!user?.id || !stripeApiKey) return;
+
+    setCustomerData(prev => ({ ...prev, loading: true }));
+    setError(null);
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      const newHealthData = calculateHealthData(summary, dateRange);
+      
+      setCustomerData({ 
+        summary, 
+        loading: false,
+        customers: summary.customers 
+      });
+      setHealthData(newHealthData);
+    } catch (error) {
+      setCustomerData(prev => ({ ...prev, loading: false }));
+      setError(error.message);
+    }
+  }, [user?.id, stripeApiKey, calculateHealthData, dateRange]);
+
+  // 网站健康检查
+  const checkWebsites = useCallback(async () => {
+    if (!customerData.customers?.length) return;
+    
+    setWebsiteStatus({ checking: true });
+    setError(null);
+
+    try {
+      const updatedCustomers = await Promise.all(
+        customerData.customers.map(async (customer) => {
+          const response = await fetch("/api/website-churn-detector", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ websiteUrl: customer.website }),
+          });
+          const health = await response.json();
+          return { 
+            ...customer, 
+            health, 
+            status: health.status === "active" ? "active" : "churned" 
+          };
+        })
+      );
+
+      const summary = {
+        ...customerData.summary,
+        customers: updatedCustomers,
+        active: updatedCustomers.filter(c => c.status === "active").length,
+        churned: updatedCustomers.filter(c => c.status === "churned").length,
+      };
+
+      const newHealthData = calculateHealthData(summary, dateRange);
+      
+      setCustomerData(prev => ({ ...prev, summary }));
+      setHealthData(newHealthData);
+      setWebsiteStatus({ checking: false });
+    } catch (err) {
+      setWebsiteStatus({ checking: false });
+      setError("Failed to check websites. Please try again.");
+    }
+  }, [customerData, calculateHealthData, dateRange]);
+
+  // 设置日期范围
+  const updateDateRange = useCallback((range) => {
+    if (range.startDate > range.endDate) {
+      setError("Start date cannot be after end date");
+      return;
+    }
+    
+    setDateRange(range);
+    setError(null);
+    
+    // 重新计算健康数据
+    if (customerData.summary) {
+      const newHealthData = calculateHealthData(customerData.summary, range);
+      setHealthData(newHealthData);
+    }
+  }, [customerData.summary, calculateHealthData]);
+
+  // 清除错误
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const actions = useMemo(() => ({
+    checkWebsites,
+    setDateRange: updateDateRange,
+    clearError
+  }), [checkWebsites, updateDateRange, clearError]);
+
+  // 副作用处理
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  return { 
+    data: {
+      customerData,
+      healthData,
+      websiteStatus,
+      stripeApiKey,
+      dateRange,
+      error
+    }, 
+    actions,
+    isLoading: customerData.loading || websiteStatus.checking 
+  };
+}
+
+export default useDashboardData;

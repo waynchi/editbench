@@ -1,0 +1,30 @@
+def is_prime(n):
+    """
+    Check if the given number n is a prime number.
+    
+    Args:
+        n (int): The number to check.
+    
+    Returns:
+        bool: True if n is prime, False otherwise.
+    """
+    if n < 2:
+        return False  # 0 and 1 are not primes
+    if n == 2:
+        return True   # 2 is the only even prime number
+    if n % 2 == 0:
+        return False  # all other even numbers are not primes
+    
+    # Check for factors from 3 up to the square root of n
+    i = 3
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 2  # skip even numbers
+    return True
+
+# Example usage:
+if __name__ == "__main__":
+    test_numbers = [0, 1, 2, 3, 4, 16, 17, 18, 19, 20, 23, 25, 29]
+    for num in test_numbers:
+        print(f"{num} is prime: {is_prime(num)}")

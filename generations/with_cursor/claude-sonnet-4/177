@@ -1,0 +1,49 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# 获取当前脚本的目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 构建到 Chrome 浏览器的路径，而不是 chromedriver
+chrome_binary_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+options = uc.ChromeOptions()
+# 设置 Chrome 浏览器的二进制文件路径
+options.binary_location = chrome_binary_path
+# 添加一些稳定性选项
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--remote-debugging-port=9222")
+
+print("正在启动浏览器...")
+
+try:
+    # 让 undetected_chromedriver 自动处理 chromedriver 的下载和配置
+    driver = uc.Chrome(options=options, version_main=None)
+    print("浏览器启动成功")
+    
+    driver.get("https://lmarena.ai/")
+    print("页面加载完成")
+    
+    # 等待页面完全加载
+    time.sleep(10)
+    
+    print("测试完成，关闭浏览器")
+    driver.quit()
+    
+except Exception as e:
+    print(f"发生错误: {e}")
+    print("尝试使用默认配置...")
+    
+    # 备用方案：使用最简单的配置
+    try:
+        options = uc.ChromeOptions()
+        driver = uc.Chrome(options=options)
+        driver.get("https://lmarena.ai/")
+        print("备用方案成功")
+        time.sleep(10)
+        driver.quit()
+    except Exception as e2:
+        print(f"备用方案也失败了: {e2}")

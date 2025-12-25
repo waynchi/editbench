@@ -1,0 +1,42 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+def main():
+    # Pobierz katalog bieżącego skryptu
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Skonstruuj ścieżkę do sterownika, który chcesz użyć
+    # UWAGA:
+    # – Nie mylemy tutaj pliku chromedriver.exe (sterownika) z plikiem wykonywalnym Chrome (przeglądarki).
+    # – Jeżeli masz własny plik chromedriver.exe, przekażemy go jako driver_executable_path.
+    # – Opcja options.binary_location służy do wskazywania ścieżki do pliku wykonywalnego Chrome,
+    #   np. "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe". Jeśli chcesz użyć domyślnej instalacji,
+    #   pozostaw tę opcję bez zmian.
+    chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+    
+    options = uc.ChromeOptions()
+    # Jeśli chcesz użyć niestandardowej przeglądarki Chrome, ustaw tutaj ścieżkę do jej pliku wykonywalnego.
+    # Na przykład:
+    # options.binary_location = r"C:\Path\To\Your\Chrome\Application\chrome.exe"
+    
+    # Utwórz instancję przeglądarki wykorzystującą undetected_chromedriver.
+    # Uwaga: parametr use_subprocess został usunięty – wraz z nowszymi wersjami mogą występować problemy z połączeniem,
+    # dlatego korzystamy z domyślnego sposobu uruchamiania.
+    try:
+        driver = uc.Chrome(options=options, driver_executable_path=chromedriver_path)
+    except Exception as e:
+        print("Wystąpił błąd podczas tworzenia sterownika Chrome:", e)
+        return
+
+    try:
+        print("Otwieram stronę https://lmarena.ai/ ...")
+        driver.get("https://lmarena.ai/")
+        # Możesz dodać kolejne akcje na stronie tutaj.
+        time.sleep(10)
+    finally:
+        driver.quit()
+        print("Sterownik został zamknięty.")
+
+if __name__ == "__main__":
+    main()

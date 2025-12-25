@@ -1,0 +1,35 @@
+def is_sum_of_four_squares(n):
+    if n < 0:
+        return False
+    for a in range(1, int(n**0.5) + 1):
+        for b in range(1, int(n**0.5) + 1):
+            for c in range(1, int(n**0.5) + 1):
+                remainder = n - (a**2 + b**2 + c**2)
+                if remainder >= 1:
+                    d = int(remainder**0.5)
+                    if d >= 1 and d**2 == remainder:
+                        return a, b, c, d
+    return None
+
+def find_four_squares_sums(limit):
+    """
+    Finds numbers up to a limit that can be expressed as the sum of four squares
+    without any of the squares being zero.
+    """
+    results = []
+    for n in range(1, limit + 1):
+        result = is_sum_of_four_squares(n)
+        if result:
+            a, b, c, d = result
+            if a != 0 and b != 0 and c != 0 and d != 0:
+                results.append(n)
+    return results
+
+# Example usage:
+limit = int(input("Digite o limite superior: "))
+sums_found = find_four_squares_sums(limit)
+print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+for num in sums_found:
+    result = is_sum_of_four_squares(num)
+    a, b, c, d = result
+    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

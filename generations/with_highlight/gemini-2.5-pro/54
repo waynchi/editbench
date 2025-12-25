@@ -1,0 +1,14 @@
+import os
+from pymilvus import MilvusClient
+
+# 记录当前路径为cwd
+cwd = os.getcwd()
+# 创建向量数据库路径
+# For a local, file-based Milvus (Milvus Lite), provide the file path.
+db_path = os.path.join(cwd, "milvus_db.db")
+
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# 使用pymilvus创建数据库链接
+client = MilvusClient(uri=db_path)

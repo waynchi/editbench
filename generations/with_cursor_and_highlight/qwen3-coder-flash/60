@@ -1,0 +1,67 @@
+def create_single_patch_image_with_text(
+    n_patches_x,
+    n_patches_y,
+    patch_size,
+    main_color,
+    special_color,
+    special_patch,
+    text="Hello",
+    text_color=(255, 255, 255),
+    special_patch_width=2,
+    font_size=16,
+):
+    """
+    Creates an image composed of colored patches, but places a single word (or text) 
+    inside the "special" patch area.
+    """
+    # Create a 3D NumPy array for the image
+    img_height = n_patches_y * patch_size
+    img_width = n_patches_x * patch_size
+    image_data = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+
+    # Fill the entire image with the main color
+    image_data[:, :] = main_color
+
+    # Assign the special color to the special patch area
+    special_row, special_col = special_patch
+    image_data[
+        special_row * patch_size : (special_row + special_patch_width) * patch_size,
+        special_col * patch_size : (special_col + special_patch_width) * patch_size
+    ] = special_color
+
+    # Convert to a Pillow Image so we can draw on it
+    img = Image.fromarray(image_data)
+    draw = ImageDraw.Draw(img)
+
+    # Load font with specified size
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+    except IOError:
+        # If arial.ttf is not available, try to find another font or fall back to default
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+        except IOError:
+            font = ImageFont.load_default()
+
+    # Calculate the center of the special patch in pixel coordinates
+    patch_center_x = (
+        special_col * patch_size
+        + (special_patch_width * patch_size) // 2
+    )
+    patch_center_y = (
+        special_row * patch_size
+        + (special_patch_width * patch_size) // 2
+    )
+
+    # Calculate text bounding box to center the text
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    text_x = patch_center_x - text_width // 2
+    text_y = patch_center_y - text_height // 2
+
+    # Place text in the center of the special patch
+    draw.text((text_x, text_y), text, fill=text_color, font=font)
+
+    return img

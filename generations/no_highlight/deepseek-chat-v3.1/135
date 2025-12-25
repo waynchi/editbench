@@ -1,0 +1,25 @@
+def is_prime(n):
+    """
+    检查一个数是否为质数
+    
+    参数:
+    n (int): 要检查的整数
+    
+    返回:
+    bool: 如果n是质数返回True，否则返回False
+    """
+    if n <= 1:
+        return False
+    if n <= 3:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    
+    # 检查6k±1形式的因数
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+        i += 6
+    
+    return True

@@ -1,0 +1,51 @@
+def can_be_expressed_as_four_squares(n):
+    """
+    检查一个数字是否可以表示为四个非零平方数的和
+    根据拉格朗日四平方定理，每个正整数都可以表示为四个平方数的和
+    这里我们要求四个非零平方数
+    """
+    if n < 4:  # 最小的四个非零平方数之和是 1+1+1+1=4
+        return False
+    
+    # 尝试所有可能的四个平方数组合
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        a_sq = a * a
+        if a_sq >= n:
+            break
+        for b in range(1, max_val):
+            b_sq = b * b
+            if a_sq + b_sq >= n:
+                break
+            for c in range(1, max_val):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq >= n:
+                    break
+                d_sq = n - a_sq - b_sq - c_sq
+                d = int(d_sq**0.5)
+                if d > 0 and d * d == d_sq:
+                    return True, (a, b, c, d)
+    
+    return False, None
+
+def find_four_square_representation(n):
+    """
+    找到数字n的四个非零平方数表示
+    """
+    result = can_be_expressed_as_four_squares(n)
+    if result[0]:
+        a, b, c, d = result[1]
+        print(f"{n} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+        return result[1]
+    else:
+        print(f"{n} 不能表示为四个非零平方数的和")
+        return None
+
+# 测试一些数字
+test_numbers = [10, 15, 20, 25, 30, 50, 100]
+
+print("可以表示为四个非零平方和的数字：")
+for num in test_numbers:
+    find_four_square_representation(num)
+    print()

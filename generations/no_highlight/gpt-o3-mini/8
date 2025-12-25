@@ -1,0 +1,68 @@
+def is_sum_of_four_nonzero_squares(n):
+    """
+    Tenta expressar n como a soma de quatro quadrados, onde nenhum 
+    dos quadrados é zero. Retorna uma tupla (a, b, c, d) se for possível,
+    caso contrário, retorna None.
+    """
+    # O menor valor de n que pode ser expresso como soma de 4 quadrados
+    # não nulos é 1^2+1^2+1^2+1^2 = 4.
+    if n < 4:
+        return None
+
+    # Limite para os possíveis valores de a, b, c e d.
+    # Como cada termo é um quadrado, a ≤ sqrt(n).
+    max_val = int(n**0.5)
+    
+    # Itera a partir de 1, já que zero não é permitido.
+    for a in range(1, max_val + 1):
+        a2 = a * a
+        if a2 > n:  # Caso a^2 seja maior que n, não faz sentido continuar
+            break
+        for b in range(1, max_val + 1):
+            b2 = b * b
+            if a2 + b2 > n:
+                break
+            for c in range(1, max_val + 1):
+                c2 = c * c
+                if a2 + b2 + c2 > n:
+                    break
+                for d in range(1, max_val + 1):
+                    d2 = d * d
+                    total = a2 + b2 + c2 + d2
+                    if total == n:
+                        return (a, b, c, d)
+                    if total > n:
+                        break
+    return None
+
+
+def find_numbers_expressible_as_four_nonzero_squares(limit):
+    """
+    Retorna uma lista de tuplas (n, (a, b, c, d))
+    para cada número n entre 1 e limit que pode ser expresso como
+    a soma de quatro quadrados não nulos: n = a^2 + b^2 + c^2 + d^2.
+    """
+    results = []
+    for n in range(4, limit + 1):
+        representation = is_sum_of_four_nonzero_squares(n)
+        if representation is not None:
+            results.append((n, representation))
+    return results
+
+
+if __name__ == "__main__":
+    try:
+        limit = int(input("Digite o limite superior: "))
+        if limit < 4:
+            print("Nenhum número menor que 4 pode ser expresso como a soma de quatro quadrados não nulos.")
+        else:
+            sums_found = find_numbers_expressible_as_four_nonzero_squares(limit)
+            if sums_found:
+                print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+                for num, quad in sums_found:
+                    a, b, c, d = quad
+                    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+            else:
+                print("Nenhum número no intervalo fornecido pode ser expresso dessa forma.")
+    except ValueError:
+        print("Por favor, digite um número inteiro válido para o limite.")

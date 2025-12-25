@@ -1,0 +1,55 @@
+import os
+import time
+import undetected_chromedriver as uc
+from selenium.common.exceptions import SessionNotCreatedException
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the relative path to the chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# Verify that the chromedriver exists
+if not os.path.exists(chromedriver_path):
+    print(f"ChromeDriver not found at: {chromedriver_path}")
+    exit(1)
+
+options = uc.ChromeOptions()
+options.binary_location = chromedriver_path
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--remote-debugging-port=9222")
+
+print("Attempting to start Chrome driver...")
+try:
+    with uc.Chrome(use_subprocess=True, options=options) as driver:
+        print("Chrome driver started successfully")
+        driver.get("https://lmarena.ai/")
+        print("Page loaded successfully")
+        time.sleep(10)
+except SessionNotCreatedException as e:
+    print(f"Failed to create Chrome session: {e}")
+    print("This might be due to ChromeDriver version mismatch or Chrome browser issues")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+# Second instance
+print("\nStarting second Chrome instance...")
+try:
+    options2 = uc.ChromeOptions()
+    options2.binary_location = chromedriver_path
+    options2.add_argument("--no-sandbox")
+    options2.add_argument("--disable-dev-shm-usage")
+    options2.add_argument("--disable-gpu")
+    options2.add_argument("--remote-debugging-port=9223")
+    
+    with uc.Chrome(use_subprocess=True, options=options2) as driver:
+        print("Second Chrome driver started successfully")
+        driver.get("https://lmarena.ai/")
+        print("Second page loaded successfully")
+        time.sleep(10)
+except SessionNotCreatedException as e:
+    print(f"Failed to create second Chrome session: {e}")
+except Exception as e:
+    print(f"An error occurred in second instance: {e}")

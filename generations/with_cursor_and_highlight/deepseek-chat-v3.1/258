@@ -1,0 +1,62 @@
+import random
+
+def load_dictionary(file_path):
+    """Load English dictionary from a file"""
+    try:
+        with open(file_path, 'r') as file:
+            words = [line.strip().lower() for line in file if line.strip()]
+        return words
+    except FileNotFoundError:
+        print(f"Dictionary file '{file_path}' not found.")
+        return []
+
+def get_words_by_length(words, length):
+    """Filter words by specified length"""
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Load dictionary (assuming words.txt exists in the same directory)
+    dictionary = load_dictionary('words.txt')
+    
+    if not dictionary:
+        print("No dictionary loaded. Please check the file path.")
+        return
+    
+    print("English Dictionary Word Finder")
+    print("Enter the number of characters to search for (or 'quit' to exit):")
+    
+    while True:
+        user_input = input("\nNumber of characters: ").strip().lower()
+        
+        if user_input == 'quit':
+            print("Goodbye!")
+            break
+        
+        try:
+            length = int(user_input)
+            if length <= 0:
+                print("Please enter a positive number.")
+                continue
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+            continue
+        
+        # Find words with specified length
+        matching_words = get_words_by_length(dictionary, length)
+        
+        if not matching_words:
+            print(f"No words found with {length} characters.")
+            continue
+        
+        # Display up to 10 random words
+        print(f"\nWords with {length} characters (showing up to 10):")
+        sample_size = min(10, len(matching_words))
+        random_sample = random.sample(matching_words, sample_size)
+        
+        for i, word in enumerate(random_sample, 1):
+            print(f"{i}. {word}")
+        
+        print(f"\nTotal words found: {len(matching_words)}")
+
+if __name__ == "__main__":
+    main()

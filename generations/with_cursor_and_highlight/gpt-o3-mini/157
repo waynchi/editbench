@@ -1,0 +1,30 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-10, maxiter=1000):
+    import numpy as np
+    n = len(b)
+    if x0 is None:
+        x0 = np.zeros(n)
+    x = x0.copy()
+    r = b - A @ x
+    p = r.copy()
+    rs_old = np.dot(r, r)
+    
+    for i in range(maxiter):
+        Ap = A @ p
+        alpha = rs_old / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = np.dot(r, r)
+        if np.sqrt(rs_new) < tol:
+            break
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+        
+    return x
+
+if __name__ == '__main__':
+    import numpy as np
+    # Example usage for solving Ax = b
+    A = np.array([[4.0, 1.0], [1.0, 3.0]])
+    b = np.array([1.0, 2.0])
+    x = conjugate_gradient(A, b)
+    print("Solution:", x)

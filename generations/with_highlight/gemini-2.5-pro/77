@@ -1,0 +1,276 @@
+import { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
+
+// --- Start of Optimized Section ---
+
+// Action types for the reducer
+const actionTypes = {
+  FETCH_INIT: 'FETCH_INIT',
+  FETCH_SETTINGS_SUCCESS: 'FETCH_SETTINGS_SUCCESS',
+  FETCH_DATA_SUCCESS: 'FETCH_DATA_SUCCESS',
+  FETCH_FAILURE: 'FETCH_FAILURE',
+  CHECK_WEBSITES_START: 'CHECK_WEBSITES_START',
+  CHECK_WEBSITES_SUCCESS: 'CHECK_WEBSITES_SUCCESS',
+  CHECK_WEBSITES_FAILURE: 'CHECK_WEBSITES_FAILURE',
+  SET_DATE_RANGE: 'SET_DATE_RANGE',
+  SET_ERROR: 'SET_ERROR',
+  CLEAR_ERROR: 'CLEAR_ERROR',
+};
+
+// Initial state creator to avoid re-calculating on each render
+const getInitialState = () => {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 1);
+  return {
+    customerData: { summary: null, loading: false, customers: [] },
+    websiteStatus: { checking: false },
+    stripeApiKey: "",
+    dateRange: {
+      startDate: new Date(date),
+      endDate: new Date(),
+    },
+    error: null,
+  };
+};
+
+/**
+ * Reducer function to manage all state transitions in a centralized way.
+ */
+function dataReducer(state, action) {
+  switch (action.type) {
+    case actionTypes.FETCH_INIT:
+      return { ...state, customerData: { ...state.customerData, loading: true }, error: null };
+    case actionTypes.FETCH_SETTINGS_SUCCESS:
+      return { ...state, stripeApiKey: action.payload.apiKey };
+    case actionTypes.FETCH_DATA_SUCCESS:
+      return {
+        ...state,
+        customerData: {
+          summary: action.payload.summary,
+          customers: action.payload.summary.customers, // Maintain for compatibility
+          loading: false,
+        },
+        error: null,
+      };
+    case actionTypes.FETCH_FAILURE:
+      return {
+        ...state,
+        customerData: { ...state.customerData, loading: false },
+        error: action.payload.error,
+      };
+    case actionTypes.CHECK_WEBSITES_START:
+      return { ...state, websiteStatus: { checking: true }, error: null };
+    case actionTypes.CHECK_WEBSITES_SUCCESS:
+      return {
+        ...state,
+        customerData: {
+          ...state.customerData,
+          summary: action.payload.summary,
+          customers: action.payload.summary.customers, // Keep in sync
+        },
+        websiteStatus: { checking: false },
+      };
+    case actionTypes.CHECK_WEBSITES_FAILURE:
+      return {
+        ...state,
+        websiteStatus: { checking: false },
+        error: "Failed to check websites. Please try again.",
+      };
+    case actionTypes.SET_DATE_RANGE:
+      return { ...state, dateRange: action.payload, error: null };
+    case actionTypes.SET_ERROR:
+       return { ...state, error: action.payload };
+    case actionTypes.CLEAR_ERROR:
+      return { ...state, error: null };
+    default:
+      throw new Error(`Unhandled action type: ${action.type}`);
+  }
+}
+
+function useDashboardData(user) {
+  const [state, dispatch] = useReducer(dataReducer, getInitialState());
+
+  /**
+   * Main data loading effect.
+   * Consolidates settings and data fetching into a single, streamlined flow
+   * that runs only when the user changes. Includes cleanup via AbortController.
+   */
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const loadInitialData = async () => {
+      dispatch({ type: actionTypes.FETCH_INIT });
+      try {
+        // 1. Fetch user settings to get the Stripe API key
+        const settingsResponse = await fetch("/api/db/churnary_user_settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+            values: [user.id],
+          }),
+          signal,
+        });
+        if (!settingsResponse.ok) throw new Error(`HTTP error! status: ${settingsResponse.status}`);
+        const settings = await settingsResponse.json();
+        const apiKey = settings[0]?.stripe_api_key || "";
+
+        if (signal.aborted) return;
+        dispatch({ type: actionTypes.FETCH_SETTINGS_SUCCESS, payload: { apiKey } });
+
+        // 2. If API key exists, fetch customer data from Stripe
+        if (apiKey) {
+          const dataResponse = await fetch("/api/stripe-customer-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id }),
+            signal,
+          });
+          if (!dataResponse.ok) throw new Error("Failed to fetch customer summary");
+          const summary = await dataResponse.json();
+          if (summary.error) throw new Error(summary.error);
+          
+          if (signal.aborted) return;
+          dispatch({ type: actionTypes.FETCH_DATA_SUCCESS, payload: { summary } });
+        } else {
+          // If no API key, stop loading and set a relevant message
+          // This replaces the old disconnected logic
+          dispatch({ type: actionTypes.FETCH_FAILURE, payload: { error: 'Stripe API key not configured.' }})
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          dispatch({ type: actionTypes.FETCH_FAILURE, payload: { error: error.message } });
+        }
+      }
+    };
+
+    loadInitialData();
+
+    // Cleanup function to abort fetch requests on unmount or user change
+    return () => {
+      controller.abort();
+    };
+  }, [user?.id]); // Effect runs only when user ID changes
+
+  /**
+   * Memoized calculation of health data.
+   * This is now derived state, computed efficiently only when its dependencies change,
+   * fixing bugs where stale data was used in calculations.
+   */
+  const healthData = useMemo(() => {
+    const customers = state.customerData.summary?.customers;
+    if (!customers || customers.length === 0) return [];
+
+    // Pre-process customers into a map for efficient lookups (O(N) customers)
+    const customerMapByMonth = new Map();
+    for (const customer of customers) {
+      const customerDate = new Date(customer.created);
+      const key = `${customerDate.getFullYear()}-${customerDate.getMonth()}`;
+      if (!customerMapByMonth.has(key)) {
+        customerMapByMonth.set(key, []);
+      }
+      customerMapByMonth.get(key).push(customer);
+    }
+
+    const monthsData = [];
+    const currentDate = new Date(state.dateRange.startDate);
+    
+    // Iterate through the date range month by month (O(M) months)
+    while (currentDate <= state.dateRange.endDate) {
+      const year = currentDate.getFullYear();
+      const monthIndex = currentDate.getMonth();
+      const key = `${year}-${monthIndex}`;
+      
+      const monthCustomers = customerMapByMonth.get(key) || [];
+
+      // Aggregate data for the current month
+      monthsData.push({
+        monthYear: currentDate.toLocaleString("default", { month: "short", year: "numeric" }),
+        healthy: monthCustomers.filter(c => c.status === "active").length,
+        warning: monthCustomers.filter(c => c.status === "churned").length,
+        critical: monthCustomers.filter(c => c.status === "delinquent").length,
+      });
+
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return monthsData;
+  }, [state.customerData.summary?.customers, state.dateRange]);
+
+  /**
+   * Memoized actions object to provide a stable API to components.
+   * Actions now dispatch to the reducer, centralizing state logic.
+   */
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      const customers = state.customerData.customers;
+      if (!customers || customers.length === 0) return;
+      
+      dispatch({ type: actionTypes.CHECK_WEBSITES_START });
+      try {
+        const updatedCustomers = await Promise.all(
+          customers.map(async (customer) => {
+            const response = await fetch("/api/website-churn-detector", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: customer.website }),
+            });
+            if (!response.ok) {
+              // Gracefully handle individual fetch failures if needed
+              return customer;
+            }
+            const health = await response.json();
+            return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+          })
+        );
+        
+        // Recalculate summary stats based on the updated customers
+        const summary = {
+          ...state.customerData.summary,
+          customers: updatedCustomers,
+          active: updatedCustomers.filter(c => c.status === "active").length,
+          churned: updatedCustomers.filter(c => c.status === "churned").length,
+        };
+
+        dispatch({ type: actionTypes.CHECK_WEBSITES_SUCCESS, payload: { summary } });
+      } catch (err) {
+        dispatch({ type: actionTypes.CHECK_WEBSITES_FAILURE });
+      }
+    },
+    
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        dispatch({ type: actionTypes.SET_ERROR, payload: "Start date cannot be after end date" });
+        return;
+      }
+      dispatch({ type: actionTypes.SET_DATE_RANGE, payload: range });
+    },
+
+    clearError: () => {
+      dispatch({ type: actionTypes.CLEAR_ERROR });
+    }
+  }), [state.customerData.customers, state.customerData.summary]); // dependent on customer data for `checkWebsites`
+
+  /**
+   * Construct the final data object to match the original hook's output shape,
+   * combining the reducer state with derived values like healthData.
+   */
+  const data = useMemo(() => ({
+    ...state,
+    healthData: healthData, // healthData was previously part of the state object
+  }), [state, healthData]);
+
+  return {
+    data,
+    actions,
+    isLoading: state.customerData.loading || state.websiteStatus.checking,
+  };
+}
+
+// --- End of Optimized Section ---
+
+export default useDashboardData;

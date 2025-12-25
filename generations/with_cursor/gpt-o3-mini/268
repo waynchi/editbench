@@ -1,0 +1,196 @@
+import math
+
+class Value:
+    """хранит одно скалярное значение и его градиент"""
+
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self.grad = 0
+        # внутренние переменные, используемые для построения графа автоградаций
+        self._backward = lambda: None
+        self._prev = set(_children)
+        self._op = _op  # операция, которая создала этот узел, для graphviz / отладки / и т.д.
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+
+        return out
+
+    def __radd__(self, other):  # другой + сам
+        return self + other
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __rmul__(self, other):  # другое * сам
+        return self * other
+
+    def __pow__(self, other):
+        # поддерживаем только целые/вещественные степени
+        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+        out = Value(self.data ** other, (self,), f'**{other}')
+
+        def _backward():
+            self.grad += (other * self.data ** (other - 1)) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __truediv__(self, other):  # self / other
+        # деление определяем через умножение на обратную степень
+        return self * (other ** -1)
+
+    def __rtruediv__(self, other):  # другое / self
+        return other * (self ** -1)
+
+    def log(self):
+        out = Value(math.log(self.data), (self,), f'log({self.data})')
+        def _backward():
+            self.grad += (1 / self.data) * out.grad
+        out._backward = _backward       
+        return out
+
+    def relu(self):
+        assert isinstance(self.data, (int, float)), "ReLU only supports int/float types"
+        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def exp(self):
+        # экспоненциальная функция
+        out = Value(math.exp(self.data), (self,), "exp")
+        def _backward():
+            self.grad += math.exp(self.data) * out.grad
+        out._backward = _backward
+        return out
+
+    def backward(self):
+        # собираем все узлы в графе в топологическом порядке
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        # задаём начальное значение градиента для конечной переменной
+        self.grad = 1
+        for v in reversed(topo):
+            v._backward()
+
+    def __neg__(self):  # -self
+        return self * -1
+
+    def __sub__(self, other):  # self - other
+        return self + (-other)
+
+    def __rsub__(self, other):  # другое - self
+        return other + (-self)
+
+    def __repr__(self):
+        return f"Value(data={self.data}, grad={self.grad})"
+
+def softmax(values):
+    """
+    Вычисляет softmax для списка Value и устанавливает специальное правило дифференцирования.
+    Для входного вектора x, softmax определяется как:
+         soft_i = exp(x_i - max(x)) / Σ_j exp(x_j - max(x))
+    При дифференцировании используется якобиан softmax:
+         d soft_i / d x_j = soft_i * (δ_ij - soft_j)
+    Эта функция строит вычислительный граф для softmax, возвращая список Value.
+    """
+    # Для численной устойчивости
+    max_val = max(v.data for v in values)
+    # Вычисляем экспоненты с использованием нашего метода exp. Обратите внимание, что (v - max_val)
+    # благодаря __sub__ может вычисляться, даже если max_val — число.
+    exps = [(v - max_val).exp() for v in values]
+    # Суммируем экспоненты используя перегруженный оператор +
+    s = exps[0]
+    for e in exps[1:]:
+        s = s + e
+    # Вычисляем отдельные softmax компоненты через деление
+    outs = [e / s for e in exps]
+
+    # Для правильного учета перекрестной зависимости при дифференциировании
+    # создадим "dummy" узел, который агрегирует обратное распространение по всем выходам.
+    executed = {'flag': False}  # используем словарь как ссылочный флаг
+
+    def _backward():
+        if executed['flag']:
+            return
+        executed['flag'] = True
+        # Собираем данные softmax
+        soft_outputs = [o.data for o in outs]
+        # Для каждого входного значения, рассчитываем вклад по формуле:
+        # dL/dx_j = Σ_i ( dL/d soft_i * soft_i * (δ_ij - soft_j) )
+        for j, v in enumerate(values):
+            grad_contrib = 0
+            for i, o in enumerate(outs):
+                delta = 1 if i == j else 0
+                grad_contrib += o.grad * soft_outputs[i] * (delta - soft_outputs[j])
+            v.grad += grad_contrib
+
+    # Создаем dummy-узел, который зависит от всеми выходами, и пересоединяем обратное распространение.
+    dummy = Value(0, tuple(outs), 'softmax')
+    dummy._backward = _backward
+
+    # Переопределяем _backward каждого выхода, чтобы они ссылались на наш общий backward dummy.
+    for o in outs:
+        # Сохраним исходный _backward, если потребуется дальнейшее цепное правило.
+        base_backward = o._backward
+        def new_backward(o=o, base_backward=base_backward):
+            base_backward()
+            dummy._backward()
+        o._backward = new_backward
+
+    return outs
+
+# Пример использования:
+if __name__ == "__main__":
+    # Создадим список входов
+    x1 = Value(1.0)
+    x2 = Value(2.0)
+    x3 = Value(3.0)
+    inputs = [x1, x2, x3]
+
+    # Вычисляем softmax для входов
+    sm = softmax(inputs)
+
+    # Допустим, определим некоторую loss функцию как сумма произведений softmax_i * target_i,
+    # где target — вектор "правильных" ответов.
+    targets = [0.0, 1.0, 0.0]  # например, второй класс верный
+    loss = Value(0.0)
+    for s_val, t in zip(sm, targets):
+        loss = loss + s_val * t
+
+    # Запускаем обратное распространение
+    loss.backward()
+
+    print("Softmax outputs:")
+    for i, s_val in enumerate(sm):
+        print(f"softmax[{i}] = {s_val.data}")
+
+    print("\nGradients for inputs:")
+    for i, inp in enumerate(inputs):
+        print(f"grad x[{i}] = {inp.grad}")

@@ -1,0 +1,98 @@
+import tkinter as tk
+import random
+
+# --- MODIFICATION: Added a list of vibrant colors for the squares ---
+COLORS = ["#FF6347", "#4682B4", "#32CD32", "#FFD700", "#6A5ACD", "#FF4500", "#20B2AA", "#DA70D6"]
+
+class Square:
+    """Represents a single colored square that moves on the canvas and can split."""
+    def __init__(self, canvas, size, x, y):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+
+        # --- MODIFICATION: Increased speed for more visible movement ---
+        # A non-zero velocity is chosen to ensure the square always moves.
+        self.dx = random.choice([-3, -2, 2, 3])
+        self.dy = random.choice([-3, -2, 2, 3])
+        
+        # --- MODIFICATION: Assign a random color to each square ---
+        random_color = random.choice(COLORS)
+        self.square = canvas.create_rectangle(x, y, x + size, y + size, fill=random_color, outline="")
+
+    def move(self):
+        """
+        Moves the square. If it hits a boundary, it is destroyed and may split
+        into two new, smaller squares.
+        Returns False if destroyed, True otherwise.
+        """
+        self.x += self.dx
+        self.y += self.dy
+        self.canvas.move(self.square, self.dx, self.dy)
+        
+        # Get the current canvas dimensions
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Check if the square has hit a boundary
+        hit_boundary = (self.x <= 0 or self.x + self.size >= canvas_width or 
+                        self.y <= 0 or self.y + self.size >= canvas_height)
+        
+        if hit_boundary:
+            # Delete the current square from the canvas
+            self.canvas.delete(self.square)
+            
+            # If the square is large enough, create two new smaller squares
+            if self.size > 10:
+                new_size = self.size / 2
+                
+                # --- MODIFICATION: New squares now appear where the old one was ---
+                # This makes the "split" effect more natural. They will have their
+                # own random velocities and will move apart immediately.
+                squares.append(Square(self.canvas, new_size, self.x, self.y))
+                squares.append(Square(self.canvas, new_size, self.x, self.y))
+                
+            # Return False to signal that this square should be removed from the list
+            return False
+        
+        # Return True to keep the square in the list
+        return True
+
+def update():
+    """
+    The main animation loop. Moves all squares and updates the list of active squares.
+    """
+    global squares
+    
+    # This list comprehension efficiently updates the list of squares.
+    # It calls `square.move()` for each square. If `move()` returns True,
+    # the square is kept. If False, it's removed from the list.
+    squares = [square for square in squares if square.move()]
+    
+    # Schedule the next update in 20 milliseconds
+    root.after(20, update)
+
+# --- Main application setup ---
+
+# Create the main window
+root = tk.Tk()
+root.title("Splitting Squares")
+
+# Create a canvas widget with a black background for better contrast
+canvas = tk.Canvas(root, width=600, height=600, bg="black")
+canvas.pack(expand=True, fill="both")
+
+# --- MODIFICATION: Start with a larger, perfectly centered square ---
+initial_size = 120
+initial_x = (600 - initial_size) / 2
+initial_y = (600 - initial_size) / 2
+
+# Create the initial list containing one square
+squares = [Square(canvas, initial_size, initial_x, initial_y)]
+
+# Start the animation loop after a short delay to ensure the window is ready
+root.after(100, update)
+
+# Start the tkinter main event loop
+root.mainloop()

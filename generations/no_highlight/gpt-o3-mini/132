@@ -1,0 +1,61 @@
+from dataclasses import dataclass
+import numpy as np
+
+# Use the normal distribution function for weight initialization
+norm = np.random.normal
+
+@dataclass
+class NeuralNetwork:
+    # input nodes (number of neurons in the input layer)
+    inp: int  
+    # hidden nodes (number of neurons in the hidden layer)
+    hid: int  
+    # output nodes (number of neurons in the output layer)
+    out: int  
+    # learning rate (alpha)
+    lr: float  
+    # activation function (e.g., lambda x: 1/(1+np.exp(-x)) for sigmoid)
+    act: callable  
+    # epochs (number of training iterations)
+    epo: int  
+
+    def __post_init__(self):
+        # Initialize weights with a normal distribution having mean 0 and standard deviation = 1/sqrt(n)
+        # This helps in avoiding signal magnitudes that are too large or too small initially.
+        self.wih = norm(0., 1/np.sqrt(self.inp), (self.hid, self.inp))
+        self.who = norm(0., 1/np.sqrt(self.hid), (self.out, self.hid))
+
+    def train(self, x, y):
+        x = np.array(x, ndmin=2).T
+        y = np.array(y, ndmin=2).T
+
+        # Forward propagation: from input to hidden, then hidden to output
+        ho = self.act(self.wih @ x)   # hidden layer output
+        fo = self.act(self.who @ ho)  # final output
+
+        # Calculate errors at output and hidden layers
+        oe = y - fo                   # output layer error
+        he = self.who.T @ oe            # hidden layer error
+
+        # Backpropagation and weight updates using gradient descent
+        self.who += self.lr * (oe * fo * (1. - fo)) @ ho.T
+        self.wih += self.lr * (he * ho * (1. - ho)) @ x.T
+
+    def query(self, x):
+        x = np.array(x, ndmin=2).T
+        return self.act(self.who @ self.act(self.wih @ x))
+
+    def fit(self, X, y):
+        # Train over all epochs and training samples
+        for e in range(self.epo):
+            for i in range(len(y)):
+                self.train(X[i], y[i])
+
+    def predict(self, X):
+        # Return predictions as the index of the highest value in the output vector
+        return np.array([np.argmax(self.query(x)) for x in X])
+
+    def score(self, X, y):
+        # Evaluate accuracy by comparing predicted labels with true labels
+        y = np.array([np.argmax(i) for i in y])
+        return (self.predict(X) == y).mean()

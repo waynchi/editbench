@@ -1,0 +1,113 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+
+def is_own_author (autor: str):
+    return autor == 'subidu'
+
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies (replies: Comment):
+    pass
+
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico(posts_generator):
+    """
+    Создает иерархический словарь из posts_generator и их replies
+    """
+    diccionario_jerarquico = {}
+    
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_key = f"{post_author}/{post_permlink}"
+        
+        # Инициализируем структуру поста
+        diccionario_jerarquico[post_key] = {
+            'post_info': {
+                'author': post_author,
+                'permlink': post_permlink,
+                'title': post.get('title', ''),
+                'body': post.get('body', ''),
+                'replies_count': post['children']
+            },
+            'replies': {},
+            'processed_replies': [],
+            'valid_replies_count': 0
+        }
+        
+        # Обрабатываем replies если их достаточно
+        if post['children'] > n_respuestas_minimas:
+            try:
+                comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+                post_replies = comment.get_replies()
+                
+                for reply in post_replies:
+                    reply_author = reply['author']
+                    reply_permlink = reply['permlink']
+                    reply_key = f"{reply_author}/{reply_permlink}"
+                    reply_text = reply['body']
+                    
+                    # Добавляем информацию о reply
+                    diccionario_jerarquico[post_key]['replies'][reply_key] = {
+                        'author': reply_author,
+                        'permlink': reply_permlink,
+                        'body': reply_text,
+                        'is_own_author': is_own_author(reply_author),
+                        'is_banned': is_banned(reply_author),
+                        'is_processed': procesar(reply_text)
+                    }
+                    
+                    # Проверяем условия для обработки
+                    if not is_own_author(reply_author) and not is_banned(reply_author) and procesar(reply_text):
+                        diccionario_jerarquico[post_key]['processed_replies'].append(reply_key)
+                        diccionario_jerarquico[post_key]['valid_replies_count'] += 1
+                        
+            except Exception as e:
+                print(f"Ошибка при обработке поста {post_key}: {e}")
+    
+    return diccionario_jerarquico
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Создаем иерархический словарь
+diccionario_jerarquico = crear_diccionario_jerarquico(posts_generator)
+
+# Перебираем созданный словарь для вывода результатов
+for post_key, post_data in diccionario_jerarquico.items():
+    X += 1
+    
+    if post_data['valid_replies_count'] > 3:
+        print("Iterador: ", X)
+        print("Post:", post_key)
+        print("Валидных replies:", post_data['valid_replies_count'])
+        
+        # Выводим информацию о последнем обработанном reply
+        if post_data['processed_replies']:
+            last_reply_key = post_data['processed_replies'][-1]
+            last_reply = post_data['replies'][last_reply_key]
+            print(f"{last_reply['author']}/{last_reply['permlink']}")

@@ -1,0 +1,26 @@
+def visualize_results_grid(results_df):
+    # Wyodrębnij i przekształć pierwsze dwie kolumny na numeryczne, jeśli to konieczne
+    columns = [results_df.iloc[:, i] for i in range(len(results_df.columns))]
+    columns = [pd.to_numeric(col, errors='coerce') if not pd.api.types.is_numeric_dtype(col) else col for col in columns]
+    
+    # Wnioskować kształt siatki z liczby wierszy wyników
+    grid_size = int(np.sqrt(len(results_df)))
+    # Przekształć kolumny w macierze
+    matrices = [col.to_numpy().reshape(grid_size, grid_size) for col in columns]
+    
+    # Ustawienia wizualizacji
+    fig, axes = plt.subplots(1, len(results_df.columns), figsize=(4*len(results_df.columns), 2))
+    titles = [f"{results_df.columns[i]} (Categorical/Binary)" if pd.api.types.is_categorical_dtype(columns[i]) or pd.api.types.is_bool_dtype(columns[i]) else f"{results_df.columns[i]} (Continuous)" for i in range(len(results_df.columns))]
+    cmaps = ["coolwarm", "viridis"] + ["plasma"] * (len(results_df.columns) - 2)
+
+    # Wyświetl każdą macierz
+    for i, (matrix, ax, title, cmap) in enumerate(zip(matrices, axes, titles, cmaps)):
+        im = ax.imshow(matrix, cmap=cmap, interpolation="none")
+        ax.set_title(title)
+        ax.set_xticks(range(grid_size))
+        ax.set_yticks(range(grid_size))
+        fig.colorbar(im, ax=ax)
+
+    # Wyświetl wykres
+    plt.tight_layout()
+    plt.show()

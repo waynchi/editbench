@@ -1,0 +1,91 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico():
+    """Función para crear un diccionario jerárquico de posts y replies"""
+    jerarquico_dict = {}
+    
+    q = Query()
+    d = Discussions()
+    posts_generator = d.get_discussions("created", q, limit=6000)
+    X = 0
+
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_replies = post['children']
+        cnt = 0
+        X += 1
+        
+        # Crear entrada para el post
+        post_key = f"{post_author}/{post_permlink}"
+        jerarquico_dict[post_key] = {
+            'author': post_author,
+            'permlink': post_permlink,
+            'children_count': post_replies,
+            'replies': [],
+            'valid_replies_count': 0
+        }
+        
+        if post_replies > n_respuestas_minimas:
+            comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+            post_replies_list = comment.get_replies()
+            
+            cnt = 0
+            for replies in post_replies_list:
+                author = replies['author']
+                text = replies['body']
+                
+                # Agregar reply al diccionario jerárquico
+                reply_data = {
+                    'author': author,
+                    'permlink': replies['permlink'],
+                    'body': text,
+                    'is_own_author': is_own_author(author),
+                    'is_banned': is_banned(author),
+                    'matches_criteria': procesar(text)
+                }
+                jerarquico_dict[post_key]['replies'].append(reply_data)
+                
+                if is_own_author(author):
+                    # Reevaluar el comentario
+                    break
+                if is_banned(author):
+                    break
+                if procesar(text):
+                    cnt += 1
+            
+            jerarquico_dict[post_key]['valid_replies_count'] = cnt
+            
+        if cnt > 3:
+            print("Iterador: ",X)
+            print(replies['author'],'/',replies['permlink'])
+    
+    return jerarquico_dict
+
+# Crear el diccionario jerárquico
+diccionario = crear_diccionario_jerarquico()

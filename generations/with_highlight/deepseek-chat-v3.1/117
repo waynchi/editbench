@@ -1,0 +1,27 @@
+def sum_of_four_nonzero_squares(n):
+    """
+    Check if a number can be expressed as the sum of four non-zero squares.
+    Returns True if possible, False otherwise.
+    """
+    # Check all possible combinations of four non-zero squares
+    max_i = int(n**0.5) + 1
+    for i in range(1, max_i):
+        for j in range(1, max_i):
+            for k in range(1, max_i):
+                for l in range(1, max_i):
+                    if i*i + j*j + k*k + l*l == n:
+                        return True
+    return False
+
+def main():
+    # Find numbers that can be expressed as sum of four non-zero squares
+    numbers = []
+    for num in range(1, 101):  # Check numbers from 1 to 100
+        if sum_of_four_nonzero_squares(num):
+            numbers.append(num)
+    
+    print("Numbers that can be expressed as the sum of four non-zero squares:")
+    print(numbers)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,24 @@
+from flask import Flask
+import datetime
+
+# 创建一个Flask应用实例
+app = Flask(__name__)
+
+# 定义一个路由，当用户访问根URL ('/') 时，这个函数会被调用
+@app.route('/')
+def show_current_time():
+    """
+    获取当前时间并以字符串形式返回。
+    """
+    # 获取当前的日期和时间
+    now = datetime.datetime.now()
+    # 将日期和时间格式化为 '年-月-日 时:分:秒' 的字符串
+    time_string = now.strftime("%Y-%m-%d %H:%M:%S")
+    # 返回一个HTML响应，显示时间和一条消息
+    return f"<h1>您好！</h1><p>当前服务器日期和时间是: {time_string}</p>"
+
+# 确保这个脚本只在直接执行时运行，而不是作为模块导入时运行
+if __name__ == '__main__':
+    # 运行Flask应用
+    # debug=True 会在代码更改后自动重启服务器，并提供更详细的错误页面
+    app.run(debug=True)

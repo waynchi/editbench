@@ -1,0 +1,29 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    
+    # Parse and convert to numpy arrays more efficiently
+    cols = np.array([line.split("   ") for line in lines if line.strip()]).astype(int)
+    list_1 = cols[:, 0]
+    list_2 = cols[:, 1]
+
+    # Sort both arrays directly instead of repeatedly finding minimums
+    sorted_1 = np.sort(list_1)
+    sorted_2 = np.sort(list_2)
+    
+    # Calculate all distances at once using vectorized operations
+    all_dists = np.abs(sorted_1 - sorted_2)
+    
+    print(f"Total distance: {np.sum(all_dists)}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().strip().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

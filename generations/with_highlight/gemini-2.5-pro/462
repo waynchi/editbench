@@ -1,0 +1,101 @@
+import random
+import os
+import urllib.request
+
+def cargar_diccionario(nombre_archivo="words.txt"):
+    """
+    Carga un diccionario de palabras en inglés desde un archivo local.
+    Si el archivo no existe, intenta descargarlo desde una URL pública.
+
+    Args:
+        nombre_archivo (str): El nombre del archivo a cargar/guardar.
+
+    Returns:
+        list: Una lista de palabras en minúsculas, o None si ocurre un error.
+    """
+    url_diccionario = "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+    
+    if not os.path.exists(nombre_archivo):
+        print(f"El archivo de diccionario '{nombre_archivo}' no se encontró.")
+        print(f"Intentando descargar desde la web... (esto puede tardar un momento)")
+        try:
+            urllib.request.urlretrieve(url_diccionario, nombre_archivo)
+            print("Descarga completada.")
+        except Exception as e:
+            print(f"Error: No se pudo descargar el diccionario: {e}")
+            print("Por favor, verifique su conexión a internet o coloque un archivo 'words.txt' en el directorio.")
+            return None
+    
+    try:
+        with open(nombre_archivo, 'r', encoding='utf-8') as archivo:
+            # Se leen las palabras, se limpian los espacios/saltos de línea y se convierten a minúsculas.
+            # Se filtran solo las líneas que contienen únicamente letras para asegurar que son palabras.
+            palabras = [linea.strip().lower() for linea in archivo if linea.strip().isalpha()]
+        print(f"Diccionario cargado con {len(palabras)} palabras.")
+        return palabras
+    except Exception as e:
+        print(f"Error: No se pudo leer el archivo del diccionario: {e}")
+        return None
+
+def main():
+    """
+    Función principal del programa. Permite al usuario buscar palabras por su
+    número de caracteres y muestra 10 ejemplos aleatorios.
+    """
+    print("--- CONSULTA DE DICCIONARIO EN INGLÉS ---")
+    
+    # Cargar las palabras del diccionario al iniciar el programa.
+    lista_palabras = cargar_diccionario()
+    
+    # Si no se pudieron cargar las palabras, el programa termina.
+    if not lista_palabras:
+        print("No se pudo iniciar el programa sin un diccionario.")
+        return
+
+    while True:
+        # Solicitar al usuario el número de caracteres
+        entrada_usuario = input("\nIngrese el número de caracteres (o escriba 'salir' para terminar): ")
+
+        if entrada_usuario.lower() == 'salir':
+            print("¡Hasta luego!")
+            break
+        
+        try:
+            # Convertir la entrada a un número entero
+            n_caracteres = int(entrada_usuario)
+
+            if n_caracteres <= 0:
+                print("Por favor, ingrese un número entero positivo.")
+                continue
+
+            # Filtrar la lista para encontrar palabras con la longitud deseada usando una lista de comprensión
+            palabras_encontradas = [palabra for palabra in lista_palabras if len(palabra) == n_caracteres]
+
+            # Mostrar los resultados al usuario
+            if not palabras_encontradas:
+                print(f"No se encontraron palabras con {n_caracteres} caracteres en el diccionario.")
+            else:
+                print(f"\nSe encontraron {len(palabras_encontradas)} palabras con {n_caracteres} caracteres.")
+                
+                # Determinar cuántas palabras mostrar (máximo 10)
+                cantidad_a_mostrar = min(10, len(palabras_encontradas))
+                
+                print(f"Mostrando {cantidad_a_mostrar} ejemplos al azar:")
+                
+                # Seleccionar una muestra aleatoria de las palabras encontradas
+                muestra_palabras = random.sample(palabras_encontradas, k=cantidad_a_mostrar)
+                
+                # Imprimir la muestra de palabras
+                for palabra in muestra_palabras:
+                    print(f"  - {palabra}")
+
+        except ValueError:
+            print("Entrada no válida. Por favor, ingrese un número entero.")
+        except Exception as e:
+            print(f"Ocurrió un error inesperado: {e}")
+            break
+
+# Punto de entrada para la ejecución del script.
+# Esto asegura que main() solo se ejecuta cuando el archivo es corrido directamente.
+if __name__ == "__main__":
+    main()

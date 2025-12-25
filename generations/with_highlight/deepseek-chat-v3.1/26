@@ -1,0 +1,76 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=None):
+    """
+    Реализация метода сопряженных градиентов для решения системы линейных уравнений Ax = b.
+    
+    Parameters:
+    A : 2D array-like или функция
+        Матрица системы или функция, возвращающая произведение A*x
+    b : 1D array-like
+        Правая часть системы
+    x0 : 1D array-like, optional
+        Начальное приближение. Если не задано, используется нулевой вектор
+    tol : float, optional
+        Допуск для критерия остановки
+    max_iter : int, optional
+        Максимальное количество итераций. Если не задано, используется размер системы
+    
+    Returns:
+    x : 1D array
+        Решение системы
+    info : dict
+        Информация о процессе решения (количество итераций, невязка и т.д.)
+    """
+    import numpy as np
+    
+    b = np.asarray(b, dtype=float)
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = np.asarray(x0, dtype=float)
+    
+    # Вычисление начальной невязки
+    if callable(A):
+        r = b - A(x)
+    else:
+        A = np.asarray(A, dtype=float)
+        r = b - np.dot(A, x)
+    
+    p = r.copy()
+    rsold = np.dot(r, r)
+    
+    residuals = []
+    residuals.append(np.sqrt(rsold))
+    
+    for i in range(max_iter):
+        if callable(A):
+            Ap = A(p)
+        else:
+            Ap = np.dot(A, p)
+        
+        alpha = rsold / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        rsnew = np.dot(r, r)
+        residuals.append(np.sqrt(rsnew))
+        
+        # Проверка критерия остановки
+        if np.sqrt(rsnew) < tol:
+            break
+        
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+    
+    info = {
+        'iterations': i + 1,
+        'residual': residuals[-1],
+        'residuals': residuals,
+        'converged': np.sqrt(rsnew) < tol
+    }
+    
+    return x, info

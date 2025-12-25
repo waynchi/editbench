@@ -1,0 +1,128 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    共轭梯度法求解线性方程组 Ax = b
+    
+    参数:
+    A: 系数矩阵 (n x n)
+    b: 右端向量 (n x 1)
+    x0: 初始解向量 (n x 1), 默认为零向量
+    tol: 收敛容差
+    max_iter: 最大迭代次数
+    
+    返回:
+    x: 解向量
+    residual_norm: 残差范数
+    iterations: 实际迭代次数
+    """
+    n = len(b)
+    
+    # 初始化
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x  # 初始残差
+    p = r.copy()   # 初始搜索方向
+    
+    for i in range(max_iter):
+        # 计算步长
+        Ap = A @ p
+        alpha = (r @ r) / (p @ Ap)
+        
+        # 更新解
+        x = x + alpha * p
+        
+        # 更新残差
+        r_new = r - alpha * Ap
+        
+        # 检查收敛性
+        residual_norm = np.linalg.norm(r_new)
+        if residual_norm < tol:
+            return x, residual_norm, i + 1
+        
+        # 计算新的搜索方向
+        beta = (r_new @ r_new) / (r @ r)
+        p = r_new + beta * p
+        
+        r = r_new
+    
+    return x, np.linalg.norm(r), max_iter
+
+def preconditioned_conjugate_gradient(A, b, M=None, x0=None, tol=1e-6, max_iter=1000):
+    """
+    预条件共轭梯度法求解线性方程组 Ax = b
+    
+    参数:
+    A: 系数矩阵 (n x n)
+    b: 右端向量 (n x 1)
+    M: 预条件矩阵 (n x n), 默认为单位矩阵
+    x0: 初始解向量 (n x 1), 默认为零向量
+    tol: 收敛容差
+    max_iter: 最大迭代次数
+    
+    返回:
+    x: 解向量
+    residual_norm: 残差范数
+    iterations: 实际迭代次数
+    """
+    n = len(b)
+    
+    # 初始化
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    if M is None:
+        M = np.eye(n)
+    
+    r = b - A @ x  # 初始残差
+    z = np.linalg.solve(M, r)  # 预条件残差
+    p = z.copy()   # 初始搜索方向
+    
+    for i in range(max_iter):
+        # 计算步长
+        Ap = A @ p
+        alpha = (r @ z) / (p @ Ap)
+        
+        # 更新解
+        x = x + alpha * p
+        
+        # 更新残差
+        r_new = r - alpha * Ap
+        
+        # 检查收敛性
+        residual_norm = np.linalg.norm(r_new)
+        if residual_norm < tol:
+            return x, residual_norm, i + 1
+        
+        # 更新预条件残差
+        z_new = np.linalg.solve(M, r_new)
+        
+        # 计算新的搜索方向
+        beta = (r_new @ z_new) / (r @ z)
+        p = z_new + beta * p
+        
+        r = r_new
+        z = z_new
+    
+    return x, np.linalg.norm(r), max_iter
+
+# 示例使用
+if __name__ == "__main__":
+    # 创建测试矩阵
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    
+    # 使用共轭梯度法求解
+    x, residual, iterations = conjugate_gradient(A, b)
+    print(f"解: {x}")
+    print(f"残差范数: {residual}")
+    print(f"迭代次数: {iterations}")
+    
+    # 验证解
+    print(f"验证 Ax = {A @ x}")
+    print(f"目标 b = {b}")

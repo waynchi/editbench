@@ -1,0 +1,80 @@
+import os
+import shutil
+from sklearn.model_selection import train_test_split
+
+# Assume DATA_PATH is defined, pointing to the root of the dataset.
+# Example:
+# DATA_PATH = "./dataset"
+
+# Folder with all photos / folder with photos for training
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Folder with photos for validation
+VAL_DIR = os.path.join(DATA_PATH, "val")
+# Folder with photos for testing
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Fraction of images to move to the validation set
+VAL_FRAC = 0.3
+
+# This script splits the original `train` directory into a new `train` and `val` directory.
+# It moves a fraction of images from each class folder in `train` to a corresponding
+# class folder in `val`. This process is stratified by class.
+
+# Check if the training directory exists before proceeding.
+try:
+    # Get the list of classes from the subdirectories in the training folder.
+    ECLIPSE_LIST = [d for d in os.listdir(TRAIN_DIR) if os.path.isdir(os.path.join(TRAIN_DIR, d))]
+except FileNotFoundError:
+    print(f"Error: Training directory not found at '{TRAIN_DIR}'. Please check the DATA_PATH.")
+    ECLIPSE_LIST = []
+
+# Proceed only if there are classes to split.
+if ECLIPSE_LIST:
+    print("Splitting dataset into train and validation sets...")
+    # Create the main validation directory.
+    os.makedirs(VAL_DIR, exist_ok=True)
+
+    # Iterate over each class to perform the split.
+    for eclipse in ECLIPSE_LIST:
+        train_class_dir = os.path.join(TRAIN_DIR, eclipse)
+        val_class_dir = os.path.join(VAL_DIR, eclipse)
+
+        # Create the corresponding class directory in the validation folder.
+        os.makedirs(val_class_dir, exist_ok=True)
+
+        # Get the list of all image filenames for the current class.
+        images = os.listdir(train_class_dir)
+        
+        # If there are no images in the folder, there's nothing to split.
+        if not images:
+            print(f"'{eclipse}' | No images to split.")
+            continue
+
+        # Use train_test_split to get a random, reproducible subset of images for validation.
+        # The remaining images will stay in the training folder.
+        try:
+            train_images, val_images = train_test_split(
+                images,
+                test_size=VAL_FRAC,
+                random_state=42  # for reproducibility
+            )
+        except ValueError:
+            # This can happen if a class has only one sample, which cannot be split.
+            print(f"Warning: Cannot split class '{eclipse}' due to insufficient samples. All files will remain in train.")
+            train_images = images
+            val_images = []
+
+        # Move the selected validation images from the train folder to the val folder.
+        for image_filename in val_images:
+            source_path = os.path.join(train_class_dir, image_filename)
+            destination_path = os.path.join(val_class_dir, image_filename)
+            # Use shutil.move to transfer the file.
+            shutil.move(source_path, destination_path)
+        
+        # Print a summary of the split for the current class.
+        # Note: After moving, `os.listdir(train_class_dir)` would be equal to `len(train_images)`.
+        print(f'{eclipse} | train images = {len(train_images)} | val images = {len(val_images)}')
+
+    print("\nDataset splitting complete.")
+else:
+    print("No class directories found in the training folder to split.")

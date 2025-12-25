@@ -1,0 +1,64 @@
+import random
+
+def load_dictionary(file_path):
+    """Load English dictionary from a file"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            words = [line.strip().lower() for line in file if line.strip()]
+        return words
+    except FileNotFoundError:
+        print(f"Error: Dictionary file '{file_path}' not found.")
+        return []
+
+def find_words_by_length(words, length):
+    """Find all words with specified length"""
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Path to dictionary file (common English dictionary)
+    dictionary_file = "words.txt"  # You may need to adjust this path
+    
+    # Load dictionary
+    words = load_dictionary(dictionary_file)
+    if not words:
+        print("No dictionary loaded. Please check the file path.")
+        return
+    
+    print("English Dictionary Word Finder")
+    print("Enter the number of characters to search for (or 'quit' to exit)")
+    
+    while True:
+        user_input = input("\nNumber of characters: ").strip().lower()
+        
+        if user_input == 'quit':
+            print("Goodbye!")
+            break
+        
+        try:
+            length = int(user_input)
+            if length <= 0:
+                print("Please enter a positive number.")
+                continue
+                
+            # Find words with specified length
+            matching_words = find_words_by_length(words, length)
+            
+            if not matching_words:
+                print(f"No words found with {length} characters.")
+                continue
+            
+            # Select 10 random words (or all if less than 10)
+            sample_size = min(10, len(matching_words))
+            selected_words = random.sample(matching_words, sample_size)
+            
+            print(f"\nFound {len(matching_words)} words with {length} characters.")
+            print(f"Here are {sample_size} random words:")
+            
+            for i, word in enumerate(selected_words, 1):
+                print(f"{i}. {word}")
+                
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+
+if __name__ == "__main__":
+    main()

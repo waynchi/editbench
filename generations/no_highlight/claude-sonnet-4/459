@@ -1,0 +1,116 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Commented out for clarity
+
+def parse_input_file(file_path: str) -> List[str]:
+    """
+    Parse the input file and return lines as a list of strings.
+    
+    Args:
+        file_path: Path to the input file
+        
+    Returns:
+        List of lines from the file
+        
+    Raises:
+        FileNotFoundError: If the input file doesn't exist
+        IOError: If there's an error reading the file
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+        return lines
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Input file not found: {file_path}")
+    except IOError as e:
+        raise IOError(f"Error reading file {file_path}: {e}")
+
+def parse_columns(lines: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Parse lines into two columns of integers.
+    
+    Args:
+        lines: List of strings containing two space-separated integers each
+        
+    Returns:
+        Tuple of two numpy arrays representing the columns
+        
+    Raises:
+        ValueError: If the data format is invalid
+    """
+    try:
+        # Split lines and convert to numpy array
+        cols_data = []
+        for line in lines:
+            # Handle multiple spaces between numbers
+            parts = line.split()
+            if len(parts) != 2:
+                raise ValueError(f"Invalid line format: '{line}'. Expected two numbers.")
+            cols_data.append([int(parts[0]), int(parts[1])])
+        
+        cols = np.array(cols_data).T
+        return cols[0], cols[1]
+    except ValueError as e:
+        raise ValueError(f"Error parsing columns: {e}")
+
+def calculate_minimum_distance_sum(list_1: np.ndarray, list_2: np.ndarray) -> int:
+    """
+    Calculate the sum of distances between minimum elements of two lists.
+    
+    This function repeatedly finds the minimum element in each list,
+    calculates the absolute difference, and removes those elements
+    until both lists are empty.
+    
+    Args:
+        list_1: First array of integers
+        list_2: Second array of integers
+        
+    Returns:
+        Sum of all calculated distances
+    """
+    # Sort both arrays for more efficient processing
+    sorted_1 = np.sort(list_1)
+    sorted_2 = np.sort(list_2)
+    
+    # Calculate distances between corresponding elements
+    distances = np.abs(sorted_1 - sorted_2)
+    
+    return int(np.sum(distances))
+
+def main():
+    """
+    Main function to execute the distance calculation algorithm.
+    """
+    try:
+        # Parse input file
+        lines = parse_input_file(INPUT_FILE_PATH)
+        
+        if not lines:
+            print("Warning: Input file is empty")
+            return
+        
+        print(f"Loaded {len(lines)} lines from input file")
+        
+        # Parse columns
+        col_1, col_2 = parse_columns(lines)
+        
+        if len(col_1) != len(col_2):
+            raise ValueError("Columns must have the same length")
+        
+        print(f"Processing {len(col_1)} pairs of numbers")
+        
+        # Calculate result
+        total_distance = calculate_minimum_distance_sum(col_1, col_2)
+        
+        print(f"Total distance sum: {total_distance}")
+        
+    except (FileNotFoundError, IOError, ValueError) as e:
+        print(f"Error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+if __name__ == "__main__":
+    main()

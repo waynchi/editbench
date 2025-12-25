@@ -1,0 +1,17 @@
+import pandas as pd
+
+def create_column(df):
+    # Create a new column 'Frequency' and set its value to 117
+    # for every row where the 'EventId' contains the substring 'E16'.
+    df['Frequency'] = None  # initialize the new column with None
+    df.loc[df['EventId'].str.contains('E16', na=False), 'Frequency'] = 117
+    return df
+
+if __name__ == '__main__':
+    # Sample DataFrame for demonstration purposes.
+    data = {
+        'EventId': ['E15', 'E16-event', 'E16', 'E20-something', 'Event-E16', 'E17']
+    }
+    df = pd.DataFrame(data)
+    df = create_column(df)
+    print(df)

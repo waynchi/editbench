@@ -1,0 +1,52 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_explanation(shap_json_path="Vuori_Final_Approval_2024_09_24.json", 
+                             system_prompt_path="system.prompt",
+                             model_name="llama3.2",
+                             base_url="http://localhost:11434"):
+    """
+    Генерирует объяснение SHAP значений с использованием модели ChatOllama
+    
+    Args:
+        shap_json_path (str): Путь к файлу с SHAP значениями в формате JSON
+        system_prompt_path (str): Путь к файлу с системным промптом
+        model_name (str): Название модели Ollama
+        base_url (str): URL сервера Ollama
+    
+    Returns:
+        str: Ответ модели с объяснением SHAP значений
+    """
+    # Инициализировать модель ChatOllama
+    chat_model = ChatOllama(model=model_name, base_url=base_url)
+
+    # Загрузить значения SHAP из файла JSON
+    with open(shap_json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Загрузить системный запрос из файла
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Подготовить сообщения
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Сгенерировать ответ
+    user_input = json.dumps(shap_values_json)  # Подготовить ввод пользователя
+
+    chain = prompt | chat_model
+
+    # Вывести ответ
+    response = chain.invoke(user_input)
+    return response.content
+
+# Вызов функции для демонстрации
+if __name__ == "__main__":
+    result = generate_shap_explanation()
+    print(result)

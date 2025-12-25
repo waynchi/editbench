@@ -1,0 +1,43 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Przeprowadź analizę ANOVA
+from scipy import stats
+
+# Group data by brand
+groups = [group['Cost'].values for name, group in df.groupby('Brand')]
+f_stat, p_value = stats.f_oneway(*groups)
+
+# Create ANOVA table manually
+n = len(df)
+k = len(groups)
+df_between = k - 1
+df_within = n - k
+df_total = n - 1
+
+ss_between = sum([len(group) * (group.mean() - df['Cost'].mean())**2 for group in groups])
+ss_within = sum([(group - group.mean())**2 for group in groups]).sum()
+ss_total = ss_between + ss_within
+
+ms_between = ss_between / df_between
+ms_within = ss_within / df_within
+
+anova_table = pd.DataFrame({
+    'sum_sq': [ss_between, ss_within],
+    'df': [df_between, df_within],
+    'mean_sq': [ms_between, ms_within],
+    'F': [f_stat, ''],
+    'PR(>F)': [p_value, '']
+}, index=['Brand', 'Residual'])
+
+# Wydrukuj tabelę ANOVA
+print(anova_table)

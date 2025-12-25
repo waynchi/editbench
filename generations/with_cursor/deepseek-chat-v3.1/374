@@ -1,0 +1,30 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+# Dane wejściowe (przykładowe - należy zastąpić rzeczywistymi danymi)
+brand_A = [10, 12, 15, 11, 13]
+brand_B = [8, 9, 10, 7, 11]
+brand_C = [14, 16, 15, 13, 12]
+
+all_data = brand_A + brand_B + brand_C
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Przeprowadź analizę ANOVA
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)
+model = sm.OLS(df['Cost'], X).fit()
+
+# Alternatywnie można użyć:
+# model = ols('Cost ~ C(Brand)', data=df).fit()
+
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Wydrukuj tabelę ANOVA
+print(anova_table)

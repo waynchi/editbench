@@ -1,0 +1,211 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
+// 将初始日期范围计算提取到常量
+const getInitialDateRange = () => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setFullYear(startDate.getFullYear() - 1);
+  return { startDate, endDate };
+};
+
+function useDashboardData(user) {
+  const [customerData, setCustomerData] = useState({
+    summary: null,
+    loading: false,
+    customers: []
+  });
+  const [healthData, setHealthData] = useState([]);
+  const [websiteStatus, setWebsiteStatus] = useState({ checking: false });
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRangeState] = useState(getInitialDateRange());
+  const [error, setError] = useState(null);
+
+  // 使用 ref 来避免不必要的重新渲染
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
+
+  // 优化月份计算逻辑
+  const generateMonthsInRange = useCallback((startDate, endDate) => {
+    const months = [];
+    const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+    
+    while (current <= end) {
+      months.push({
+        month: current.toLocaleString("default", { month: "short" }),
+        year: current.getFullYear(),
+        monthIndex: current.getMonth()
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+    return months;
+  }, []);
+
+  const calculateHealthData = useCallback(() => {
+    if (!customerData.summary?.customers) return [];
+    
+    const months = generateMonthsInRange(dateRange.startDate, dateRange.endDate);
+    
+    return months.map(({ month, year, monthIndex }) => {
+      const monthYear = `${month} ${year}`;
+      
+      // 优化过滤逻辑，减少重复的 Date 创建
+      const monthCustomers = customerData.summary.customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === monthIndex && customerDate.getFullYear() === year;
+      });
+
+      // 使用单次循环统计各状态数量
+      const stats = monthCustomers.reduce((acc, customer) => {
+        switch (customer.status) {
+          case "active":
+            acc.healthy++;
+            break;
+          case "churned":
+            acc.warning++;
+            break;
+          case "delinquent":
+            acc.critical++;
+            break;
+        }
+        return acc;
+      }, { healthy: 0, warning: 0, critical: 0 });
+
+      return { monthYear, ...stats };
+    });
+  }, [customerData.summary, dateRange, generateMonthsInRange]);
+
+  // 使用 useMemo 缓存计算结果
+  const memoizedHealthData = useMemo(() => calculateHealthData(), [calculateHealthData]);
+
+  // 同步 healthData 状态
+  useEffect(() => {
+    setHealthData(memoizedHealthData);
+  }, [memoizedHealthData]);
+
+  const loadSettings = useCallback(async () => {
+    const userId = userIdRef.current;
+    if (!userId || stripeApiKey) return;
+    
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [userId],
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      
+      setStripeApiKey(settings[0]?.stripe_api_key || "");
+    } catch (error) {
+      setError("Failed to load user settings");
+    }
+  }, [stripeApiKey]);
+
+  const loadData = useCallback(async () => {
+    const userId = userIdRef.current;
+    if (!userId || !stripeApiKey) return;
+
+    setCustomerData(prev => ({ ...prev, loading: true }));
+    setError(null);
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      setCustomerData({
+        summary,
+        loading: false,
+        customers: summary.customers
+      });
+    } catch (error) {
+      setCustomerData(prev => ({ ...prev, loading: false }));
+      setError(error.message);
+    }
+  }, [stripeApiKey]);
+
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      if (!customerData.summary?.customers?.length) return;
+      
+      setWebsiteStatus({ checking: true });
+      setError(null);
+
+      try {
+        const updatedCustomers = await Promise.all(
+          customerData.customers.map(async (customer) => {
+            const response = await fetch("/api/website-churn-detector", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: customer.website }),
+            });
+            const health = await response.json();
+            return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+          })
+        );
+
+        const summary = {
+          ...customerData.summary,
+          customers: updatedCustomers,
+          active: updatedCustomers.filter(c => c.status === "active").length,
+          churned: updatedCustomers.filter(c => c.status === "churned").length,
+        };
+
+        setCustomerData(prev => ({ ...prev, summary }));
+        setWebsiteStatus({ checking: false });
+      } catch (err) {
+        setWebsiteStatus({ checking: false });
+        setError("Failed to check websites. Please try again.");
+      }
+    },
+    
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        setError("Start date cannot be after end date");
+        return;
+      }
+      setDateRangeState(range);
+      setError(null);
+    },
+
+    clearError: () => setError(null)
+  }), [customerData.summary, customerData.customers]);
+
+  // 优化 useEffect 依赖
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 合并数据对象以保持向后兼容
+  const data = useMemo(() => ({
+    customerData,
+    healthData,
+    websiteStatus,
+    stripeApiKey,
+    dateRange,
+    error
+  }), [customerData, healthData, websiteStatus, stripeApiKey, dateRange, error]);
+
+  return { 
+    data, 
+    actions,
+    isLoading: customerData.loading || websiteStatus.checking 
+  };
+}
+
+export default useDashboardData;

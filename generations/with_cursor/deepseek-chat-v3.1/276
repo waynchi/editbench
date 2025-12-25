@@ -1,0 +1,20 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = pd.DataFrame({
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+})
+
+# Выполнить анализ ANOVA с использованием матричного подхода
+X = pd.get_dummies(data['Brand'], drop_first=True)
+X = sm.add_constant(X)
+y = data['Cost']
+
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Вывести таблицу ANOVA
+print(anova_table)

@@ -1,0 +1,25 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# 假设变量 brand_A, brand_B, brand_C 和 all_data 已经定义
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# 使用Python风格：通过 get_dummies 将分类变量编码为虚拟变量
+X = pd.get_dummies(df['Brand'], drop_first=True)  # drop_first 避免虚拟变量陷阱
+X = sm.add_constant(X)  # 增加截距项
+
+y = df['Cost']
+
+# 使用 OLS 拟合线性模型
+model = sm.OLS(y, X).fit()
+
+# 使用 statsmodels 的 anova_lm 生成 ANOVA 表格
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# 打印 ANOVA 表格
+print(anova_table)

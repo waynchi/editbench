@@ -1,0 +1,111 @@
+import requests
+import json
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# --- PASO 1: Obtener y analizar los datos de la API ---
+
+# URL de la API de ejemplo (reemplazar con la URL de tu API real)
+# Esta API de ejemplo devuelve una lista de usuarios en formato JSON.
+api_url = "https://jsonplaceholder.typicode.com/users"
+
+print(f"Obteniendo datos desde la API: {api_url}")
+
+try:
+    # Realizar la solicitud a la API
+    response = requests.get(api_url)
+    # Verificar si la solicitud fue exitosa (código de estado 200)
+    response.raise_for_status()
+    
+    # Convertir la respuesta JSON en un objeto de Python (generalmente una lista de diccionarios)
+    api_data = response.json()
+    
+    # ANÁLISIS PRELIMINAR DE LOS DATOS
+    # Antes de crear un DataFrame, es útil entender la estructura de los datos.
+    
+    print("\n--- Análisis de los Datos Crudos de la API ---")
+    
+    # 1. Verificar el tipo de dato principal (debería ser una lista para crear un DataFrame)
+    print(f"Tipo de dato principal recibido: {type(api_data)}")
+    
+    # 2. Si es una lista, inspeccionar el primer elemento para ver su estructura (las claves y los tipos de valores)
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print(f"Número de registros recibidos: {len(api_data)}")
+        print("Estructura del primer registro (claves y valores de ejemplo):")
+        # Imprimir el primer objeto JSON de forma legible
+        print(json.dumps(api_data[0], indent=4))
+        
+    elif isinstance(api_data, dict):
+        print("Se ha recibido un diccionario. Es posible que los datos estén anidados.")
+        print("Claves del diccionario principal:", api_data.keys())
+        # Aquí podrías necesitar lógica adicional para extraer la lista de datos si está anidada.
+        # Por ejemplo, si los datos estuvieran en api_data['results'], usarías:
+        # api_data = api_data['results']
+
+except requests.exceptions.RequestException as e:
+    print(f"Error al obtener datos de la API: {e}")
+    # Si hay un error, detenemos la ejecución. En un caso real, podrías querer registrar el error.
+    api_data = None
+except json.JSONDecodeError:
+    print("Error: La respuesta de la API no es un JSON válido.")
+    api_data = None
+
+
+# --- PASO 2: Procesar con Spark si los datos se obtuvieron correctamente ---
+
+if api_data and isinstance(api_data, list):
+    # Crear una sesión Spark
+    spark = SparkSession.builder.appName("AnalisisYEscrituraDesdeAPI").getOrCreate()
+
+    print("\n--- Creación y Análisis del DataFrame de Spark ---")
+    
+    # Crear un DataFrame a partir de los datos de la API.
+    # Spark inferirá el esquema automáticamente a partir de la estructura del JSON.
+    df = spark.createDataFrame(api_data)
+
+    # Analizar el DataFrame creado por Spark
+    # 1. Imprimir el esquema que Spark ha inferido. Esto es muy útil para confirmar los tipos de datos.
+    print("Esquema inferido por Spark:")
+    df.printSchema()
+
+    # 2. Mostrar las primeras filas del DataFrame para verificar que los datos se cargaron correctamente.
+    print("Vista previa de los datos en el DataFrame:")
+    df.show(5, truncate=False)
+
+    # --- PASO 3: Escribir el DataFrame en ADLS Gen2 ---
+
+    print("\n--- Escribiendo datos en Azure Data Lake Storage Gen2 ---")
+
+    # Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+    # En un notebook de Synapse, no es necesario proporcionar credenciales explícitamente.
+    # Spark utilizará la identidad del usuario o la identidad administrada para autenticarse.
+
+    # Especificar la ruta al contenedor y la carpeta en ADL2
+    storage_account_name = "<your_storage_account_name>"  # Reemplazar con el nombre de tu cuenta de almacenamiento
+    container_name = "<your_container_name>"              # Reemplazar con el nombre de tu contenedor
+    folder_path = "<your_folder_path>"                    # Reemplazar con la ruta a la carpeta dentro del contenedor
+    adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+    print(f"Ruta de destino en ADLS Gen2: {adl2_path}")
+
+    # Escribir el DataFrame en formato parquet en ADL2.
+    # El modo "overwrite" reemplazará los datos si ya existen en la ruta.
+    # Usa "append" para agregar los nuevos datos a los existentes.
+    df.write.parquet(adl2_path, mode="overwrite")
+
+    print("Escritura en formato Parquet completada con éxito.")
+
+    # --- PASO 4: Verificación (Opcional) ---
+
+    # Opcional: leer el archivo parquet recién escrito para verificar que todo está correcto.
+    print("\n--- Verificando los datos escritos en ADLS Gen2 ---")
+    df_leido = spark.read.parquet(adl2_path)
+    print("Mostrando datos leídos desde Parquet:")
+    df_leido.show(5, truncate=False)
+
+    # Detener la sesión Spark
+    spark.stop()
+    print("\nSesión de Spark detenida.")
+
+else:
+    print("\nNo se pudieron obtener datos válidos de la API. El procesamiento de Spark no se ejecutará.")

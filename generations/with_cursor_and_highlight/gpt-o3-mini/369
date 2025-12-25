@@ -1,0 +1,42 @@
+# Folder ze wszystkimi zdjęciami / folder ze zdjęciami do treningu
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Odczytujemy nazwy katalogów, które są rodzajem zaćmienia
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# Folder ze zdjęciami do walidacji
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Folder z zdjęciami do testów
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Udział obrazów w walidacji
+VAL_FRAC = 0.3
+
+# Podzielmy zbiór train na train i val:
+for eclipse in ECLIPSE_LIST.values():
+    os.makedirs(os.path.join(VAL_DIR, eclipse), exist_ok=True)
+
+    # Przetwarzamy zbiór obrazów.
+    eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Sortujemy obrazy dla deterministyczności
+    images_filename = sorted(os.listdir(eclipse_path))
+    
+    # Obliczamy liczbę obrazów przeznaczonych na walidację 
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+    
+    # Losowo mieszamy listę obrazów z ustawionym seed, a następnie wybieramy część do walidacji.
+    rng = np.random.default_rng(seed=42)
+    shuffled_images = images_filename.copy()
+    rng.shuffle(shuffled_images)
+    val_images = shuffled_images[:num_val]
+
+    print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+    
+    # Zapisujemy zbiór walidacyjny: przenosimy wybrane obrazy z katalogu treningowego do walidacyjnego
+    for image_filename in val_images:
+        source = os.path.join(eclipse_path, image_filename)
+        destination = os.path.join(VAL_DIR, eclipse, image_filename)
+        shutil.move(source, destination)

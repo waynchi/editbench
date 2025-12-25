@@ -1,0 +1,131 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    创建一个大小为rows x cols的矩阵，并用fill_value填充。
+    参数：
+        rows (int): 行数。
+        cols (int): 列数。
+        fill_value (任意类型): 用于填充矩阵的值。
+    返回：
+        list: 以列表形式表示的矩阵。
+    """
+    matrix = [[fill_value for _ in range(cols)] for _ in range(rows)]
+    return matrix
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    加法两个相同大小的矩阵。加法逐元素进行.
+    参数：
+        matrix_a (list): 第一个矩阵。
+        matrix_b (list): 第二个矩阵。
+    返回：
+        list: 矩阵加法的结果。
+    """
+    # Assuming both matrices have the same dimensions
+    result = []
+    for row_a, row_b in zip(matrix_a, matrix_b):
+        row_result = []
+        for a, b in zip(row_a, row_b):
+            row_result.append(a + b)
+        result.append(row_result)
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    将矩阵的所有元素乘以标量。
+    参数：
+        matrix (list): 原始矩阵。
+        scalar (float): 用于乘以矩阵元素的数。
+    返回：
+        list: 矩阵数乘的结果。
+    """
+    result = []
+    for row in matrix:
+        row_result = []
+        for element in row:
+            row_result.append(element * scalar)
+        result.append(row_result)
+    return result
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    乘法两个矩阵。矩阵A的列数必须等于矩阵B的行数。
+    参数：
+        matrix_a (list): 第一个矩阵。
+        matrix_b (list): 第二个矩阵。
+    返回：
+        list: 矩阵乘法的结果。
+    """
+    # 获取矩阵A的行数和列数
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0]) if rows_a > 0 else 0
+
+    # 获取矩阵B的行数和列数
+    rows_b = len(matrix_b)
+    cols_b = len(matrix_b[0]) if rows_b > 0 else 0
+
+    # 检查是否满足相乘条件：A的列数等于B的行数
+    if cols_a != rows_b:
+        raise ValueError("矩阵A的列数必须等于矩阵B的行数")
+
+    # 创建结果矩阵，并初始化所有值为0
+    result = create_matrix(rows_a, cols_b, 0)
+
+    # 实现矩阵乘法
+    for i in range(rows_a):
+        for j in range(cols_b):
+            sum_value = 0
+            for k in range(cols_a):  # 或者range(rows_b)
+                sum_value += matrix_a[i][k] * matrix_b[k][j]
+            result[i][j] = sum_value
+
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    转置矩阵，将原始矩阵的行变为列，列变为行。
+    参数：
+        matrix (list): 原始矩阵。
+    返回：
+        list: 转置后的矩阵。
+    """
+    if not matrix:
+        return []
+
+    # 获取原始矩阵的行和列数
+    rows = len(matrix)
+    cols = len(matrix[0])
+    # 创建转置矩阵：列数变为行，行数变为列
+    transposed = create_matrix(cols, rows, 0)
+    for i in range(rows):
+        for j in range(cols):
+            transposed[j][i] = matrix[i][j]
+    return transposed
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    计算3x3矩阵的行列式。
+    参数：
+        matrix (list): 大小为3x3的原始矩阵。
+    返回：
+        float: 矩阵的行列式。
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("输入必须是一个3x3矩阵")
+
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+
+    # 使用3x3行列式公式:
+    # det(A) = a11 * (a22*a33 - a23*a32)
+    #        - a12 * (a21*a33 - a23*a31)
+    #        + a13 * (a21*a32 - a22*a31)
+    det = (a11 * (a22 * a33 - a23 * a32) -
+           a12 * (a21 * a33 - a23 * a31) +
+           a13 * (a21 * a32 - a22 * a31))
+    return det

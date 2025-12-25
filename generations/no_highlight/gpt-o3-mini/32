@@ -1,0 +1,113 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str) -> bool:
+    return "count me " in texto
+
+def is_own_author(autor: str) -> bool:
+    return autor == 'subidu'
+
+def is_banned(autor: str) -> bool:
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    # Esta función se puede completar según se requiera procesar replies recursivamente.
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', 
+                          author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico(posts_generator) -> dict:
+    """
+    Crea un diccionario jerárquico a partir de posts y sus replies.
+    La estructura del diccionario es:
+    
+    {
+        permlink_post: {
+            "author": <author_post>,
+            "body": <body_post>,
+            "replies": [
+                {
+                    "author": <author_reply>,
+                    "body": <body_reply>,
+                    "permlink": <permlink_reply>
+                },
+                ...
+            ]
+        },
+        ...
+    }
+    Solo se incluyen aquellos posts que tengan más de n_respuestas_minimas respuestas
+    y solo se consideran los replies cuyo texto cumpla la función procesar().
+    """
+    dicc = {}
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_body = post.get('body', '')
+        post_replies_count = post['children']
+
+        # Solo procesar posts con suficientes respuestas
+        if post_replies_count > n_respuestas_minimas:
+            dicc[post_permlink] = {
+                "author": post_author,
+                "body": post_body,
+                "replies": []
+            }
+            try:
+                comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+                replies_list = comment.get_replies()
+            except Exception as e:
+                replies_list = []
+                print(f"Error al obtener replies para {post_permlink}: {e}")
+            
+            for reply in replies_list:
+                reply_author = reply['author']
+                reply_text = reply['body']
+                reply_permlink = reply['permlink']
+
+                # Si el autor es el propio o está baneado, se ignora este reply.
+                if is_own_author(reply_author) or is_banned(reply_author):
+                    continue
+                if procesar(reply_text):
+                    dicc[post_permlink]["replies"].append({
+                        "author": reply_author,
+                        "body": reply_text,
+                        "permlink": reply_permlink
+                    })
+    return dicc
+
+def main():
+    q = Query()
+    d = Discussions()
+    posts_generator = d.get_discussions("created", q, limit=6000)
+    
+    # Crear y mostrar el diccionario jerarquico de posts y sus replies
+    hierarchical_dict = crear_diccionario_jerarquico(posts_generator)
+    
+    # Mostrar solo los posts que tengan más de 3 replies que cumplan la condición del procesamiento
+    for post_permlink, data in hierarchical_dict.items():
+        if len(data["replies"]) > 3:
+            print("Post:", post_permlink, "by", data["author"])
+            for reply in data["replies"]:
+                print("   Reply:", reply["author"], "/", reply["permlink"])
+
+if __name__ == "__main__":
+    main()

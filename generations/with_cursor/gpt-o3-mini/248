@@ -1,0 +1,6 @@
+import pandas as pd
+
+def create_column(df):
+    # Создаем столбец 'Frequency' и заполняем его значением 117 для строк, где 'EventId' равен 'E16'
+    df.loc[df['EventId'] == 'E16', 'Frequency'] = 117
+    return df

@@ -1,0 +1,60 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # If the file is empty or only contains whitespace, exit.
+    if not lines:
+        print("Input file is empty or contains no valid data.")
+        return
+
+    # 对每一行进行迭代：
+    # 打印(l)
+    # The original code created a 1D array of strings.
+    # This needs to be a 2D array of characters to allow 2D indexing (e.g., grid.shape[1]).
+    # We can achieve this by converting each string in the list to a list of characters.
+    grid = np.array([list(line) for line in lines])
+    print(grid)
+    str_to_match = "XMAS"
+    count = 0
+    # 水平检查
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # 垂直检查
+    # With the grid correctly shaped as a 2D array, grid.shape will be a tuple of (rows, cols)
+    # and grid.shape[1] will now be a valid index.
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:,col])
+        count += col_str.count(str_to_match)
+
+    # 检查对角线（从左上到右下）
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # 检查对角线（从右上到左下）
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            # Use splitlines() to handle different line endings and filter out empty lines
+            lines = [line for line in f.read().splitlines() if line]
+        return lines
+    except FileNotFoundError:
+        print(f"Error: Input file not found at {INPUT_FILE_PATH}")
+        return []
+
+if __name__ == "__main__":
+    main()

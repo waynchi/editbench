@@ -1,0 +1,75 @@
+# 导入Pymapdl
+# from ansys.mapdl.core import launch_mapdl
+
+# 创建MAPDL实例
+# mapdl = launch_mapdl(override=True)
+
+# 定义一个求数组拟合直线的函数def fit_line(x, y):
+import numpy as np
+
+def fit_line(x, y):
+    """
+    求数组拟合直线的函数
+    """
+    # 计算x和y的平均值
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # 计算x和y的偏差
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # 计算x和y的偏差的乘积
+    xy_dev = x_dev * y_dev
+    
+    # 计算x的偏差的平方
+    x_dev_squared = x_dev ** 2
+    
+    # 计算直线的斜率和截距
+    slope = np.sum(xy_dev) / np.sum(x_dev_squared)
+    intercept = y_mean - slope * x_mean
+    
+    return slope, intercept
+
+# 定义一个求xy数组二次曲线拟合的函数
+def fit_quadratic(x, y):
+    """
+    求数组二次曲线拟合的函数
+    """
+    # 创建一个Vandermonde矩阵
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # 使用最小二乘法求解系数
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    return coeffs
+
+
+def calculate_max_deviation(x, y, coeffs):
+    """
+    计算给定模型与原始数据之间的最大偏差。
+
+    参数:
+    x (np.ndarray): x坐标数组。
+    y (np.ndarray): y坐标数组。
+    coeffs (tuple or list): 模型系数。
+                             对于线性模型: (slope, intercept)
+                             对于二次模型: (a, b, c)
+
+    返回:
+    float: 最大绝对偏差值。
+    """
+    if len(coeffs) == 2:  # 线性模型
+        slope, intercept = coeffs
+        y_fit = slope * x + intercept
+    elif len(coeffs) == 3:  # 二次模型
+        a, b, c = coeffs
+        y_fit = a * x**2 + b * x + c
+    else:
+        raise ValueError("系数个数必须为2（线性）或3（二次）")
+
+    # 计算每个点的绝对偏差
+    deviations = np.abs(y - y_fit)
+    
+    # 返回最大偏差值
+    return np.max(deviations)

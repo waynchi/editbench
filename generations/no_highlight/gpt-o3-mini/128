@@ -1,0 +1,36 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Create the results DataFrame outside the loops so that we fill it incrementally.
+results = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3])
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        # Create a DataFrame for a single prediction
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3, 
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Perform one-hot encoding on the 'Embarked' column
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+        # Ensure that all expected columns are present; if not, add them with 0.
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col not in my_df.columns:
+                my_df[col] = 0
+            else:
+                # In case the one-hot produces booleans, map them to integer values
+                my_df[col] = my_df[col].map({True: 1, False: 0})
+
+        # Get predictions from both models
+        prediction = {"knn": knn.predict(my_df), "mlp": mlp.predict(my_df)}
+        # Use .at to assign the dictionary to the specific cell in the results DataFrame.
+        results.at[fare, pclass] = prediction
+
+print(results)

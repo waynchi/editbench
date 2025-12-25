@@ -1,0 +1,45 @@
+def four_nonzero_squares(n):
+    """
+    Find four positive integers (a, b, c, d), all nonzero, such that:
+    a^2 + b^2 + c^2 + d^2 == n.
+    Returns a tuple (a, b, c, d) if found, otherwise returns None.
+    """
+    from math import isqrt
+    max_val = isqrt(n)
+    
+    # Iterate over all possible quadruples with nonzero integers
+    for a in range(1, max_val + 1):
+        a_sq = a * a
+        if a_sq >= n:
+            break
+        for b in range(1, max_val + 1):
+            b_sq = b * b
+            if a_sq + b_sq >= n:
+                break
+            for c in range(1, max_val + 1):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq >= n:
+                    break
+                d_sq = n - (a_sq + b_sq + c_sq)
+                # d_sq must be a perfect square and d must be nonzero
+                if d_sq <= 0:
+                    continue
+                d = isqrt(d_sq)
+                if d * d == d_sq and d != 0:
+                    return (a, b, c, d)
+    return None
+
+if __name__ == "__main__":
+    try:
+        num = int(input("请输入一个正整数: "))
+        if num <= 0:
+            raise ValueError("数字需要是正整数。")
+    except ValueError as e:
+        print("输入错误：", e)
+    else:
+        result = four_nonzero_squares(num)
+        if result:
+            a, b, c, d = result
+            print(f"{num} 可以表示为四个非零平方和的数字: {a}^2 + {b}^2 + {c}^2 + {d}^2 = {num}")
+        else:
+            print(f"{num} 不能表示为四个非零平方和的数。")

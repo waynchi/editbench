@@ -1,0 +1,57 @@
+from dataclasses import dataclass
+import numpy as np
+norm = np.random.normal
+
+
+@dataclass
+class NeuralNetwork:
+    # 输入节点（输入中的神经元数量，即输入的数量）
+    inp: int
+    # 隐藏节点（中间神经元的数量，即在中间处理的数字数量）
+    hid: int
+    # 输出节点（输出神经元的数量，即输出中的数字）
+    out: int
+    # 学习率（平滑系数α）
+    lr: float
+    # 激活函数（神经元输出对神经元输入的依赖性）
+    act: callable
+    # 时代数（epochs）
+    epo: int
+
+    def __post_init__(self):
+        # 使用 1/sqrt(n) 作为标准差，这通常更合理
+        self.wih = norm(0., 1 / np.sqrt(self.inp), (self.hid, self.inp))
+        self.who = norm(0., 1 / np.sqrt(self.hid), (self.out, self.hid))
+
+    def train(self, x, y):
+        x = np.array(x, ndmin=2).T
+        y = np.array(y, ndmin=2).T
+
+        ho = self.act(self.wih @ x)  # 隐藏层输出
+        fo = self.act(self.who @ ho) # 最终输出
+        oe = y - fo                  # 输出误差
+        he = self.who.T @ oe         # 隐藏层误差
+
+        # 更新权重
+        self.who += self.lr * (oe * fo * (1. - fo)) @ ho.T
+        self.wih += self.lr * (he * ho * (1. - ho)) @ x.T
+
+    def query(self, x):
+        x = np.array(x, ndmin=2).T
+        ho = self.act(self.wih @ x)
+        fo = self.act(self.who @ ho)
+        return fo
+
+    def fit(self, X, y):
+        for e in range(self.epo):
+            for i in range(len(y)):
+                self.train(X[i], y[i])
+
+    def predict(self, X):
+        # 对于每个样本返回输出节点中数值最大的下标
+        return np.array([np.argmax(self.query(x)) for x in X])
+
+    def score(self, X, y):
+        # 转换实际标签为下标格式
+        y_true = np.array([np.argmax(i) for i in y])
+        return (self.predict(X) == y_true).mean()

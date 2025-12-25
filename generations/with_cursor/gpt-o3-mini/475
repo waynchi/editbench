@@ -1,0 +1,51 @@
+import os
+import shutil
+from sklearn.model_selection import train_test_split
+
+# Define la ruta principal de los datos
+DATA_PATH = "data"  # Ajusta este valor según corresponda.
+
+# Carpeta con todas las fotos de entrenamiento
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Carpeta para validación (se creará a partir de train)
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Carpeta con fotos para prueba (se asume que ya existe o se gestiona por separado)
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Leemos los nombres de los directorios, que corresponden a los tipos de eclipse
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# Proporción de imágenes que se extraerán para el conjunto de validación
+VAL_FRAC = 0.3
+RANDOM_STATE = 42
+
+# Para cada categoría de eclipse, dividimos el conjunto de datos de "train" en "train" y "val"
+for eclipse in ECLIPSE_LIST.values():
+    # Creamos un directorio para el conjunto de validación de cada tipo de eclipse
+    eclipse_val_dir = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(eclipse_val_dir, exist_ok=True)
+
+    # Ruta al conjunto de imágenes para el eclipse actual en la carpeta "train"
+    eclipse_train_path = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Obtenemos la lista ordenada de imágenes para garantizar reproductibilidad
+    images_filenames = sorted(os.listdir(eclipse_train_path))
+    
+    # Dividimos la lista de imágenes en training y validation usando train_test_split
+    train_images, val_images = train_test_split(
+        images_filenames,
+        test_size=VAL_FRAC,
+        random_state=RANDOM_STATE,
+        shuffle=True
+    )
+    
+    print(f'{eclipse} | train images = {len(train_images)} | val images = {len(val_images)}')
+    
+    # Movemos las imágenes de validación del directorio "train" a "val"
+    for image_filename in val_images:
+        source = os.path.join(eclipse_train_path, image_filename)
+        destination = os.path.join(eclipse_val_dir, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

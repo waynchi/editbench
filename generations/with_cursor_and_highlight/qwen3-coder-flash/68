@@ -1,0 +1,28 @@
+def visualize_results_grid(results_df):
+    # Extract and convert the first two columns to numeric if necessary
+    columns = [results_df.iloc[:, i] for i in range(len(results_df.columns))]
+    columns = [pd.to_numeric(col, errors='coerce') if not pd.api.types.is_numeric_dtype(col) else col for col in columns]
+    
+    # Deduce the grid shape from the number of results rows
+    grid_size = int(np.sqrt(len(results_df)))
+    # Reshape columns into matrices
+    matrices = [col.to_numpy().reshape(grid_size, grid_size) for col in columns]
+    
+    # Visualization setup
+    fig, axes = plt.subplots(1, len(results_df.columns), figsize=(4 * len(results_df.columns), 2))
+    if len(results_df.columns) == 1:
+        axes = [axes]
+    titles = [f"{results_df.columns[i]} (Categorical/Binary)" if pd.api.types.is_categorical_dtype(columns[i]) or pd.api.types.is_bool_dtype(columns[i]) else f"{results_df.columns[i]} (Continuous)" for i in range(len(results_df.columns))]
+    cmaps = ["coolwarm", "viridis"] + ["plasma"] * (len(results_df.columns) - 2)
+
+    # Plot each matrix
+    for i, (matrix, ax, title, cmap) in enumerate(zip(matrices, axes, titles, cmaps)):
+        im = ax.imshow(matrix, cmap=cmap, interpolation="none")
+        ax.set_title(title)
+        ax.set_xticks(range(grid_size))
+        ax.set_yticks(range(grid_size))
+        fig.colorbar(im, ax=ax)
+
+    # Display the plot
+    plt.tight_layout()
+    plt.show()

@@ -1,0 +1,63 @@
+def is_sum_of_four_squares(n):
+    """
+    Finds a decomposition of n into a sum of four non-zero integer squares.
+    Returns a tuple (a, b, c, d) on success, otherwise None.
+    This implementation is optimized to run in approximately O(n) time.
+    """
+    if n < 0:
+        return False
+    # The smallest sum of four non-zero squares is 1^2 + 1^2 + 1^2 + 1^2 = 4.
+    if n < 4:
+        return None
+
+    limit_sqrt = int(n**0.5)
+    sums_of_two_squares = {}
+
+    # Pre-calculate all possible sums of two non-zero squares up to n.
+    # Store them in a dictionary for O(1) average time lookups.
+    # We iterate with c >= 1 and d >= c to avoid duplicate pairs.
+    for c in range(1, limit_sqrt + 1):
+        c2 = c * c
+        for d in range(c, limit_sqrt + 1):
+            s = c2 + d * d
+            if s > n:
+                break
+            if s not in sums_of_two_squares:
+                sums_of_two_squares[s] = (c, d)
+
+    # Now, for each sum of two non-zero squares a^2 + b^2,
+    # check if the remainder n - (a^2 + b^2) is in our dictionary.
+    # We iterate with a >= 1 and b >= a.
+    for a in range(1, limit_sqrt + 1):
+        a2 = a * a
+        for b in range(a, limit_sqrt + 1):
+            s_ab = a2 + b * b
+            if s_ab >= n:
+                break
+            
+            remainder = n - s_ab
+            if remainder in sums_of_two_squares:
+                c, d = sums_of_two_squares[remainder]
+                return a, b, c, d
+                
+    return None
+
+def find_four_squares_sums(limit):
+    """Znajduje liczby do określonego limitu, które można wyrazić jako sumę czterech kwadratów, przy czym żaden z kwadratów nie jest zerem."""
+    results = []
+    # This loop corrects the original implementation, which had a bug of returning
+    # after finding the first number. It now iterates through all numbers up to the limit.
+    for n in range(1, limit + 1):
+        # The new 'is_sum_of_four_squares' efficiently checks for a sum of NON-ZERO squares.
+        if is_sum_of_four_squares(n):
+            results.append(n)
+    return results
+
+# Przykład użycia:
+limit = int(input("Digite o limite superior: "))
+sums_found = find_four_squares_sums(limit)
+print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+for num in sums_found:
+    result = is_sum_of_four_squares(num)
+    a, b, c, d = result
+    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

@@ -1,0 +1,19 @@
+def is_prime(n):
+    if n <= 1:
+        return False
+    if n == 2:
+        return True
+    # All even numbers greater than 2 are not prime.
+    if n % 2 == 0:
+        return False
+    # Check for factors from 3 to sqrt(n) only for odd numbers.
+    for i in range(3, int(n**0.5) + 1, 2):
+        if n % i == 0:
+            return False
+    return True
+
+if __name__ == "__main__":
+    test_numbers = [2, 3, 4, 9, 11, 16, 17, 19, 20, 23]
+    for number in test_numbers:
+        result = "prime" if is_prime(number) else "not prime"
+        print(f"{number} is {result}.")

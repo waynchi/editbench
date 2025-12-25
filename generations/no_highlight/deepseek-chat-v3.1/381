@@ -1,0 +1,32 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input: str, start_pos: int) -> bool:
+        '''Sprawdza czy znak na danej pozycji jest cyfrą'''
+        return start_pos < len(input) and input[start_pos].isdigit()
+    
+    @staticmethod
+    def is_int(input: str, start_pos: int) -> int:
+        '''Zwraca końcową pozycję tokenu, jeśli dane wejściowe są prawidłowym tokenem całkowitym, w przeciwnym razie zwraca -1'''
+        max_pos = len(input)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos:
+            if not input[current_pos].isdigit():
+                break
+            digit_found = True
+            current_pos += 1
+    
+        if not digit_found:
+            return -1
+        return current_pos
+
+if __name__ == "__main__":
+    print(IntegerToken.is_int("1234", 0))
+    print(IntegerToken.is_int("a123", 0))

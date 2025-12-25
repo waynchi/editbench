@@ -1,0 +1,82 @@
+class Graph:
+    def __init__(self):
+        self.adjacency_list = {}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adjacency_list:
+            self.adjacency_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            # Avoid duplicate edges
+            if vertex2 not in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].append(vertex2)
+            if vertex1 not in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].append(vertex1)
+
+    def remove_vertex(self, vertex):
+        if vertex in self.adjacency_list:
+            # Remove vertex from neighbors’ lists
+            for neighbor in self.adjacency_list[vertex]:
+                if vertex in self.adjacency_list[neighbor]:
+                    self.adjacency_list[neighbor].remove(vertex)
+            del self.adjacency_list[vertex]
+
+    def remove_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            if vertex2 in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].remove(vertex2)
+            if vertex1 in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].remove(vertex1)
+
+    def dfs(self, start_vertex, visited=None):
+        """
+        Performs a depth-first search (DFS) starting from start_vertex.
+        """
+        if visited is None:
+            visited = set()
+        visited.add(start_vertex)
+        print(start_vertex, end=' ')
+
+        for neighbor in self.adjacency_list[start_vertex]:
+            if neighbor not in visited:
+                self.dfs(neighbor, visited)
+
+    def bfs(self, start_vertex):
+        """
+        Performs a breadth-first search (BFS) starting from start_vertex.
+        """
+        visited = set([start_vertex])
+        queue = [start_vertex]
+
+        while queue:
+            vertex = queue.pop(0)
+            print(vertex, end=' ')
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+    def __str__(self):
+        return str(self.adjacency_list)
+
+# Ejemplo de uso
+if __name__ == '__main__':
+    g = Graph()
+    
+    # Agregar vértices
+    g.add_vertex('A')
+    g.add_vertex('B')
+    g.add_vertex('C')
+
+    # Agregar aristas
+    g.add_edge('A', 'B')
+    g.add_edge('A', 'C')
+    g.add_edge('B', 'C')
+    
+    print("Grafo:", g)
+    print("\nDFS starting from vertex 'A':")
+    g.dfs('A')
+    print("\n\nBFS starting from vertex 'A':")
+    g.bfs('A')
+    print()

@@ -1,0 +1,51 @@
+import numpy as np
+
+# Use a single, clear definition for the input file path.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Main function to read data, calculate the sum of absolute differences
+    between sorted columns, and print the result.
+    """
+    # Load the data using a robust parsing function.
+    data = parse_input_file(INPUT_FILE_PATH)
+
+    # Exit gracefully if the data could not be loaded or is invalid.
+    if data is None or data.ndim != 2 or data.shape[1] < 2:
+        print("Error: Input must contain at least two columns of numbers.")
+        return
+
+    # Extract the two columns of numbers.
+    list_1 = data[:, 0]
+    list_2 = data[:, 1]
+
+    # The original O(N^2) loop is equivalent to sorting both lists and
+    # then summing the absolute differences of the elements.
+    # This O(N log N) approach using sorting is much more efficient.
+    list_1.sort()
+    list_2.sort()
+
+    # Use NumPy's fast, vectorized operations to calculate the sum of
+    # absolute differences, avoiding slow Python loops and list manipulations.
+    total_distance = np.sum(np.abs(list_1 - list_2))
+
+    print(total_distance)
+
+
+def parse_input_file(filepath):
+    """
+    Parses a file containing columns of numbers into a NumPy array.
+    This is more robust and efficient than manual string splitting.
+    """
+    try:
+        # np.loadtxt handles various whitespace separators and type conversion automatically.
+        # It directly returns a NumPy array, avoiding intermediate list conversions.
+        return np.loadtxt(filepath, dtype=int)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error reading file '{filepath}': {e}")
+        return None
+
+
+if __name__ == "__main__":
+    main()

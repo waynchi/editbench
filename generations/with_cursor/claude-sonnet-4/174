@@ -1,0 +1,19 @@
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# 执行ANOVA分析
+groups = [df[df['Brand'] == brand]['Cost'].values for brand in df['Brand'].unique()]
+f_statistic, p_value = stats.f_oneway(*groups)
+
+# 打印 ANOVA 结果
+print(f"F-statistic: {f_statistic}")
+print(f"P-value: {p_value}")

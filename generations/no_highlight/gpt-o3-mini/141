@@ -1,0 +1,39 @@
+import random
+
+def roll_dice(num_rolls):
+    """
+    掷一个六面骰子指定次数，并返回每个结果的百分比。
+
+    参数：
+        num_rolls: 掷骰子的次数。
+
+    返回：
+        一个字典，其中键是数字1-6（代表骰子面），值是该面的出现频率占总次数的百分比。
+        如果num_rolls不是正整数，则返回一个空字典。
+
+    异常：
+        TypeError: 如果num_rolls不是整数。
+        ValueError: 如果num_rolls不是正数。
+    """
+    if not isinstance(num_rolls, int):
+        raise TypeError("Number of rolls must be an integer.")
+    if num_rolls <= 0:
+        raise ValueError("Number of rolls must be positive.")
+
+    frequencies = {i: 0 for i in range(1, 7)}  # 初始化每个面（1-6）的频率
+    for _ in range(num_rolls):
+        roll = random.randint(1, 6)  # 模拟掷骰子
+        frequencies[roll] += 1
+
+    percentages = {face: (count / num_rolls * 100) for face, count in frequencies.items()}
+    return percentages
+
+if __name__ == "__main__":
+    num_rolls = 10000
+    try:
+        results = roll_dice(num_rolls)
+        print(f"骰子各面出现百分比结果（共掷骰子 {num_rolls} 次）:")
+        for face, percentage in results.items():
+            print(f"面 {face}: {percentage:.2f}%")
+    except (TypeError, ValueError) as e:
+        print(f"Error: {e}")

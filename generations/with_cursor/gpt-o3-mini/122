@@ -1,0 +1,40 @@
+import pandas as pd
+from main13 import knn, mlp
+
+def main():
+    # Loop over the different parameter values
+    for pclass in [1, 2, 3]:
+        for fare in range(10, 200, 10):
+            for embarked in ["S", "Q", "C"]:
+                # Create dataframe. Values are wrapped in lists to produce one-row DataFrame.
+                my_df = pd.DataFrame({
+                    "Pclass": [pclass],
+                    "Name": [24],
+                    "Sex": [0],
+                    "Age": [19],
+                    "SibSp": [0],
+                    "Parch": [0],
+                    "Fare": [fare],
+                    "Embarked": [embarked]
+                })
+                
+                # One-hot encode the Embarked column.
+                my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+                
+                # Ensure all dummy columns for Embarked are present (in case some values are missing)
+                for col in ["Embarked_S", "Embarked_Q", "Embarked_C"]:
+                    if col not in my_df.columns:
+                        my_df[col] = 0
+                
+                # Get predictions from both models.
+                knn_pred = knn.predict(my_df)
+                mlp_pred = mlp.predict(my_df)
+                
+                # Print the parameters and predictions.
+                print("-------------------------------------------------------")
+                print(f"Parameters: Pclass {pclass}, Fare {fare}, Embarked {embarked}")
+                print(f"Prediction by KNN: {knn_pred}")
+                print(f"Prediction by MLP: {mlp_pred}")
+
+if __name__ == '__main__':
+    main()

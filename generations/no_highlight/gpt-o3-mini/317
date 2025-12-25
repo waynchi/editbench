@@ -1,0 +1,22 @@
+import os
+
+project_name = "CheckerKMV"
+
+def createLicense(secretKey: str) -> None:
+    # Путь к папке проекта в %APPDATA%\CheckerKMV
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        raise EnvironmentError("Переменная окружения APPDATA не найдена.")
+
+    project_path = os.path.join(appdata, project_name)
+    os.makedirs(project_path, exist_ok=True)
+
+    # Проблема в оригинальном коде: попытка сложения байтовой строки с обычной строкой.
+    # Необходимо преобразовать secretKey в байты с помощью метода encode().
+    license_file = os.path.join(project_path, "license.dat")
+    with open(license_file, "wb") as f:
+        f.write(secretKey.encode("utf-8"))
+
+if __name__ == "__main__":
+    # Пример использования функции создания лицензии.
+    createLicense("exampleSecretKey123")

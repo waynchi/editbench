@@ -1,0 +1,34 @@
+import random
+
+def load_dictionary(file_path):
+    with open(file_path, 'r') as file:
+        words = [line.strip() for line in file]
+    return words
+
+def find_words_by_length(words, length):
+    return [word for word in words if len(word) == length]
+
+def main():
+    dictionary_path = 'words.txt'  # 假设有一个英语词典文件
+    words = load_dictionary(dictionary_path)
+    
+    try:
+        n = int(input("请输入单词的字符数: "))
+        matching_words = find_words_by_length(words, n)
+        
+        if not matching_words:
+            print(f"没有找到长度为 {n} 的单词")
+            return
+        
+        # 随机选择10个单词，如果不足10个则全部显示
+        selected_words = random.sample(matching_words, min(10, len(matching_words)))
+        
+        print(f"\n长度为 {n} 的单词示例:")
+        for word in selected_words:
+            print(word)
+            
+    except ValueError:
+        print("请输入有效的数字")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,29 @@
+import numpy as np
+
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print(lines)
+    # Filter out any empty lines and split each line into its columns
+    cols = [l.split("   ") for l in lines if l.strip()]
+    cols = np.array(cols).T.astype(int)
+
+    # Instead of repeatedly finding and popping the minimum,
+    # we sort each list and then compute the absolute differences pairwise.
+    list_1 = sorted(cols[0])
+    list_2 = sorted(cols[1])
+
+    if len(list_1) != len(list_2):
+        raise ValueError("The two columns must contain the same number of elements.")
+
+    total_distance = sum(abs(a - b) for a, b in zip(list_1, list_2))
+    print(total_distance)
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

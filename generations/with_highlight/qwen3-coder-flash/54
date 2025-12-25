@@ -1,0 +1,8 @@
+# 记录当前路径为cwd
+# 创建向量数据库路径
+cwd = os.getcwd()
+db_path = cwd + '/milvus_db.db'
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+from pymilvus import MilvusClient
+client = MilvusClient(uri=cwd)

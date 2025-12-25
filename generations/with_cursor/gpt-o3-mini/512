@@ -1,0 +1,46 @@
+import { messages } from "./messages.js";
+
+$(document).ready(() => {
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+    const $generateTaxButton = $('#generateTaxButton');
+    const $loadingMessages = $('#loading-messages');
+
+    // Recuperar valores de localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Usa los datos recuperados según sea necesario
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $generateTaxButton.on('click', () => {
+        $main.fadeOut(500, () => {
+            $loading.css('display', 'flex');
+
+            let totalTimeout = 0;
+            // Calcular el tiempo total de la secuencia de mensajes
+            messages.forEach(message => {
+                totalTimeout += message.time;
+            });
+            console.log(`intervalo: ${totalTimeout}`);
+
+            // Mostrar cada mensaje después de su tiempo especificado
+            messages.forEach(message => {
+                setTimeout(() => {
+                    $loadingMessages.text(message.text);
+                }, message.time);
+            });
+
+            // Luego de mostrar todos los mensajes, hacer la transición hacia el pago
+            setTimeout(() => {
+                console.log('pagamento');
+                $loading.hide();
+                $payment.show();
+                $info.show();
+            }, totalTimeout + 500);
+        });
+    });
+});

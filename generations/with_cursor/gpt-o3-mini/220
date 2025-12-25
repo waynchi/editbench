@@ -1,0 +1,31 @@
+import os
+import hashlib
+import base64
+
+project_name = "CheckerKMV"
+
+def createLicense(secretKey: str) -> None:
+    """
+    Creates a license file under the user's APPDATA directory.
+    Instead of writing the raw secret key, the function now computes its SHA256 hash,
+    base64-encodes it, and writes the result to the file.
+
+    This addresses potential issues with mixing string and bytes,
+    and also obfuscates the secret key before storing.
+    """
+    # Construct the application data path
+    appdata_path = os.path.join(os.environ.get("APPDATA", ""), project_name)
+
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+
+    # Compute SHA256 hash of the secretKey
+    sha256_hash = hashlib.sha256(secretKey.encode('utf-8')).digest()
+
+    # Base64 encode the hash to get a more compact ASCII representation
+    encoded_license = base64.b64encode(sha256_hash)
+
+    # Write the encoded license into the file "license.dat"
+    license_file = os.path.join(appdata_path, "license.dat")
+    with open(license_file, "wb") as f:
+        f.write(encoded_license)

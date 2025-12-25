@@ -1,0 +1,64 @@
+import numpy as np
+
+def gradiente_conjugado(A, b, x0=None, tol=1e-5, max_iter=1000):
+    """
+    Implementa el método de gradientes conjugados para resolver el sistema Ax = b.
+
+    Este método es un algoritmo iterativo diseñado para sistemas de ecuaciones lineales
+    donde la matriz A es simétrica y definida positiva.
+
+    Args:
+        A (np.ndarray): Una matriz cuadrada (n, n), simétrica y definida positiva.
+        b (np.ndarray): Un vector de columna (n, 1) o un array 1D (n,).
+        x0 (np.ndarray, optional): La estimación inicial para la solución x.
+                                   Si es None, se utiliza un vector de ceros.
+                                   Defaults to None.
+        tol (float, optional): La tolerancia para la convergencia. El algoritmo se detiene
+                               cuando la norma L2 del residuo (||b - Ax||) es menor que tol.
+                               Defaults to 1e-5.
+        max_iter (int, optional): El número máximo de iteraciones a realizar.
+                                  Defaults to 1000.
+
+    Returns:
+        np.ndarray: El vector de solución aproximado 'x'.
+    """
+    # Obtener el tamaño del sistema
+    n = A.shape[0]
+
+    # Inicialización de la solución
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.copy(x0)  # Usar una copia para no modificar el original
+
+    # El algoritmo de Gradientes Conjugados
+    r = b - A @ x   # Residuo inicial: r = b - Ax
+    p = r.copy()    # Dirección de búsqueda inicial: p = r
+    rs_old = np.dot(r, r) # Norma al cuadrado del residuo: r^T * r
+
+    if np.sqrt(rs_old) < tol:
+        # La estimación inicial ya es suficientemente buena
+        return x
+
+    for i in range(max_iter):
+        Ap = A @ p  # Calcular el producto matriz-vector
+        alpha = rs_old / np.dot(p, Ap)  # Calcular el tamaño del paso
+
+        # Actualizar la solución y el residuo
+        x = x + alpha * p
+        r = r - alpha * Ap
+
+        rs_new = np.dot(r, r) # Calcular la nueva norma al cuadrado del residuo
+
+        # Comprobar la convergencia
+        if np.sqrt(rs_new) < tol:
+            break
+
+        # Actualizar la dirección de búsqueda
+        # p_new = r_new + beta * p_old, donde beta = rs_new / rs_old
+        p = r + (rs_new / rs_old) * p
+        
+        # Actualizar el valor de la norma del residuo para la siguiente iteración
+        rs_old = rs_new
+
+    return x

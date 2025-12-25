@@ -1,0 +1,73 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Commented out for clarity
+
+def main():
+    """Main function to calculate the sum of distances between sorted pairs."""
+    try:
+        list_1, list_2 = parse_and_process_input()
+        total_distance = calculate_total_distance(list_1, list_2)
+        print(f"Total distance: {total_distance}")
+    except FileNotFoundError:
+        print(f"Error: File '{INPUT_FILE_PATH}' not found.")
+    except ValueError as e:
+        print(f"Error processing data: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+def parse_and_process_input() -> Tuple[np.ndarray, np.ndarray]:
+    """Parse input file and return two sorted arrays."""
+    lines = parse_input_file()
+    if not lines or not lines[0]:
+        raise ValueError("Input file is empty or contains no valid data")
+    
+    # More robust parsing with error handling
+    try:
+        cols = []
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                parts = line.split()
+                if len(parts) >= 2:
+                    cols.append([int(parts[0]), int(parts[1])])
+        
+        if not cols:
+            raise ValueError("No valid data pairs found in input file")
+            
+        cols_array = np.array(cols).T
+        list_1, list_2 = cols_array[0], cols_array[1]
+        
+        # Sort arrays directly instead of using inefficient pop operations
+        list_1_sorted = np.sort(list_1)
+        list_2_sorted = np.sort(list_2)
+        
+        return list_1_sorted, list_2_sorted
+        
+    except (ValueError, IndexError) as e:
+        raise ValueError(f"Invalid data format in input file: {e}")
+
+def calculate_total_distance(list_1: np.ndarray, list_2: np.ndarray) -> int:
+    """Calculate total distance between corresponding elements of sorted arrays."""
+    if len(list_1) != len(list_2):
+        raise ValueError("Input lists must have the same length")
+    
+    # Vectorized operation - much more efficient than loop
+    distances = np.abs(list_1 - list_2)
+    return int(np.sum(distances))
+
+def parse_input_file() -> List[str]:
+    """Parse input file and return list of lines."""
+    file_path = Path(INPUT_FILE_PATH)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"Input file '{INPUT_FILE_PATH}' does not exist")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f.readlines() if line.strip()]
+    
+    return lines
+
+if __name__ == "__main__":
+    main()

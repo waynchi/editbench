@@ -1,0 +1,55 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_analysis(json_file_path, system_prompt_path, model_name="llama3.2", base_url="http://localhost:11434"):
+    """
+    Генерирует анализ SHAP значений с использованием модели Ollama.
+    
+    Args:
+        json_file_path (str): Путь к JSON файлу с SHAP значениями
+        system_prompt_path (str): Путь к файлу с системным промптом
+        model_name (str): Название модели Ollama (по умолчанию "llama3.2")
+        base_url (str): URL сервера Ollama (по умолчанию "http://localhost:11434")
+    
+    Returns:
+        str: Ответ модели в виде текста
+    """
+    # Инициализировать модель ChatOllama
+    chat_model = ChatOllama(model=model_name, base_url=base_url)
+    
+    # Загрузить значения SHAP из файла JSON
+    with open(json_file_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Загрузить системный запрос из файла
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Подготовить сообщения
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Подготовить ввод пользователя
+    user_input = json.dumps(shap_values_json)
+    
+    # Создать цепочку
+    chain = prompt | chat_model
+    
+    # Выполнить запрос и вернуть ответ
+    response = chain.invoke({"user_input": user_input})
+    return response.content
+
+# Пример использования
+if __name__ == "__main__":
+    result = generate_shap_analysis(
+        json_file_path="Vuori_Final_Approval_2024_09_24.json",
+        system_prompt_path="system.prompt",
+        model_name="llama3.2",
+        base_url="http://localhost:11434"
+    )
+    print(result)

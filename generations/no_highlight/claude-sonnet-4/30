@@ -1,0 +1,186 @@
+def can_be_expressed_as_sum_of_four_squares(n):
+    """
+    Verifica se um número pode ser expresso como a soma de quatro quadrados não nulos.
+    
+    Args:
+        n (int): O número a ser verificado
+        
+    Returns:
+        bool: True se o número pode ser expresso como soma de quatro quadrados não nulos, False caso contrário
+        tuple: Uma tupla com os quatro números cujos quadrados somam n (se existir)
+    """
+    if n < 4:  # Menor possível soma de quatro quadrados não nulos é 1+1+1+1=4
+        return False, None
+    
+    # Limite superior para busca (raiz quadrada de n)
+    max_val = int(n**0.5) + 1
+    
+    # Busca por quatro números cujos quadrados somam n
+    for a in range(1, max_val):
+        a_squared = a * a
+        if a_squared >= n:
+            break
+            
+        for b in range(1, max_val):
+            b_squared = b * b
+            if a_squared + b_squared >= n:
+                break
+                
+            for c in range(1, max_val):
+                c_squared = c * c
+                if a_squared + b_squared + c_squared >= n:
+                    break
+                    
+                # Calcula o quarto quadrado necessário
+                d_squared = n - a_squared - b_squared - c_squared
+                
+                if d_squared > 0:
+                    d = int(d_squared**0.5)
+                    if d * d == d_squared and d > 0:
+                        return True, (a, b, c, d)
+    
+    return False, None
+
+
+def find_all_four_square_representations(n, limit_solutions=5):
+    """
+    Encontra todas as representações de um número como soma de quatro quadrados não nulos.
+    
+    Args:
+        n (int): O número a ser verificado
+        limit_solutions (int): Limite de soluções a serem encontradas
+        
+    Returns:
+        list: Lista de tuplas com as representações encontradas
+    """
+    if n < 4:
+        return []
+    
+    solutions = []
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        a_squared = a * a
+        if a_squared >= n:
+            break
+            
+        for b in range(a, max_val):  # b >= a para evitar duplicatas
+            b_squared = b * b
+            if a_squared + b_squared >= n:
+                break
+                
+            for c in range(b, max_val):  # c >= b para evitar duplicatas
+                c_squared = c * c
+                if a_squared + b_squared + c_squared >= n:
+                    break
+                    
+                d_squared = n - a_squared - b_squared - c_squared
+                
+                if d_squared > 0:
+                    d = int(d_squared**0.5)
+                    if d * d == d_squared and d >= c:  # d >= c para evitar duplicatas
+                        solutions.append((a, b, c, d))
+                        if len(solutions) >= limit_solutions:
+                            return solutions
+    
+    return solutions
+
+
+def generate_numbers_expressible_as_four_squares(max_num):
+    """
+    Gera todos os números até max_num que podem ser expressos como soma de quatro quadrados não nulos.
+    
+    Args:
+        max_num (int): Número máximo a ser verificado
+        
+    Returns:
+        list: Lista de números que podem ser expressos como soma de quatro quadrados não nulos
+    """
+    expressible_numbers = []
+    
+    for num in range(4, max_num + 1):
+        can_express, representation = can_be_expressed_as_sum_of_four_squares(num)
+        if can_express:
+            expressible_numbers.append((num, representation))
+    
+    return expressible_numbers
+
+
+def verify_four_squares_theorem():
+    """
+    Verifica o teorema de Jacobi sobre a soma de quatro quadrados.
+    Segundo o teorema, todo número inteiro positivo pode ser expresso como soma de quatro quadrados (incluindo zero).
+    Esta função verifica especificamente para quadrados não nulos.
+    """
+    print("Verificando números que podem ser expressos como soma de quatro quadrados não nulos:")
+    print("=" * 70)
+    
+    # Testa números de 1 a 50
+    for n in range(1, 51):
+        can_express, representation = can_be_expressed_as_sum_of_four_squares(n)
+        
+        if can_express:
+            a, b, c, d = representation
+            verification = a*a + b*b + c*c + d*d
+            print(f"{n:2d} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d} = {verification}")
+        else:
+            print(f"{n:2d} não pode ser expresso como soma de quatro quadrados não nulos")
+
+
+def interactive_four_squares():
+    """
+    Interface interativa para testar números específicos.
+    """
+    print("\n" + "="*50)
+    print("CALCULADORA DE SOMA DE QUATRO QUADRADOS")
+    print("="*50)
+    
+    while True:
+        try:
+            num = input("\nDigite um número para verificar (ou 'sair' para terminar): ")
+            
+            if num.lower() in ['sair', 'exit', 'quit']:
+                break
+                
+            num = int(num)
+            
+            if num < 1:
+                print("Por favor, digite um número inteiro positivo.")
+                continue
+            
+            print(f"\nAnalisando o número {num}:")
+            print("-" * 30)
+            
+            # Verifica se pode ser expresso
+            can_express, representation = can_be_expressed_as_sum_of_four_squares(num)
+            
+            if can_express:
+                a, b, c, d = representation
+                print(f"✓ {num} pode ser expresso como soma de quatro quadrados não nulos:")
+                print(f"  {num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+                
+                # Encontra outras representações
+                all_representations = find_all_four_square_representations(num)
+                if len(all_representations) > 1:
+                    print(f"\nOutras representações encontradas:")
+                    for i, (a, b, c, d) in enumerate(all_representations[1:], 2):
+                        print(f"  {num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+                        if i > 5:  # Limita a 5 representações adicionais
+                            break
+            else:
+                print(f"✗ {num} não pode ser expresso como soma de quatro quadrados não nulos")
+                
+        except ValueError:
+            print("Por favor, digite um número válido.")
+        except KeyboardInterrupt:
+            break
+    
+    print("\nObrigado por usar a calculadora!")
+
+
+if __name__ == "__main__":
+    # Executa a verificação automática
+    verify_four_squares_theorem()
+    
+    # Executa a interface interativa
+    interactive_four_squares()

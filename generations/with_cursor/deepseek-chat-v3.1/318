@@ -1,0 +1,75 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_explanation(shap_values_file, system_prompt_file, model_config=None):
+    """
+    Генерирует объяснение SHAP значений с использованием языковой модели
+    
+    Args:
+        shap_values_file (str): Путь к файлу JSON с SHAP значениями
+        system_prompt_file (str): Путь к файлу с системным промптом
+        model_config (dict, optional): Конфигурация модели. По умолчанию используется локальная llama3.2
+    
+    Returns:
+        str: Ответ языковой модели
+    """
+    # Конфигурация модели по умолчанию
+    if model_config is None:
+        model_config = {
+            "model": "llama3.2",
+            "base_url": "http://localhost:11434"
+        }
+    
+    # Инициализировать модель ChatOllama
+    chat_model = ChatOllama(**model_config)
+    
+    # Загрузить значения SHAP из файла JSON
+    with open(shap_values_file, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Загрузить системный запрос из файла
+    with open(system_prompt_file, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Подготовить сообщения
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Подготовить ввод пользователя
+    user_input = json.dumps(shap_values_json)
+    
+    # Создать цепочку
+    chain = prompt | chat_model
+    
+    # Вызвать цепочку и вернуть ответ
+    response = chain.invoke(user_input)
+    return response.content
+
+# Пример использования
+if __name__ == "__main__":
+    # Базовая конфигурация
+    result = generate_shap_explanation(
+        shap_values_file="Vuori_Final_Approval_2024_09_24.json",
+        system_prompt_file="system.prompt"
+    )
+    print(result)
+    
+    # Пример с кастомной конфигурацией модели
+    # custom_config = {
+    #     "model": "llama3.1:70b",
+    #     "base_url": "http://ada-open-webui.serveo.net/ollama",
+    #     "client_kwargs": {
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     }
+    # }
+    # result = generate_shap_explanation(
+    #     shap_values_file="Vuori_Final_Approval_2024_09_24.json",
+    #     system_prompt_file="system.prompt",
+    #     model_config=custom_config
+    # )
+    # print(result)

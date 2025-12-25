@@ -1,0 +1,26 @@
+from dataclasses import dataclass
+
+
+@dataclass
+class Card:
+    id: str
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str
+
+    # The __repr__ method is now handled automatically by the @dataclass decorator.
+    # The original __repr__ was broken because it tried to access a non-existent 'self.id'
+    # and the string concatenation was incorrect.
+    # By adding 'id: str' as a field and removing the custom __repr__,
+    # the dataclass will generate a correct __init__ and __repr__ for us.

@@ -1,0 +1,42 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+# Инициализировать модель ChatOllama
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# Загрузить значения SHAP из файла JSON
+try:
+    with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+        shap_values_data = json.load(file)
+        shap_values_json = json.dumps(shap_values_data.get("shap_values", {}))
+except FileNotFoundError:
+    print("Файл Vuori_Final_Approval_2024_09_24.json не найден")
+    exit(1)
+except json.JSONDecodeError:
+    print("Ошибка при чтении JSON файла")
+    exit(1)
+
+# Загрузить системный запрос из файла
+try:
+    with open("system.prompt", "r", encoding="utf-8") as file:
+        sys_prompt = file.read().strip()
+except FileNotFoundError:
+    print("Файл system.prompt не найден")
+    exit(1)
+
+# Подготовить сообщения
+template = ChatPromptTemplate.from_messages([
+    ("system", sys_prompt),
+    ("human", "{user_input}"),
+])
+
+# Создать цепочку обработки
+chain = template | chat_model
+
+# Вызвать цепочку с данными
+try:
+    response = chain.invoke({"user_input": shap_values_json})
+    print(response.content)
+except Exception as e:
+    print(f"Ошибка при выполнении запроса: {e}")

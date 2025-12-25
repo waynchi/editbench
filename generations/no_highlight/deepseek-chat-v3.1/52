@@ -1,0 +1,36 @@
+from main13 import knn, mlp
+import pandas as pd
+import numpy as np
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Создаем DataFrame с правильными именами и типами данных
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # Преобразуем Embarked в one-hot encoding
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Обеспечиваем наличие всех трех колонок Embarked
+            for col in ["Embarked_C", "Embarked_Q", "Embarked_S"]:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Переупорядочиваем колонки в правильном порядке
+            expected_columns = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 
+                               'Embarked_C', 'Embarked_Q', 'Embarked_S']
+            my_df = my_df[expected_columns]
+            
+            print(f"-------------------------------------------------------")
+            print(f"Параметры: класс {pclass}, плата {fare}, embarked {embarked}")
+            print(f"По knn: {knn.predict(my_df)[0]}")
+            print(f"По mlp: {mlp.predict(my_df)[0]}")

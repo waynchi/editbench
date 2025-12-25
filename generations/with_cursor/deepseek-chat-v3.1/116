@@ -1,0 +1,223 @@
+import aiohttp
+import asyncio
+import xml.etree.ElementTree
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+
+class ticker():
+    """Stock ticker and everything related to it, through MoexApi
+
+Required libraries:
+
+aiohttp
+
+asyncio
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name: str):
+        """self.name - ticker name
+self.tech_dict - technical analysis dictionary"""
+        self.name = name 
+        """Имя тикера, то есть сам по себе тикер"""
+        self.tech_dict = {"value" : {"use" : False, "has_periods" : False, "need_graph_space" : True}, 
+                          "sma" : {"use" : False, "has_periods" : True, "periods" : [], "need_graph_space" : False},
+                          "ema" : {"use" : False, "has_periods" : True, "periods" : [],"need_graph_space" : False}
+                          }
+    
+    async def correct_name(self):
+        """Checking the ticker name for presence in the set of tickers. The set is updated no more than once a day."""
+        info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8")
+        info = json.load(info_opened_file)
+        info_opened_file.close()
+        
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f"):
+            async with aiohttp.ClientSession() as session:
+                async with session.get("https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off") as response:
+                    content = await response.read()
+                    root = xml.etree.ElementTree.fromstring(content)
+                    set_tickers = set()
+                    for data in root.findall("data"):
+                        if data.get("id") == "securities":
+                            rows = data.find("rows")
+                            for row in rows.findall("row"):
+                                set_tickers.add(row.get("SECID"))
+                    
+                    set_tickers_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb")
+                    pickle.dump(set_tickers, set_tickers_file_opened)
+                    set_tickers_file_opened.close()
+                    
+                    info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+                    info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8")
+                    json.dump(info, info_opened_file, indent=3, ensure_ascii=False)
+                    info_opened_file.close()
+        
+        set_tickers_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb")
+        set_tickers = pickle.load(set_tickers_file_opened)
+        return self.name in set_tickers
+
+    async def CurrentPrice(self):
+        """Current price for this ticker"""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{self.name}.xml?iss.meta=off") as response:
+                content = await response.read()
+                root = xml.etree.ElementTree.fromstring(content)
+                for data in root.findall("data"):
+                    if data.get("id") == "marketdata":
+                        rows = data.find("rows")
+                        row = rows.find("row")
+                        return row.get("LAST")
+
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """List of candles for this ticker"""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{self.name}/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}") as response:
+                content = await response.read()
+                root = xml.etree.ElementTree.fromstring(content)
+                candles = root.find("data")
+                rows = candles.find("rows")
+                listcandles = []
+                
+                if candles_name == "begin" or candles_name == "end":
+                    for row in rows.findall("row"):
+                        datetime_str = row.get(candles_name)
+                        datetime_datetime = datetime.datetime(int(datetime_str[0:4]), int(datetime_str[5:7]), int(datetime_str[8:10]), int(datetime_str[11:13]), int(datetime_str[14:16]), int(datetime_str[17:]))
+                        listcandles.append(datetime_datetime)
+                else:
+                    for row in rows.findall("row"):
+                        listcandles.append(float(row.get(candles_name)))
+                return listcandles
+
+    async def setattr_candles_dataframe(self, timeframe="24", start="", end=""):
+        """Creates a dataframe of candles with the corresponding timeframe, start, and end and places it in self.candles_dataframe"""
+        open_data = await self.candles("open", timeframe, start, end)
+        close_data = await self.candles("close", timeframe, start, end)
+        high_data = await self.candles("high", timeframe, start, end)
+        low_data = await self.candles("low", timeframe, start, end)
+        value_data = await self.candles("value", timeframe, start, end)
+        begin_data = await self.candles("begin", timeframe, start, end)
+        
+        candles_dataframe = pd.DataFrame({
+            "open": open_data,
+            "close": close_data,
+            "high": high_data,
+            "low": low_data,
+            "value": value_data,
+            "begin": begin_data
+        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+
+    async def graphic(self, timeframe="24", start="", end=""):
+        """Returns an open candlestick price chart from the time"""
+        await self.setattr_candles_dataframe(timeframe, start, end)
+        
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+        
+        if timeframe == "1":
+            width_big = 1/24/60
+        elif timeframe == "10":
+            width_big = 1/24/6
+        elif timeframe == "60":
+            width_big = 1/24
+        elif timeframe == "24":
+            width_big = 1
+        elif timeframe == "7":
+            width_big = 7
+        elif timeframe == "31":
+            width_big = 30
+        elif timeframe == "4":
+            width_big = 90
+        else:
+            width_big = 0
+        width_small = width_big/10
+        setattr(self, "width_big", width_big)
+        
+        number_of_additional_graphics = 0
+        for tech in self.tech_dict:
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]:
+                number_of_additional_graphics += 1
+        
+        if number_of_additional_graphics != 0:
+            height_rations_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics
+            fig, axs = plt.subplots(nrows=1 + number_of_additional_graphics, ncols=1, sharex=True, height_ratios=height_rations_list)
+            plt.suptitle(self.name, fontsize=15)
+            axs[0].grid(True)
+            
+            axs[0].bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            axs[0].bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            axs[0].bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            
+            axs[0].bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            axs[0].bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            axs[0].bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    if not self.tech_dict[tech]["need_graph_space"]:
+                        tech_func = getattr(self, tech)
+                        tech_func(axs[0])
+                    else:
+                        for i in range(number_of_additional_graphics):
+                            tech_func = getattr(self, tech)
+                            axs[i + 1].grid(True)
+                            tech_func(axs[i + 1])
+        else:
+            fig = plt.figure()
+            plt.title(self.name, fontsize=15)
+            ax = fig.add_subplot()
+            ax.grid(True)
+            
+            ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            
+            ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(ax)
+
+        fig.savefig(r"D:\Python files\!MoexApiBot\graphic.png")
+        opened_graphic = open(r"D:\Python files\!MoexApiBot\graphic.png", "rb")
+        return opened_graphic
+
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                sma_list = []
+                sma_list.append(sum(self.candles_dataframe.close[0: period])/period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period])/period)
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list)
+
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period])/period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1)*ema_list[i - period] + 2 * self.candles_dataframe.close[i])/(period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+
+    def value(self, ax):
+        ax.bar(x=self.up.begin, height=self.up.value, width=self.width_big, color="green")
+        ax.bar(x=self.down.begin, height=self.down.value, width=self.width_big, color="red")
+        ax.set_title("Value", fontsize=7)

@@ -1,0 +1,57 @@
+from dataclasses import dataclass
+import numpy as np
+norm = np.random.normal
+
+@dataclass
+class NeuralNetwork:
+  # inp: количество нейронов во входном слое
+  # hid: количество нейронов в скрытом слое
+  # out: количество нейронов в выходном слое
+  # lr: скорость обучения (learning rate)
+  # act: функция активации
+  # epo: количество эпох обучения
+  inp: int
+  hid: int
+  out: int
+  lr: float
+  act: callable
+  epo: int
+
+  def __post_init__(self):
+    # Используем 1/sqrt(N) для инициализации весов, где N — число входных нейронов.
+    self.wih = norm(0., 1/np.sqrt(self.inp), (self.hid, self.inp))
+    self.who = norm(0., 1/np.sqrt(self.hid), (self.out, self.hid))
+
+  def train(self, x, y):
+    x = np.array(x, ndmin=2).T
+    y = np.array(y, ndmin=2).T
+
+    # Расчёт выходов скрытого и выходного слоя с использованием функции активации
+    ho = self.act(self.wih @ x)
+    fo = self.act(self.who @ ho)
+    
+    # Вычисление ошибок на выходном и скрытом слоях
+    oe = y - fo
+    he = self.who.T @ oe
+
+    # Корректировка весов между скрытым и выходным слоями
+    self.who += self.lr * (oe * fo * (1. - fo)) @ ho.T
+    
+    # Корректировка весов между входным и скрытым слоями
+    self.wih += self.lr * (he * ho * (1. - ho)) @ x.T
+
+  def query(self, x):
+    x = np.array(x, ndmin=2).T
+    return self.act(self.who @ self.act(self.wih @ x))
+
+  def fit(self, X, y):
+    for e in range(self.epo):
+      for i in range(len(y)):
+        self.train(X[i], y[i])
+
+  def predict(self, X):
+    return np.array([np.argmax(self.query(x)) for x in X])
+
+  def score(self, X, y):
+    y = np.array([np.argmax(i) for i in y])
+    return (self.predict(X) == y).mean()

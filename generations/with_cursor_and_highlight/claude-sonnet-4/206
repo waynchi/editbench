@@ -1,0 +1,255 @@
+import { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
+
+// Action types for reducer
+const ACTION_TYPES = {
+  SET_STRIPE_API_KEY: 'SET_STRIPE_API_KEY',
+  SET_CUSTOMER_DATA_LOADING: 'SET_CUSTOMER_DATA_LOADING',
+  SET_CUSTOMER_DATA: 'SET_CUSTOMER_DATA',
+  SET_WEBSITE_STATUS: 'SET_WEBSITE_STATUS',
+  SET_DATE_RANGE: 'SET_DATE_RANGE',
+  SET_ERROR: 'SET_ERROR',
+  CLEAR_ERROR: 'CLEAR_ERROR',
+  SET_HEALTH_DATA: 'SET_HEALTH_DATA'
+};
+
+// Reducer for state management
+const dashboardReducer = (state, action) => {
+  switch (action.type) {
+    case ACTION_TYPES.SET_STRIPE_API_KEY:
+      return { ...state, stripeApiKey: action.payload };
+    case ACTION_TYPES.SET_CUSTOMER_DATA_LOADING:
+      return { 
+        ...state, 
+        customerData: { ...state.customerData, loading: action.payload } 
+      };
+    case ACTION_TYPES.SET_CUSTOMER_DATA:
+      return { 
+        ...state, 
+        customerData: { 
+          summary: action.payload, 
+          loading: false,
+          customers: action.payload.customers 
+        } 
+      };
+    case ACTION_TYPES.SET_WEBSITE_STATUS:
+      return { ...state, websiteStatus: action.payload };
+    case ACTION_TYPES.SET_DATE_RANGE:
+      return { ...state, dateRange: action.payload };
+    case ACTION_TYPES.SET_ERROR:
+      return { ...state, error: action.payload };
+    case ACTION_TYPES.CLEAR_ERROR:
+      return { ...state, error: null };
+    case ACTION_TYPES.SET_HEALTH_DATA:
+      return { ...state, healthData: action.payload };
+    default:
+      return state;
+  }
+};
+
+// Initial state factory
+const createInitialState = () => ({
+  customerData: { summary: null, loading: false, customers: [] },
+  healthData: [],
+  websiteStatus: { checking: false },
+  stripeApiKey: "",
+  error: null,
+  dateRange: {
+    startDate: (() => {
+      const date = new Date();
+      date.setFullYear(date.getFullYear() - 1);
+      return date;
+    })(),
+    endDate: new Date(),
+  }
+});
+
+function useDashboardData(user) {
+  const [data, dispatch] = useReducer(dashboardReducer, null, createInitialState);
+
+  // Memoized date range months calculation
+  const dateRangeMonths = useMemo(() => {
+    const months = [];
+    const currentDate = new Date(data.dateRange.startDate);
+    
+    while (currentDate <= data.dateRange.endDate) {
+      months.push({
+        month: currentDate.toLocaleString("default", { month: "short" }),
+        year: currentDate.getFullYear(),
+        monthIndex: currentDate.getMonth()
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    return months;
+  }, [data.dateRange]);
+
+  const calculateHealthData = useCallback(() => {
+    if (!data.customerData.summary?.customers) return [];
+
+    return dateRangeMonths.map(({ month, year, monthIndex }) => {
+      const monthYear = `${month} ${year}`;
+      const monthCustomers = data.customerData.summary.customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === monthIndex && customerDate.getFullYear() === year;
+      });
+
+      return {
+        monthYear,
+        healthy: monthCustomers.filter(c => c.status === "active").length,
+        warning: monthCustomers.filter(c => c.status === "churned").length,
+        critical: monthCustomers.filter(c => c.status === "delinquent").length,
+      };
+    });
+  }, [data.customerData.summary, dateRangeMonths]);
+
+  // Memoized API headers
+  const apiHeaders = useMemo(() => ({ "Content-Type": "application/json" }), []);
+
+  const loadSettings = useCallback(async () => {
+    if (!user?.id || data.stripeApiKey) return;
+    
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: apiHeaders,
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      
+      dispatch({
+        type: ACTION_TYPES.SET_STRIPE_API_KEY,
+        payload: settings[0]?.stripe_api_key || ""
+      });
+    } catch (error) {
+      dispatch({
+        type: ACTION_TYPES.SET_ERROR,
+        payload: "Failed to load user settings"
+      });
+    }
+  }, [user?.id, data.stripeApiKey, apiHeaders]);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id || !data.stripeApiKey) return;
+
+    dispatch({ type: ACTION_TYPES.SET_CUSTOMER_DATA_LOADING, payload: true });
+    dispatch({ type: ACTION_TYPES.CLEAR_ERROR });
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: apiHeaders,
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      dispatch({ type: ACTION_TYPES.SET_CUSTOMER_DATA, payload: summary });
+      
+      // Calculate health data after setting customer data
+      const healthData = calculateHealthData();
+      dispatch({ type: ACTION_TYPES.SET_HEALTH_DATA, payload: healthData });
+    } catch (error) {
+      dispatch({ type: ACTION_TYPES.SET_CUSTOMER_DATA_LOADING, payload: false });
+      dispatch({ type: ACTION_TYPES.SET_ERROR, payload: error.message });
+    }
+  }, [user?.id, data.stripeApiKey, apiHeaders, calculateHealthData]);
+
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      if (!data.customerData.summary?.customers?.length) return;
+      
+      dispatch({ type: ACTION_TYPES.SET_WEBSITE_STATUS, payload: { checking: true } });
+      dispatch({ type: ACTION_TYPES.CLEAR_ERROR });
+
+      try {
+        const updatedCustomers = await Promise.all(
+          data.customerData.customers.map(async (customer) => {
+            try {
+              const response = await fetch("/api/website-churn-detector", {
+                method: "POST",
+                headers: apiHeaders,
+                body: JSON.stringify({ websiteUrl: customer.website }),
+              });
+              const health = await response.json();
+              return { 
+                ...customer, 
+                health, 
+                status: health.status === "active" ? "active" : "churned" 
+              };
+            } catch (error) {
+              // Handle individual customer check failures gracefully
+              return { ...customer, health: { status: "unknown", error: error.message } };
+            }
+          })
+        );
+
+        const summary = {
+          ...data.customerData.summary,
+          customers: updatedCustomers,
+          active: updatedCustomers.filter(c => c.status === "active").length,
+          churned: updatedCustomers.filter(c => c.status === "churned").length,
+        };
+
+        dispatch({ type: ACTION_TYPES.SET_CUSTOMER_DATA, payload: summary });
+        
+        const healthData = calculateHealthData();
+        dispatch({ type: ACTION_TYPES.SET_HEALTH_DATA, payload: healthData });
+        dispatch({ type: ACTION_TYPES.SET_WEBSITE_STATUS, payload: { checking: false } });
+      } catch (err) {
+        dispatch({ type: ACTION_TYPES.SET_WEBSITE_STATUS, payload: { checking: false } });
+        dispatch({ 
+          type: ACTION_TYPES.SET_ERROR, 
+          payload: "Failed to check websites. Please try again." 
+        });
+      }
+    },
+    
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        dispatch({ 
+          type: ACTION_TYPES.SET_ERROR, 
+          payload: "Start date cannot be after end date" 
+        });
+        return;
+      }
+      dispatch({ type: ACTION_TYPES.SET_DATE_RANGE, payload: range });
+      dispatch({ type: ACTION_TYPES.CLEAR_ERROR });
+    },
+
+    clearError: () => {
+      dispatch({ type: ACTION_TYPES.CLEAR_ERROR });
+    }
+  }), [data.customerData.summary, data.customerData.customers, calculateHealthData, apiHeaders]);
+
+  // Load settings when user changes
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // Load data when user or API key changes
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Update health data when customer data or date range changes
+  useEffect(() => {
+    if (data.customerData.summary?.customers) {
+      const healthData = calculateHealthData();
+      dispatch({ type: ACTION_TYPES.SET_HEALTH_DATA, payload: healthData });
+    }
+  }, [calculateHealthData]);
+
+  return { 
+    data, 
+    actions,
+    isLoading: data.customerData.loading || data.websiteStatus.checking 
+  };
+}
+
+export default useDashboardData;

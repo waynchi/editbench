@@ -1,0 +1,34 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Realizar análisis ANOVA
+from scipy import stats
+
+# Separar los datos por marca
+brand_a_costs = df[df['Brand'] == 'A']['Cost']
+brand_b_costs = df[df['Brand'] == 'B']['Cost']
+brand_c_costs = df[df['Brand'] == 'C']['Cost']
+
+# Realizar ANOVA de una vía
+f_stat, p_value = stats.f_oneway(brand_a_costs, brand_b_costs, brand_c_costs)
+
+# Crear tabla ANOVA manualmente
+anova_table = pd.DataFrame({
+    'sum_sq': [stats.f_oneway(brand_a_costs, brand_b_costs, brand_c_costs)[0] * (len(df) - 3), 
+               sum((df['Cost'] - df['Cost'].mean())**2) - stats.f_oneway(brand_a_costs, brand_b_costs, brand_c_costs)[0] * (len(df) - 3)],
+    'df': [2, len(df) - 3],
+    'F': [f_stat, None],
+    'PR(>F)': [p_value, None]
+}, index=['Brand', 'Residual'])
+
+# Imprimir la tabla ANOVA
+print(anova_table)

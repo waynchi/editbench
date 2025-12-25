@@ -1,0 +1,35 @@
+import os
+import hashlib
+import base64
+
+project_name = "CheckerKMV"
+
+def create_license(secret_key: str) -> None:
+    """
+    通过对 secret_key 使用 SHA-256 进行散列，然后使用 Base64 编码，
+    生成许可证数据并保存到 %APPDATA%/CheckerKMV/license.dat 文件中。
+    """
+    # 获取 %APPDATA% 路径，如果该环境变量不存在，则使用当前工作目录
+    appdata_dir = os.environ.get("APPDATA", os.getcwd())
+    project_path = os.path.join(appdata_dir, project_name)
+
+    # 如果项目文件夹不存在，则创建该文件夹
+    if not os.path.exists(project_path):
+        os.makedirs(project_path)
+
+    # 对 secret_key 进行 SHA-256 散列处理
+    hash_obj = hashlib.sha256(secret_key.encode("utf-8"))
+    hash_bytes = hash_obj.digest()
+
+    # 使用 Base64 编码散列结果
+    encoded_license = base64.b64encode(hash_bytes)
+
+    # 将许可证数据写入 license.dat 文件
+    license_file = os.path.join(project_path, "license.dat")
+    with open(license_file, "wb") as f:
+        f.write(encoded_license)
+
+if __name__ == "__main__":
+    # 示例：生成许可证文件
+    secret = "my_super_secret_key"
+    create_license(secret)

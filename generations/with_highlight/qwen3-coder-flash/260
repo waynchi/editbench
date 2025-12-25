@@ -1,0 +1,34 @@
+def conjugate_gradient_method(A, b, x0, tol=1e-10, max_iter=1000):
+    """
+    Функция для метода сопряжённых градиентов
+    
+    Parameters:
+    A: symmetric positive definite matrix
+    b: right-hand side vector
+    x0: initial approximation
+    tol: tolerance for convergence
+    max_iter: maximum number of iterations
+    
+    Returns:
+    x: solution vector
+    """
+    x = x0.copy()
+    r = b - A @ x
+    p = r.copy()
+    rsold = r.T @ r
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / (p.T @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        rsnew = r.T @ r
+        
+        if rsnew < tol:
+            break
+            
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+    
+    return x

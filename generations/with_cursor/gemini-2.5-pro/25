@@ -1,0 +1,35 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+import json
+
+# Initialize the ChatOllama model
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# Load SHAP values from JSON file
+with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+    shap_values_json = json.load(file).get("shap_values")
+
+# Load system prompt from file
+with open("system.prompt", "r") as file:
+    sys_prompt = file.read().strip()
+
+# Prepare the messages template
+template = ChatPromptTemplate.from_messages([
+    ("system", sys_prompt),
+    ("human", "{user_input}"),
+])
+
+# Create the chain using LangChain Expression Language (LCEL)
+# The chain pipes the template, the chat model, and an output parser
+chain = template | chat_model | StrOutputParser()
+
+# Prepare the input for the chain.
+# The key 'user_input' must match the variable in the template.
+input_data = {"user_input": json.dumps(shap_values_json)}
+
+# Invoke the chain with the input data
+response = chain.invoke(input_data)
+
+# Print the response
+print(response)

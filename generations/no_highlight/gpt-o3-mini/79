@@ -1,0 +1,69 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+
+  // Helper function: resets all unit actions at the start of a new turn
+  function resetUnitActions() {
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+  }
+
+  // Computes the current turn based on which group still has units that can act.
+  // If both groups have finished all actions, a new turn begins (player starts).
+  function getCurrentTurn() {
+    const playerCanAct = allyStates.some(unit => !unit.hasActed);
+    const cpuCanAct = foeStates.some(unit => !unit.hasActed);
+
+    if (playerCanAct) {
+      return "player";
+    } else if (cpuCanAct) {
+      return "cpu";
+    } else {
+      // Neither side has any remaining actions.
+      // This signifies the end of the round: reset for a new turn.
+      turnNumber++;
+      resetUnitActions();
+      return "player"; // by default, player's turn begins each new round.
+    }
+  }
+
+  // Call this function when the current active unit group ends its immediate action sequence.
+  // It marks all units in that group as having acted.
+  function nextTurn() {
+    const currentTurn = getCurrentTurn();
+
+    if (currentTurn === "player") {
+      // For player's phase: mark all player units as having acted.
+      allyStates.forEach(unit => unit.hasActed = true);
+    } else if (currentTurn === "cpu") {
+      // For CPU's phase: mark all foe units as having acted.
+      foeStates.forEach(unit => unit.hasActed = true);
+    }
+    // After marking, the next call to getCurrentTurn() will either return the other side
+    // if they have actions remaining, or reset for a new turn.
+  }
+
+  // Example CPU turn logic:
+  // Iterate over all CPU units that haven't acted and perform their actions.
+  // After CPU completes, ensure the turn state is updated.
+  function cpuTurn() {
+    foeStates.forEach(cpuUnit => {
+      if (!cpuUnit.hasActed) {
+        // Insert actual AI behavior here (movement, attack, etc.)
+        // For demonstration, we simply mark the unit as having acted.
+        cpuUnit.hasActed = true;
+      }
+    });
+    // After CPU actions, update the turn state.
+    nextTurn();
+  }
+
+  // Expose public functions
+  return {
+    getCurrentTurn,
+    getTurnNumber: () => turnNumber,
+    nextTurn,
+    cpuTurn
+  };
+}
+
+export { createTurnState };

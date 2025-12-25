@@ -1,0 +1,49 @@
+import nltk
+from nltk.corpus import words
+
+# Download the words corpus if not already downloaded
+try:
+    nltk.data.find('corpora/words')
+except LookupError:
+    nltk.download('words')
+
+def get_words_by_length(length):
+    """Return a list of English words with the specified length"""
+    english_words = words.words()
+    return [word for word in english_words if len(word) == length and word.isalpha()]
+
+def main():
+    print("English Dictionary Word Finder")
+    print("===============================")
+    
+    try:
+        n = int(input("Enter the number of characters (N): "))
+        
+        if n <= 0:
+            print("Please enter a positive number.")
+            return
+        
+        words_list = get_words_by_length(n)
+        
+        if not words_list:
+            print(f"No English words found with {n} characters.")
+            return
+        
+        print(f"\nFound {len(words_list)} words with {n} characters.")
+        print("Here are 10 words:")
+        print("-" * 30)
+        
+        # Display first 10 words or all if less than 10
+        for i, word in enumerate(words_list[:10], 1):
+            print(f"{i}. {word}")
+            
+        if len(words_list) > 10:
+            print(f"\n... and {len(words_list) - 10} more words available.")
+            
+    except ValueError:
+        print("Please enter a valid number.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()

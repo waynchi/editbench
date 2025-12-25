@@ -1,0 +1,29 @@
+def is_prime(n):
+    """
+    Verifica si un número es primo.
+    
+    Args:
+        n (int): El número a verificar
+        
+    Returns:
+        bool: True si el número es primo, False en caso contrario
+    """
+    # Los números menores o iguales a 1 no son primos
+    if n <= 1:
+        return False
+    
+    # 2 es el único número primo par
+    if n == 2:
+        return True
+    
+    # Los números pares mayores a 2 no son primos
+    if n % 2 == 0:
+        return False
+    
+    # Verificar divisibilidad desde 3 hasta la raíz cuadrada de n
+    # Solo verificamos números impares
+    for i in range(3, int(n**0.5) + 1, 2):
+        if n % i == 0:
+            return False
+    
+    return True

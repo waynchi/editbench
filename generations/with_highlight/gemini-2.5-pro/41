@@ -1,0 +1,89 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Como los datos provienen de una API y su estructura no es conocida,
+# primero los cargaremos y realizaremos un análisis básico.
+
+# Este es un ejemplo. Podrías necesitar la librería 'requests' para hacer llamadas HTTP.
+import requests
+import json
+
+# URL de la API (reemplazar con la URL real)
+api_url = "https://api.example.com/data"
+df = None  # Inicializar el DataFrame
+
+try:
+    # --- BLOQUE DE SIMULACIÓN ---
+    # En un caso real, la llamada a la API iría aquí. Por ahora, simulamos la respuesta.
+    # EJEMPLO REAL:
+    # response = requests.get(api_url)
+    # response.raise_for_status()  # Lanza un error si la petición falla
+    # api_data = response.json()
+
+    # Datos simulados que imitan una respuesta de API con estructura variable
+    api_data = [
+        {"id": 1, "nombre": "Juan", "edad": 30, "ciudad": "Madrid"},
+        {"id": 2, "nombre": "Ana", "edad": 25, "ciudad": "Barcelona", "activo": True},
+        {"id": 3, "nombre": "Pedro", "edad": 40} # Registro con campos faltantes
+    ]
+    print("--- Datos de API (simulados) obtenidos ---")
+    
+    # Crear un DataFrame a partir de los datos JSON.
+    # Spark inferirá el esquema, lo cual es útil para datos desconocidos.
+    df = spark.createDataFrame(api_data)
+
+except requests.exceptions.RequestException as e:
+    print(f"Error al llamar a la API: {e}")
+    # Si la API falla, detenemos el script para evitar errores posteriores.
+    spark.stop()
+    exit()
+except Exception as e:
+    print(f"Error al procesar los datos o crear el DataFrame: {e}")
+    # Otro error inesperado, también detenemos el script.
+    spark.stop()
+    exit()
+
+# --- Análisis preliminar del DataFrame ---
+# Estos pasos son cruciales para entender la estructura y el contenido de los datos.
+print("\n--- Análisis de los datos recibidos ---")
+
+# 1. Imprimir el esquema para ver columnas y tipos de datos inferidos por Spark.
+print("\n1. Esquema del DataFrame:")
+df.printSchema()
+
+# 2. Mostrar algunas filas para inspeccionar los valores reales.
+print("\n2. Muestra de los datos:")
+df.show(truncate=False)
+
+# Después de este análisis, puedes decidir si necesitas transformar los datos
+# antes de escribirlos. Por ejemplo, rellenar valores nulos, cambiar tipos, etc.
+# Ejemplo: df = df.fillna({"ciudad": "No disponible", "activo": False})
+
+
+# Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+# No es necesario proporcionar credenciales explícitamente en un notebook de Synapse
+# Spark utilizará la identidad administrada del notebook para autenticarse.
+
+# Especificar la ruta al contenedor y la carpeta en ADL2
+container_name = "<your_container_name>"  # Reemplazar con el nombre de tu contenedor
+folder_path = "<your_folder_path>"  # Reemplazar con la ruta a la carpeta dentro del contenedor
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Escribir el DataFrame en formato parquet en ADL2
+# Asegurarse de que el DataFrame se creó correctamente antes de escribir
+if df:
+    print(f"\nEscribiendo DataFrame en: {adl2_path}")
+    df.write.parquet(adl2_path, mode="overwrite")
+
+    # Opcional: leer el archivo parquet para verificar
+    print("\nVerificando datos escritos:")
+    df_leido = spark.read.parquet(adl2_path)
+    df_leido.show()
+else:
+    print("El DataFrame está vacío o no se creó, no se realizará la escritura.")
+
+# Detener la sesión Spark
+spark.stop()

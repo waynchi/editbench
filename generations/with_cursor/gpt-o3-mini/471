@@ -1,0 +1,137 @@
+import math
+
+class Value:
+    """Almacena un único valor escalar y su gradiente"""
+
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self.grad = 0
+        # Variables internas utilizadas para la construcción del gráfico de autograd
+        self._backward = lambda: None
+        self._prev = set(_children)
+        self._op = _op  # la operación que produjo este nodo, para graphviz / depuración / etc
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+
+        return out
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __pow__(self, other):
+        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+        out = Value(self.data**other, (self,), f'**{other}')
+
+        def _backward():
+            self.grad += (other * self.data**(other-1)) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def log(self):
+        out = Value(math.log(self.data), (self,), f'log{self.data}')
+        def _backward():
+            self.grad += (1 / self.data) * out.grad
+        out._backward = _backward       
+        return out
+
+    def relu(self):
+        assert isinstance(self.data, (int, float)), "only supporting int/float values"
+        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def backward(self):
+        # Orden topológico de todos los hijos en el grafo
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        # Inicializar la raíz del grafo
+        self.grad = 1
+        for v in reversed(topo):
+            v._backward()
+
+    def __neg__(self):  # -self
+        return self * -1
+
+    def __gt__(self, other):
+        return self.data > other.data
+
+    def __radd__(self, other):  # otro + self
+        return self + other
+
+    def __sub__(self, other):  # self - otro
+        return self + (-other)
+
+    def __rsub__(self, other):  # otro - self
+        return other + (-self)
+
+    def __rmul__(self, other):  # otro * self
+        return self * other
+
+    def __truediv__(self, other):  # self / otro
+        return self * other**-1
+
+    def __rtruediv__(self, other):  # otro / self
+        return other * self**-1
+
+    def __repr__(self):
+        return f"Value(data={self.data}, grad={self.grad})"
+
+def softmax(values):
+    """
+    Calcula la función softmax sobre una lista de objetos Value y agrega
+    una función para diferenciarla. La función devuelve una lista de Value,
+    cada uno representando la probabilidad softmax correspondiente.
+    
+    El gradiente se propaga a cada entrada usando la derivada:
+        d softmax_i / dz_j = softmax_i * (δ_ij - softmax_j)
+    """
+    # Estabilidad numérica: usar el máximo para evitar overflow en el exponencial.
+    max_val = max(v.data for v in values)
+    exps = [math.exp(v.data - max_val) for v in values]
+    sum_exps = sum(exps)
+    softmax_vals = [e / sum_exps for e in exps]
+
+    outs = []
+    # Crear nodos Value para cada componente de softmax y definir su backward.
+    for i in range(len(values)):
+        # Cada salida depende de todos los valores de entrada.
+        out = Value(softmax_vals[i], tuple(values), 'softmax')
+
+        def _backward(i=i, out=out):
+            # Propagar el gradiente a todos los nodos de entrada considerando
+            # la derivada de softmax, que involucra una matriz jacobiana.
+            for j, v in enumerate(values):
+                # d softmax_i / dz_j = softmax_i * (1_{i==j} - softmax_j)
+                grad_contrib = softmax_vals[i] * ((1 if i == j else 0) - softmax_vals[j]) * out.grad
+                v.grad += grad_contrib
+        out._backward = _backward
+        outs.append(out)
+    return outs

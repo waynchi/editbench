@@ -1,0 +1,67 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# 从API获取数据并分析结构
+api_url = "<your_api_url>"  # 替换为你的API URL
+response = requests.get(api_url)
+
+if response.status_code == 200:
+    api_data = response.json()
+    
+    # 分析API数据结构
+    print("API数据结构分析:")
+    print(f"数据类型: {type(api_data)}")
+    print(f"数据样本: {json.dumps(api_data[:2] if isinstance(api_data, list) else api_data, indent=2, ensure_ascii=False)}")
+    
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print(f"数组长度: {len(api_data)}")
+        print(f"第一个元素的字段: {list(api_data[0].keys()) if isinstance(api_data[0], dict) else '不是字典类型'}")
+    elif isinstance(api_data, dict):
+        print(f"字典字段: {list(api_data.keys())}")
+    
+    # 使用API数据创建DataFrame
+    if isinstance(api_data, list):
+        data = api_data
+    elif isinstance(api_data, dict):
+        # 如果API返回的是包含数据数组的字典，可能需要提取特定字段
+        # 例如: data = api_data.get('data', []) 或 data = api_data.get('results', [])
+        data = [api_data]  # 如果整个字典就是一条记录
+    else:
+        data = []
+        print("警告: API数据格式不支持，使用空数据")
+else:
+    print(f"API请求失败，状态码: {response.status_code}")
+    data = []
+
+# 从数据创建一个DataFrame
+df = spark.createDataFrame(data)
+
+# 显示DataFrame结构用于进一步分析
+print("\nDataFrame结构:")
+df.printSchema()
+print("\nDataFrame内容预览:")
+df.show(truncate=False)
+
+# 配置与ADL2的连接使用Microsoft ID身份
+# 在Synapse的笔记本中不需要显式提供凭据
+# Spark将使用notebook的托管身份进行身份验证。
+
+# 指定ADL2中容器和文件夹的路径
+container_name = "<your_container_name>"  # 用你的容器名称替换
+folder_path = "<your_folder_path>"  # 替换为容器内文件夹的路径
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# 将DataFrame以parquet格式写入ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# 可选：读取parquet文件进行验证
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# 停止 Spark 会话
+spark.stop()

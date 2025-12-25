@@ -1,0 +1,81 @@
+function createTurnState(allyStates, foeStates) {
+  // 根据哪个组仍然有可以行动的单位来确定当前回合
+  let turnNumber = 1;
+  let currentTurn;
+
+  // At the start of the battle, reset everyone and determine the first turn.
+  // Player gets priority.
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = false);
+  currentTurn = allyStates.some(u => !u.hasActed) ? 'player' : 'cpu';
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    // This function is called when the current turn-holder ends their turn
+    // (e.g., player ends their phase, or all CPU units have moved).
+
+    // If the player's turn just ended, check if the CPU can act.
+    if (currentTurn === 'player') {
+      // Mark all player units as having finished their turn for this round.
+      allyStates.forEach(unit => unit.hasActed = true);
+      
+      // Check if any foe unit can still act.
+      if (foeStates.some(unit => !unit.hasActed)) {
+        currentTurn = 'cpu';
+        cpuTurn(); // It's the CPU's turn.
+        return; // The CPU's turn will eventually call nextTurn() again.
+      }
+    }
+
+    // If we reach this point, it means the player's turn ended and the CPU couldn't act,
+    // OR the CPU's turn just ended.
+    // In either case, the round is over. Start a new round.
+    turnNumber++;
+
+    // Reset action availability for all units.
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+
+    // Determine who starts the new round, giving player priority.
+    if (allyStates.some(unit => !unit.hasActed)) {
+      currentTurn = 'player';
+    } else if (foeStates.some(unit => !unit.hasActed)) {
+      // This state occurs if the player's team is wiped out but the CPU's is not.
+      currentTurn = 'cpu';
+      cpuTurn();
+    } else {
+      // No units on either team can act, the game is over.
+      currentTurn = 'game_over';
+    }
+  }
+
+  function cpuTurn() {
+    // 示例 CPU 行为（用您实际的 AI 逻辑替换）
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // 检查该单位在此回合中是否已行动过
+        // 执行CPU动作（例如，移动，攻击）
+        // ...在这里编写你的CPU AI逻辑...
+
+        cpuUnit.hasActed = true; // 将该单位标记为已行动
+      }
+    }
+
+    // 在所有CPU单元都已行动（或选择不行动）后，结束CPU回合
+    nextTurn(); // 自动切换回玩家的回合
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

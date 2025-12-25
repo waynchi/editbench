@@ -1,0 +1,207 @@
+An optimized version of your React hook is provided below.
+
+Here's a summary of the key improvements:
+
+1.  **Simplified State Management**: The monolithic `useState` object has been broken down into smaller, independent state variables (`customerData`, `stripeApiKey`, `error`, etc.). This makes state updates simpler, more explicit, and less error-prone.
+2.  **Derived State with `useMemo`**: `healthData` is now derived state calculated with `useMemo`. This ensures it's always in sync with `customerData` and `dateRange` without needing manual updates, fixing a potential race condition in the original code.
+3.  **Performance Optimization**: The `calculateHealthData` logic has been optimized to group customers by month once, significantly reducing computation time from O(months * customers) to O(months + customers).
+4.  **Cleaner Effects and Dependencies**: The `useEffect` hooks for data loading have been simplified. The redundant effect that caused an infinite loop was removed, and dependency arrays are now minimal and correct, making the hook's behavior more predictable.
+5.  **Bug Fixes & Robustness**:
+    *   The bug in `checkWebsites` that caused it to operate on stale customer data has been resolved.
+    *   Using `finally` in `checkWebsites` ensures loading states are always reset, even if an error occurs.
+    *   State updates for loading and data are now more atomic.
+6.  **Code Readability**: The code is reorganized with helper functions and clearer separation of concerns, improving maintainability.
+
+The public API of the hook (`data`, `actions`, `isLoading`) remains the same, so no changes are required in the components that use it.
+javascript/react
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// A pure helper function to lazily initialize the default date range.
+const getDefaultDateRange = () => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setFullYear(startDate.getFullYear() - 1);
+  return { startDate, endDate };
+};
+
+// An optimized, pure helper function for calculating health data.
+// It groups customers by month once, which is much more performant.
+const calculateHealthData = (customers, dateRange) => {
+    if (!customers || customers.length === 0) return [];
+
+    const months = [];
+    const currentDate = new Date(dateRange.startDate);
+
+    while (currentDate <= dateRange.endDate) {
+        months.push({
+            month: currentDate.toLocaleString("default", { month: "short" }),
+            year: currentDate.getFullYear(),
+        });
+        currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    const customersByMonth = customers.reduce((acc, customer) => {
+        const customerDate = new Date(customer.created);
+        const key = `${customerDate.toLocaleString("default", { month: "short" })} ${customerDate.getFullYear()}`;
+        if (!acc[key]) {
+            acc[key] = [];
+        }
+        acc[key].push(customer);
+        return acc;
+    }, {});
+
+    return months.map(({ month, year }) => {
+        const monthYear = `${month} ${year}`;
+        const monthCustomers = customersByMonth[monthYear] || [];
+        return {
+            monthYear,
+            healthy: monthCustomers.filter(c => c.status === "active").length,
+            warning: monthCustomers.filter(c => c.status === "churned").length,
+            critical: monthCustomers.filter(c => c.status === "delinquent").length,
+        };
+    });
+};
+
+function useDashboardData(user) {
+  // 1. State is split into logical pieces for simpler and safer updates.
+  const [customerData, setCustomerData] = useState({ summary: null, loading: false });
+  const [websiteStatus, setWebsiteStatus] = useState({ checking: false });
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRange] = useState(getDefaultDateRange);
+  const [error, setError] = useState(null);
+
+  // 2. Data fetching functions are consolidated with clear dependencies.
+  const loadSettings = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      
+      setStripeApiKey(settings[0]?.stripe_api_key || "");
+    } catch (error) {
+      setError("Failed to load user settings");
+    }
+  }, [user?.id]);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id || !stripeApiKey) return;
+
+    setCustomerData(prev => ({ ...prev, loading: true }));
+    setError(null);
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      setCustomerData({ summary, loading: false });
+    } catch (err) {
+      setCustomerData(prev => ({ ...prev, loading: false }));
+      setError(err.message);
+    }
+  }, [user?.id, stripeApiKey]);
+  
+  // 3. Effects are simplified with clear triggers, removing the original infinite loop.
+  useEffect(() => {
+    if (user?.id && !stripeApiKey) {
+      loadSettings();
+    }
+  }, [user?.id, stripeApiKey, loadSettings]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 4. `healthData` is derived with `useMemo`, ensuring it's always in sync.
+  const healthData = useMemo(
+    () => calculateHealthData(customerData.summary?.customers, dateRange),
+    [customerData.summary, dateRange]
+  );
+  
+  // 5. Actions are memoized, and logic is made more robust and correct.
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      const customers = customerData.summary?.customers;
+      if (!customers || customers.length === 0) return;
+      
+      setWebsiteStatus({ checking: true });
+      setError(null);
+
+      try {
+        const updatedCustomers = await Promise.all(
+          customers.map(async (customer) => {
+            const response = await fetch("/api/website-churn-detector", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: customer.website }),
+            });
+            const health = await response.json();
+            return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+          })
+        );
+        
+        setCustomerData(prev => ({
+            ...prev,
+            summary: {
+                ...prev.summary,
+                customers: updatedCustomers,
+                active: updatedCustomers.filter(c => c.status === "active").length,
+                churned: updatedCustomers.filter(c => c.status === "churned").length,
+            },
+        }));
+      } catch (err) {
+        setError("Failed to check websites. Please try again.");
+      } finally {
+        setWebsiteStatus({ checking: false });
+      }
+    },
+    
+    setDateRange: (newRange) => {
+      if (newRange.startDate > newRange.endDate) {
+        setError("Start date cannot be after end date");
+        return;
+      }
+      setError(null);
+      setDateRange(newRange);
+    },
+
+    clearError: () => {
+      setError(null);
+    }
+  }), [customerData.summary]);
+
+  // 6. The returned values are assembled to maintain the original API contract.
+  const data = useMemo(() => ({
+    customerData,
+    healthData,
+    websiteStatus,
+    stripeApiKey,
+    dateRange,
+    error,
+  }), [customerData, healthData, websiteStatus, stripeApiKey, dateRange, error]);
+
+  const isLoading = customerData.loading || websiteStatus.checking;
+
+  return { 
+    data, 
+    actions,
+    isLoading 
+  };
+}
+
+export default useDashboardData;

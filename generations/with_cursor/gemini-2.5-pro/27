@@ -1,0 +1,33 @@
+from langchain_ollama.chat_models import ChatOllama
+from langchain_core.messages import HumanMessage, SystemMessage
+
+import json
+
+# The ollama.Client is no longer needed when using LangChain's integration
+# from ollama import Client
+
+# client = Client(host="http://localhost:11434")
+
+with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+    shap_values_json = json.load(file).get("shap_values")
+with open("system.prompt", "r") as file:
+    sys_prompt = file.read().strip()
+
+# Initialize the ChatOllama model from LangChain
+llm = ChatOllama(model="llama3.2")
+
+prompt = f"""
+{json.dumps(shap_values_json, indent=2)}
+"""
+
+# Construct the list of messages in the format LangChain expects
+messages = [
+    SystemMessage(content=sys_prompt),
+    HumanMessage(content=prompt),
+]
+
+# Invoke the model with the messages
+response = llm.invoke(messages)
+
+# The response from LangChain is an AIMessage object; its content is in the .content attribute
+print(response.content)

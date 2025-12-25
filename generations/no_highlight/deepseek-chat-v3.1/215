@@ -1,0 +1,138 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+import traceback
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('app.log', encoding='utf-8')
+        ]
+    )
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    if getattr(sys, 'frozen', False):
+        # 作为编译后的可执行文件运行
+        return os.path.join(os.path.dirname(sys.executable), 'resources')
+    else:
+        # 作为脚本运行
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+    resource_dir = get_resource_path()
+    
+    # 检查每个所需文件是否存在
+    missing_files = []
+    for file in required_files:
+        if not os.path.exists(os.path.join(resource_dir, file)):
+            missing_files.append(file)
+    
+    # 如果有任何必需的文件丢失，则返回 False
+    if missing_files:
+        logging.error(f"Missing resource files: {', '.join(missing_files)}")
+        return False
+    return True
+
+def show_error_dialog(error_message):
+    """
+    Display an error dialog with the given error message.
+    
+    Args:
+        error_message (str): The error message to display
+    """
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        
+        from tkinter import messagebox
+        messagebox.showerror("Application Error", 
+                           f"An error occurred:\n\n{error_message}\n\n"
+                           "Please check app.log for details.")
+        root.destroy()
+    except Exception as dialog_error:
+        logging.error(f"Failed to show error dialog: {dialog_error}")
+        print(f"Error: {error_message}")
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # 设置日志记录
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # 检查资源
+        if not check_resources():
+            error_msg = "Required resource files are missing. Application cannot start."
+            logging.error(error_msg)
+            show_error_dialog(error_msg)
+            sys.exit(1)
+
+        # 初始化支持拖放的主窗口
+        root = tkinterdnd2.TkinterDnD.Tk()
+        
+        # 在这里导入以避免循环导入
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as import_error:
+            error_msg = f"Failed to import GUI module: {import_error}"
+            logging.error(error_msg)
+            logging.error(traceback.format_exc())
+            show_error_dialog(error_msg)
+            sys.exit(1)
+        
+        # 创建应用程序实例
+        try:
+            app = AudioTranscriberApp(root)
+        except Exception as app_error:
+            error_msg = f"Failed to initialize application: {app_error}"
+            logging.error(error_msg)
+            logging.error(traceback.format_exc())
+            show_error_dialog(error_msg)
+            sys.exit(1)
+        
+        # 启动主事件循环
+        try:
+            root.mainloop()
+        except Exception as loop_error:
+            error_msg = f"Error during main event loop: {loop_error}"
+            logging.error(error_msg)
+            logging.error(traceback.format_exc())
+            show_error_dialog(error_msg)
+        
+    except Exception as e:
+        error_msg = f"Unexpected application error: {e}"
+        logging.error(error_msg)
+        logging.error(traceback.format_exc())
+        show_error_dialog(error_msg)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

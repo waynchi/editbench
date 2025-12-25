@@ -1,0 +1,70 @@
+def napraw(obrazek):
+    """Wejście stanowi plik tekstowy zawierający dane czarnobiałego obrazka zakodowane jaki piksele.
+0 - piksel biały 1 - piksel czarny. 
+Każdy wiersz oraz kolumna zwiera na swoim końcu bit parzystości . 
+Bit parzystości jest równy 0, jeśli ilość jedynek w wierszy (lub w kolumnie dla kolumn) jest parzysta a 
+1 jeśli jest nieparzysta.
+np.
+0 1 1 0 1 1 bit błędny należy zmienić go na przeciwny
+1 1 1 0 1 0
+1 1 1 1 1 1
+0 1 1 0 0 0
+1 1 0 1 1 0
+1 1 0 0 0 - bity parzystości kolumny 
+ ^
+ |- bity parzystości wiersza
+Napisz funkcje który znajdzie uszkodzone obrazki oraz je naprawi . tzn Jest to obrazek naprawialny ( 
+posiada co najwyżej jeden bit parzystości wiersza i co najwyżej jeden bit parzystości kolumny 
+niepoprawny ) a następnie naprawi te obrazy 
+Wynik ma zawierać obrazek błędny(naprawialny) oraz obrazek poprawiony"""
+    
+    # Znajdujemy błędy w wierszach i kolumnach
+    bledne_wiersze = []
+    bledne_kolumny = []
+    
+    # Sprawdzamy wiersze
+    for i, wiersz in enumerate(obrazek[:-1]):  # Nie sprawdzamy ostatniego wiersza (bity parzystości)
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bledne_wiersze.append(i)
+    
+    # Sprawdzamy kolumny
+    for i in range(20):  # 20 kolumn
+        kolumna = ""
+        for j in range(21):  # 21 wiersze
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            bledne_kolumny.append(i)
+    
+    # Tworzymy kopię obrazka do naprawy
+    naprawiony = [list(wiersz) for wiersz in obrazek]
+    
+    # Naprawiamy tylko jeśli mamy dokładnie jeden błąd w wierszu i jeden w kolumnie
+    if len(bledne_wiersze) == 1 and len(bledne_kolumny) == 1:
+        # Znajdujemy pozycję błędnego bitu
+        wiersz_bledny = bledne_wiersze[0]
+        kolumna_bledna = bledne_kolumny[0]
+        
+        # Zamieniamy wartość bitu
+        aktualna_wartosc = naprawiony[wiersz_bledny][kolumna_bledna]
+        naprawiony[wiersz_bledny][kolumna_bledna] = '1' if aktualna_wartosc == '0' else '0'
+    
+    # Naprawiamy bity parzystości
+    # Naprawiamy wiersze
+    for i in range(20):  # 20 wierszy danych (bez ostatniego wiersza z bitami parzystości)
+        wiersz = "".join(naprawiony[i])
+        ilosc_jedynki = wiersz[:-1].count('1')
+        parzystosc = '0' if ilosc_jedynki % 2 == 0 else '1'
+        naprawiony[i][20] = parzystosc
+    
+    # Naprawiamy kolumny
+    for i in range(20):  # 20 kolumn
+        kolumna = ""
+        for j in range(21):  # 21 wiersze
+            kolumna += naprawiony[j][i]
+        ilosc_jedynki = kolumna[:-1].count('1')
+        parzystosc = '0' if ilosc_jedynki % 2 == 0 else '1'
+        naprawiony[20][i] = parzystosc
+    
+    # Zwracamy wynik jako lista stringów
+    wynik = [''.join(wiersz) for wiersz in naprawiony]
+    return wynik

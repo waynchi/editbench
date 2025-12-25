@@ -1,0 +1,41 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input_str: str, pos: int) -> bool:
+        """Check if the character at the given position is a digit using Python's inbuilt isdigit() function."""
+        return input_str[pos].isdigit()
+
+    @staticmethod
+    def is_int(input_str: str, start_pos: int) -> int:
+        """
+        Returns the ending position of the integer token if the input starts with an integer.
+        Raises ValueError if no integer token is found.
+        """
+        max_pos = len(input_str)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos:
+            if not IntegerToken.is_digit(input_str, current_pos):
+                break
+            digit_found = True
+            current_pos += 1
+
+        if not digit_found:
+            raise ValueError("Not an integer")
+        return current_pos
+
+if __name__ == "__main__":
+    # Successful integer token extraction:
+    print(IntegerToken.is_int("1234", 0))
+    
+    # Attempting extraction where no integer token is found:
+    try:
+        print(IntegerToken.is_int("a123", 0))
+    except ValueError as e:
+        print(e)

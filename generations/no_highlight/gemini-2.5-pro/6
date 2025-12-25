@@ -1,0 +1,152 @@
+import os
+from openai import OpenAI
+import json
+import time
+
+# --- Helper Functions ---
+
+def save_conversation(history, filename):
+    """Saves the conversation history to a JSON file."""
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=4)
+        print(f"\nConversation saved to {filename}")
+    except Exception as e:
+        print(f"Error saving conversation: {e}")
+
+
+def load_conversation(filename="conversation_history.json"):
+    """Loads a conversation history from a JSON file."""
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            history = json.load(f)
+        print(f"Conversation history from '{filename}' loaded successfully.")
+        return history
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found.")
+        return None
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from '{filename}'. File might be corrupted.")
+        return None
+
+# --- Configuration and Client Initialization ---
+
+# Best practice: Load API key from environment variables
+# In your terminal, run: export AZURE_OPENAI_API_KEY='your_api_key_here'
+api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+if not api_key:
+    print("Error: The 'AZURE_OPENAI_API_KEY' environment variable is not set.")
+    print("Please set it before running the script.")
+    exit()
+
+endpoint = "https://models.inference.ai.azure.com"
+model_name = "gpt-4o"
+
+try:
+    client = OpenAI(
+        base_url=endpoint,
+        api_key=api_key,
+    )
+except Exception as e:
+    print(f"Failed to initialize OpenAI client: {e}")
+    exit()
+
+
+# --- Main Application Logic ---
+
+conversation_history = []
+save_filename = None
+default_system_prompt = {"role": "system", "content": "You are a helpful assistant."}
+
+# Ask the user if they want to load a conversation history
+load_history_choice = input("Do you want to load a conversation history? (yes/no): ").strip().lower()
+
+if load_history_choice == "yes":
+    # Get all .json files in the current directory
+    history_files = [f for f in os.listdir() if f.endswith(".json")]
+
+    if not history_files:
+        print("No conversation history files found. Starting a new conversation.")
+        conversation_history = [default_system_prompt]
+    else:
+        print("\nAvailable conversation history files:")
+        for i, file in enumerate(history_files, 1):
+            print(f"{i}. {file}")
+
+        try:
+            choice_str = input(f"\nEnter the number of the file to load (1-{len(history_files)}), or press Enter to start new: ")
+            if not choice_str:
+                 print("Starting a new conversation.")
+                 conversation_history = [default_system_prompt]
+            else:
+                choice = int(choice_str)
+                if 1 <= choice <= len(history_files):
+                    chosen_file = history_files[choice - 1]
+                    loaded_history = load_conversation(chosen_file)
+                    if loaded_history:
+                        conversation_history = loaded_history
+                        save_filename = chosen_file  # Set the file to be overwritten on save
+                else:
+                    print("Invalid number. Starting a new conversation.")
+                    conversation_history = [default_system_prompt]
+        except (ValueError, IndexError):
+            print("Invalid input. Starting a new conversation.")
+            conversation_history = [default_system_prompt]
+else:
+    # Initialize a new conversation history if the user doesn't want to load one
+    print("Starting a new conversation.")
+    conversation_history = [default_system_prompt]
+
+# Main conversation loop
+while True:
+    try:
+        user_input = input("\nUser: ")
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting...")
+        break
+        
+    if user_input.lower() in ["exit", "quit"]:
+        print("Exiting the conversation.")
+        break
+
+    conversation_history.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    try:
+        print("GPT is thinking...")
+        response = client.chat.completions.create(
+            messages=conversation_history,
+            temperature=1.0,
+            top_p=1.0,
+            max_tokens=4096,
+            model=model_name
+        )
+
+        # The response message object needs to be converted to a dictionary
+        # using .model_dump() to be JSON serializable
+        assistant_message = response.choices[0].message
+        conversation_history.append(assistant_message.model_dump())
+        
+        print("\nGPT: ", assistant_message.content)
+
+    except Exception as e:
+        print(f"\nAn error occurred while communicating with the API: {e}")
+        # Remove the last user message to prevent a broken history
+        if conversation_history:
+            conversation_history.pop()
+        print("Please try your last message again.")
+
+
+# --- Save Conversation on Exit ---
+# Only save if the conversation has more than just the initial system prompt
+if len(conversation_history) > 1:
+    if not save_filename:
+        # Generate a new unique filename for new conversations
+        timestamp = int(time.time())
+        save_filename = f"conversation_{timestamp}.json"
+    
+    save_conversation(conversation_history, save_filename)
+else:
+    print("\nConversation was empty. Nothing to save.")

@@ -1,0 +1,48 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # dla l w lines:
+    # drukuj(l)
+    grid = np.array(lines)
+    print(grid)
+    str_to_match = "XMAS"
+    count = 0
+    # Sprawdź poziomo
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Sprawdź pionowo
+    if len(grid) > 0:
+        for col in range(len(grid[0])):
+            col_str = ''.join(grid[:,col])
+            count += col_str.count(str_to_match)
+
+    # Sprawdź po przekątnej (z lewego górnego do prawego dolnego)
+    if len(grid) > 0 and len(grid[0]) > 0:
+        for i in range(-(len(grid)-1), len(grid[0])):
+            diag = np.diagonal(grid, offset=i)
+            diag_str = ''.join(diag)
+            count += diag_str.count(str_to_match)
+
+    # Sprawdź po przekątnej (z góry-prawo do dołu-lewo)
+    if len(grid) > 0 and len(grid[0]) > 0:
+        flipped_grid = np.fliplr(grid)
+        for i in range(-(len(grid)-1), len(grid[0])):
+            diag = np.diagonal(flipped_grid, offset=i)
+            diag_str = ''.join(diag)
+            count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

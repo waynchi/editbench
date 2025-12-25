@@ -1,0 +1,193 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Решение системы линейных уравнений Ax = b методом сопряженных градиентов
+    
+    Параметры:
+    A : array_like, shape (n, n)
+        Симметричная положительно определенная матрица
+    b : array_like, shape (n,)
+        Вектор правой части
+    x0 : array_like, shape (n,), optional
+        Начальное приближение (по умолчанию нулевой вектор)
+    tol : float, optional
+        Допустимая погрешность (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию 1000)
+    
+    Возвращает:
+    x : ndarray, shape (n,)
+        Решение системы уравнений
+    iterations : int
+        Количество выполненных итераций
+    residual_norm : float
+        Норма невязки
+    """
+    
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float)
+    n = len(b)
+    
+    # Начальное приближение
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+    
+    # Начальная невязка
+    r = b - A @ x
+    p = r.copy()
+    
+    # Квадрат нормы начальной невязки
+    rsold = r @ r
+    
+    for i in range(max_iter):
+        # Проверка критерия остановки
+        if np.sqrt(rsold) < tol:
+            return x, i, np.sqrt(rsold)
+        
+        # Вычисление шага
+        Ap = A @ p
+        alpha = rsold / (p @ Ap)
+        
+        # Обновление решения
+        x = x + alpha * p
+        
+        # Обновление невязки
+        r = r - alpha * Ap
+        
+        # Новая квадратичная норма невязки
+        rsnew = r @ r
+        
+        # Вычисление коэффициента для направления поиска
+        beta = rsnew / rsold
+        
+        # Обновление направления поиска
+        p = r + beta * p
+        
+        rsold = rsnew
+    
+    return x, max_iter, np.sqrt(rsold)
+
+
+def conjugate_gradient_optimization(f, grad_f, x0, tol=1e-6, max_iter=1000):
+    """
+    Минимизация функции методом сопряженных градиентов (Fletcher-Reeves)
+    
+    Параметры:
+    f : callable
+        Целевая функция
+    grad_f : callable
+        Градиент целевой функции
+    x0 : array_like
+        Начальная точка
+    tol : float, optional
+        Допустимая погрешность (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию 1000)
+    
+    Возвращает:
+    x : ndarray
+        Точка минимума
+    iterations : int
+        Количество выполненных итераций
+    f_value : float
+        Значение функции в точке минимума
+    """
+    
+    x = np.array(x0, dtype=float)
+    g = grad_f(x)
+    d = -g.copy()
+    
+    for i in range(max_iter):
+        # Проверка критерия остановки
+        if np.linalg.norm(g) < tol:
+            return x, i, f(x)
+        
+        # Одномерный поиск (простая реализация)
+        alpha = line_search_armijo(f, grad_f, x, d)
+        
+        # Обновление точки
+        x_new = x + alpha * d
+        g_new = grad_f(x_new)
+        
+        # Коэффициент Fletcher-Reeves
+        beta = (g_new @ g_new) / (g @ g)
+        
+        # Новое направление поиска
+        d = -g_new + beta * d
+        
+        x = x_new
+        g = g_new
+    
+    return x, max_iter, f(x)
+
+
+def line_search_armijo(f, grad_f, x, d, alpha0=1.0, c1=1e-4, rho=0.5):
+    """
+    Одномерный поиск с условием Армихо
+    
+    Параметры:
+    f : callable
+        Целевая функция
+    grad_f : callable
+        Градиент целевой функции
+    x : ndarray
+        Текущая точка
+    d : ndarray
+        Направление поиска
+    alpha0 : float, optional
+        Начальный шаг (по умолчанию 1.0)
+    c1 : float, optional
+        Параметр условия Армихо (по умолчанию 1e-4)
+    rho : float, optional
+        Коэффициент уменьшения шага (по умолчанию 0.5)
+    
+    Возвращает:
+    alpha : float
+        Размер шага
+    """
+    
+    alpha = alpha0
+    f0 = f(x)
+    grad0 = grad_f(x)
+    slope = grad0 @ d
+    
+    while f(x + alpha * d) > f0 + c1 * alpha * slope:
+        alpha *= rho
+        if alpha < 1e-10:
+            break
+    
+    return alpha
+
+
+# Пример использования
+if __name__ == "__main__":
+    # Пример 1: Решение системы линейных уравнений
+    print("Пример 1: Решение системы Ax = b")
+    A = np.array([[4, 1], [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    
+    x, iterations, residual = conjugate_gradient(A, b)
+    print(f"Решение: {x}")
+    print(f"Итераций: {iterations}")
+    print(f"Невязка: {residual}")
+    print(f"Проверка Ax: {A @ x}")
+    print()
+    
+    # Пример 2: Минимизация квадратичной функции
+    print("Пример 2: Минимизация функции f(x) = x₁² + 2x₂²")
+    
+    def f(x):
+        return x[0]**2 + 2*x[1]**2
+    
+    def grad_f(x):
+        return np.array([2*x[0], 4*x[1]])
+    
+    x0 = np.array([1.0, 1.0])
+    x_min, iterations, f_min = conjugate_gradient_optimization(f, grad_f, x0)
+    
+    print(f"Минимум в точке: {x_min}")
+    print(f"Значение функции: {f_min}")
+    print(f"Итераций: {iterations}")

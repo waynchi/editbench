@@ -1,0 +1,110 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico(posts_generator):
+    """Crea un diccionario jerárquico con la estructura de posts y sus replies"""
+    diccionario_posts = {}
+    
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_replies = post['children']
+        
+        # Crear entrada principal para el post
+        post_key = f"{post_author}/{post_permlink}"
+        diccionario_posts[post_key] = {
+            'author': post_author,
+            'permlink': post_permlink,
+            'title': post.get('title', ''),
+            'created': post.get('created', ''),
+            'replies_count': post_replies,
+            'replies': {}  # Diccionario para almacenar las replies
+        }
+        
+        # Si el post tiene suficientes respuestas, obtener y procesar las replies
+        if post_replies > n_respuestas_minimas:
+            try:
+                comment = Comment(authorperm=post_key)
+                replies_list = comment.get_replies()
+                
+                for reply in replies_list:
+                    reply_author = reply['author']
+                    reply_permlink = reply['permlink']
+                    reply_body = reply['body']
+                    
+                    # Crear entrada para cada reply
+                    reply_key = f"{reply_author}/{reply_permlink}"
+                    diccionario_posts[post_key]['replies'][reply_key] = {
+                        'author': reply_author,
+                        'permlink': reply_permlink,
+                        'body': reply_body,
+                        'created': reply.get('created', ''),
+                        'processed': procesar(reply_body),
+                        'own_author': is_own_author(reply_author),
+                        'banned': is_banned(reply_author)
+                    }
+                    
+            except Exception as e:
+                print(f"Error al obtener replies para {post_key}: {e}")
+                continue
+    
+    return diccionario_posts
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+
+# Crear el diccionario jerárquico
+diccionario_jerarquico = crear_diccionario_jerarquico(posts_generator)
+
+# Procesar el diccionario para encontrar posts con suficientes respuestas válidas
+X = 0
+for post_key, post_data in diccionario_jerarquico.items():
+    X += 1
+    cnt = 0
+    
+    if post_data['replies_count'] > n_respuestas_minimas:
+        for reply_key, reply_data in post_data['replies'].items():
+            if (not reply_data['own_author'] and 
+                not reply_data['banned'] and 
+                reply_data['processed']):
+                cnt += 1
+    
+    if cnt > 3:
+        print("Iterador: ", X)
+        print(f"Post: {post_key}")
+        print(f"Respuestas válidas encontradas: {cnt}")
+        # Mostrar la última reply que hizo incrementar el contador
+        print(f"Última reply: {reply_key}")
+        print("-" * 40)

@@ -1,0 +1,124 @@
+import random
+import logging
+import time
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+class SearchModule:
+    def __init__(self, driver, config):
+        self.driver = driver
+        self.config = config
+        self.search_engine = config.get('Search', 'search_engine')
+        self.queries = [q.strip() for q in config.get('Search', 'queries').split(',')]
+        self.random_query = config.getboolean('Search', 'random_query')
+        self.wait_timeout = 10  # Timeout for explicit waits
+
+    def perform_search(self):
+        """
+        Performs a search on the configured search engine with a query from the list.
+        Includes error handling for network issues, element not found, and other exceptions.
+        """
+        if not self.queries:
+            logging.error("Query list is empty. Cannot perform search.")
+            return
+
+        query = random.choice(self.queries) if self.random_query else self.queries[0]
+        logging.info(f"Performing search on {self.search_engine} with query: '{query}'")
+
+        try:
+            # Define engine-specific URLs and locators
+            if self.search_engine.lower() == 'google':
+                url = "https://www.google.com"
+                search_box_locator = (By.NAME, "q")
+            elif self.search_engine.lower() == 'yandex':
+                url = "https://ya.ru"
+                # Using ID is more stable than placeholder text
+                search_box_locator = (By.ID, "text")
+            elif self.search_engine.lower() == 'bing':
+                url = "https://www.bing.com"
+                search_box_locator = (By.NAME, "q")
+            else:
+                logging.error(f"Unsupported search engine: {self.search_engine}")
+                return
+
+            self.driver.get(url)
+
+            # Wait for the search box to be present, then clear and send keys
+            search_box = WebDriverWait(self.driver, self.wait_timeout).until(
+                EC.presence_of_element_located(search_box_locator)
+            )
+            search_box.clear()
+            search_box.send_keys(query + Keys.RETURN)
+
+            # Wait for the results page to indicate it has loaded
+            time.sleep(random.uniform(2, 4))  # Wait for results to load
+
+        except TimeoutException:
+            logging.error(
+                f"Could not find the search box on {self.search_engine} within {self.wait_timeout} seconds. "
+                "The page might have changed or is loading too slowly."
+            )
+        except WebDriverException as e:
+            logging.error(f"A WebDriver error occurred during search on {self.search_engine}: {e}")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during perform_search: {e}")
+
+    def navigate_random_link(self):
+        """
+        Finds all search result links on the current page and navigates to a random one.
+        Includes error handling for cases where no links are found or navigation fails.
+        """
+        logging.info("Attempting to navigate to a random search result link.")
+
+        try:
+            # Define engine-specific result link locators
+            if self.search_engine.lower() == 'google':
+                links_locator = (By.CSS_SELECTOR, 'div.yuRUbf > a')
+            elif self.search_engine.lower() == 'yandex':
+                # More specific selector for Yandex results
+                links_locator = (By.CSS_SELECTOR, 'li.serp-item h2 a')
+            elif self.search_engine.lower() == 'bing':
+                links_locator = (By.CSS_SELECTOR, 'li.b_algo h2 a')
+            else:
+                logging.error(f"Unsupported search engine for link navigation: {self.search_engine}")
+                return
+
+            # Wait for at least one link to be present
+            WebDriverWait(self.driver, self.wait_timeout).until(
+                EC.presence_of_all_elements_located(links_locator)
+            )
+            links = self.driver.find_elements(*links_locator)
+
+            # Filter for valid, clickable links with an href starting with http
+            valid_links = [
+                link for link in links
+                if link.get_attribute('href') and link.get_attribute('href').startswith('http')
+            ]
+
+            if not valid_links:
+                logging.warning("No valid search result links found on the page.")
+                return
+
+            random_link = random.choice(valid_links)
+            href = random_link.get_attribute('href')
+
+            if not href:
+                logging.warning("Chosen link has an empty href attribute, skipping.")
+                return
+
+            logging.info(f"Navigating to link: {href}")
+            self.driver.get(href)
+            time.sleep(random.uniform(3, 6))  # Wait for the page to load
+
+        except TimeoutException:
+            logging.warning(
+                f"Timed out waiting for search result links to appear on {self.search_engine}. "
+                "No links found or the page is slow."
+            )
+        except WebDriverException as e:
+            logging.error(f"A WebDriver error occurred while trying to navigate to a link: {e}")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during navigate_random_link: {e}")

@@ -1,0 +1,24 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Realizar análisis ANOVA
+# Definir las variables dependiente (y) e independiente (X)
+y = df['Cost']
+# Crear variables dummy para la variable categórica 'Brand' y añadir una constante (intercepto)
+X = sm.add_constant(pd.get_dummies(df['Brand'], drop_first=True))
+
+# Ajustar el modelo de Mínimos Cuadrados Ordinarios (OLS)
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Imprimir la tabla ANOVA
+print(anova_table)

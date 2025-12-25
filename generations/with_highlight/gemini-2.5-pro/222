@@ -1,0 +1,84 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+from typing import Optional, Dict, Any
+
+
+def generate_analysis(
+    model: str,
+    base_url: str,
+    shap_file_path: str,
+    system_prompt_path: str,
+    client_kwargs: Optional[Dict[str, Any]] = None,
+):
+    """
+    Generates an analysis from SHAP values using a language model.
+
+    This function encapsulates the logic for initializing a model, loading data
+    and prompts from files, creating a LangChain chain, and invoking it to
+    get a response.
+
+    Args:
+        model: The name of the Ollama model to use.
+        base_url: The base URL for the Ollama service.
+        shap_file_path: Path to the JSON file containing SHAP values.
+        system_prompt_path: Path to the file containing the system prompt.
+        client_kwargs: Optional keyword arguments for the Ollama client (e.g., for headers).
+
+    Returns:
+        The response object from the chain invocation.
+    """
+    # 初始化 ChatOllama 模型
+    chat_model = ChatOllama(
+        model=model, base_url=base_url, client_kwargs=client_kwargs
+    )
+
+    # 从 JSON 文件加载 SHAP 值
+    with open(shap_file_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # 从文件加载系统提示
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # 准备消息
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # 准备用户输入
+    user_input = json.dumps(shap_values_json)
+
+    # 创建并调用链
+    chain = prompt | chat_model
+    response = chain.invoke(user_input)
+
+    return response
+
+
+# Call the refactored function with parameters from the original script.
+# This replaces the original procedural code block.
+response = generate_analysis(
+    model="llama3.2",
+    base_url="http://localhost:11434",
+    shap_file_path="Vuori_Final_Approval_2024_09_24.json",
+    system_prompt_path="system.prompt",
+)
+
+# To use the alternative model configuration from the original comments,
+# you would call the function like this:
+# response = generate_analysis(
+#     model="llama3.1:70b",
+#     base_url="http://ada-open-webui.serveo.net/ollama",
+#     client_kwargs={
+#         "headers": {"authorization": "Bearer <已隐藏>"}
+#     },
+#     shap_file_path="Vuori_Final_Approval_2024_09_24.json",
+#     system_prompt_path="system.prompt"
+# )
+
+# 打印响应
+print(response.content)

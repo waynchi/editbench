@@ -1,0 +1,61 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_response(json_filename="Vuori_Final_Approval_2024_09_24.json", 
+                      system_prompt_filename="system.prompt",
+                      model_name="llama3.2", 
+                      base_url="http://localhost:11434"):
+    """
+    Wczytuje wartości SHAP z pliku JSON, ładuje prompt systemowy i generuje odpowiedź używając ChatOllama.
+
+    Parametry:
+        json_filename (str): Nazwa pliku z wartościami SHAP.
+        system_prompt_filename (str): Nazwa pliku z promptem systemowym.
+        model_name (str): Nazwa modelu do użycia.
+        base_url (str): Adres URL usługi base dla modelu.
+
+    Zwraca:
+        str: Odpowiedź wygenerowana przez model.
+    """
+    
+    # Inicjalizacja modelu ChatOllama
+    chat_model = ChatOllama(model=model_name, base_url=base_url)
+    # Jeśli potrzebujesz użyć alternatywnej konfiguracji, możesz użyć poniższego przykładu:
+    # chat_model = ChatOllama(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     },
+    # )
+
+    # Załaduj wartości SHAP z pliku JSON
+    with open(json_filename, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Wczytaj systemowy prompt z pliku
+    with open(system_prompt_filename, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Przygotuj szablon prompta
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Przygotuj dane wejściowe użytkownika
+    user_input = json.dumps(shap_values_json)
+
+    # Połącz prompt z modelem oraz wygeneruj odpowiedź
+    chain = prompt | chat_model
+    response = chain.invoke(user_input)
+    
+    return response.content
+
+if __name__ == "__main__":
+    # Wydrukuj otrzymaną odpowiedź
+    output = generate_response()
+    print(output)

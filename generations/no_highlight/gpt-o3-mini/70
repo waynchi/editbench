@@ -1,0 +1,40 @@
+import pandas as pd
+from main13 import knn, mlp
+
+# Создаём DataFrame для хранения результатов предсказаний
+# Строки – различные значения Fare (от 10 до 190 с шагом 10)
+# Столбцы – классы пассажиров (Pclass: 1, 2, 3)
+result_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3])
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        # Формируем dataframe для одного набора параметров.
+        # Создаём 3 строки, по одной для каждого значения "Embarked"
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Применяем one-hot encoding для столбца "Embarked"
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+        # Если появятся булевые значения, приведём их к 0 и 1
+        for col in ["Embarked_S", "Embarked_Q", "Embarked_C"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].map({True: 1, False: 0})
+
+        # Получаем предсказания для набора данных
+        knn_prediction = knn.predict(my_df)
+        mlp_prediction = mlp.predict(my_df)
+
+        # Сохраняем словарь с предсказаниями в результирующем DataFrame.
+        # Используем .at для обращения к отдельной ячейке, чтобы избежать ошибки индексирования.
+        result_df.at[fare, pclass] = {"knn": knn_prediction, "mlp": mlp_prediction}
+
+print(result_df)

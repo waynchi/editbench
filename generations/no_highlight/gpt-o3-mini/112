@@ -1,0 +1,59 @@
+def is_sum_of_four_nonzero_squares(n):
+    """
+    Returns a tuple (a, b, c, d) if n can be expressed as the sum 
+    of four non-zero squares: n = a^2 + b^2 + c^2 + d^2 with a, b, c, d > 0.
+    Returns None if no such representation exists.
+    """
+    if n < 4:  # The minimum sum using non-zero squares is 1^2+1^2+1^2+1^2 = 4.
+        return None
+
+    # The maximum value for any square root is int(sqrt(n)).
+    max_val = int(n**0.5)
+    
+    # Iterate over all possible combinations with non-zero integers.
+    for a in range(1, max_val + 1):
+        a2 = a * a
+        if a2 >= n:
+            continue
+        for b in range(1, max_val + 1):
+            b2 = b * b
+            if a2 + b2 >= n:
+                continue
+            for c in range(1, max_val + 1):
+                c2 = c * c
+                if a2 + b2 + c2 >= n:
+                    continue
+                for d in range(1, max_val + 1):
+                    if a2 + b2 + c2 + d * d == n:
+                        return a, b, c, d
+    return None
+
+def find_four_nonzero_squares_sums(limit):
+    """
+    Finds and returns a list of numbers up to 'limit' that can be expressed as 
+    the sum of four non-zero squares.
+    """
+    results = []
+    # Since the minimal sum is 4, start from 4.
+    for n in range(4, limit + 1):
+        result = is_sum_of_four_nonzero_squares(n)
+        if result:
+            results.append(n)
+    return results
+
+if __name__ == '__main__':
+    try:
+        limit = int(input("Digite o limite superior: "))
+    except ValueError:
+        print("Por favor, insira um número inteiro válido.")
+        exit(1)
+
+    sums_found = find_four_nonzero_squares_sums(limit)
+    if not sums_found:
+        print("Nenhum número dentro do limite pode ser expresso como a soma de quatro quadrados não nulos.")
+    else:
+        print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+        for num in sums_found:
+            result = is_sum_of_four_nonzero_squares(num)
+            a, b, c, d = result
+            print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

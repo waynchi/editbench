@@ -1,0 +1,99 @@
+import asyncio
+import aiohttp  # для асинхронных HTTP-запросов
+import aiofiles  # для асинхронной работы с файлами
+import xml.etree.ElementTree  # для обработки xml-ответа API
+import matplotlib.pyplot as plt  # для построения графиков
+import pandas as pd  # для создания датафрейма и разделения всех свечей на два типа: close и open
+import datetime  # для дат по оси иксов
+import pickle  # для хранения переменных в файле
+import json
+
+# класс валюта
+class Valute:
+    """Валюта и всё с ней связанное, через ЦБ РФ.
+    Требуются библиотеки:
+      aiohttp,
+      aiofiles,
+      xml.etree.ElementTree,
+      matplotlib.pyplot,
+      pandas,
+      datetime,
+      pickle,
+      json
+    """
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """Асинхронная проверка имени валюты на наличие в множестве валют.
+        Множество обновляется не чаще раза в день.
+        """
+        info_file_path = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+        set_valutes_file_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+
+        # Считываем информацию из файла Info.json
+        async with aiofiles.open(info_file_path, mode="r", encoding="utf-8") as f:
+            info_content = await f.read()
+        info = json.loads(info_content)
+
+        last_check_str = info["last_day_check"].get("valute", "1900-01-01 00:00:00.0")
+        last_check = datetime.datetime.strptime(last_check_str, "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            # Если более одного дня прошло, обновляем множество валют
+            set_valutes = set()
+            url = "http://www.cbr.ru/scripts/XML_daily.asp"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    content = await resp.read()
+            root = xml.etree.ElementTree.fromstring(content)
+            for valute in root.findall("Valute"):
+                char_code = valute.find("CharCode")
+                if char_code is not None and char_code.text:
+                    set_valutes.add(char_code.text)
+            # Сохраняем обновлённое множество в бинарный файл
+            data = pickle.dumps(set_valutes)
+            async with aiofiles.open(set_valutes_file_path, mode="wb") as f:
+                await f.write(data)
+            # Обновляем дату последней проверки
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with aiofiles.open(info_file_path, mode="w", encoding="utf-8") as f:
+                dumped = json.dumps(info, indent=3, ensure_ascii=False)
+                await f.write(dumped)
+
+        # Читаем множество валют из файла
+        async with aiofiles.open(set_valutes_file_path, mode="rb") as f:
+            data = await f.read()
+        set_valutes = pickle.loads(data)
+
+        return self.name in set_valutes
+
+    async def CurrentExchangeRate(self):
+        """Асинхронное получение текущего курса обмена валюты на рубль."""
+        url = "http://www.cbr.ru/scripts/XML_daily.asp"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                content = await resp.read()
+        root = xml.etree.ElementTree.fromstring(content)
+        for valute in root.findall("Valute"):
+            char_code = valute.find("CharCode")
+            if char_code is not None and char_code.text == self.name:
+                # Используем find для получения курса обмена; возможно, тег может называться 'VunitRate' или 'Value'
+                rate_element = valute.find("VunitRate")
+                if rate_element is None:  # если 'VunitRate' не найден, пробуем 'Value'
+                    rate_element = valute.find("Value")
+                if rate_element is not None:
+                    return rate_element.text
+        return None
+
+# Пример использования асинхронных методов:
+if __name__ == "__main__":
+    async def main():
+        currency = Valute("USD")
+        is_valid = await currency.correct_name()
+        if is_valid:
+            rate = await currency.CurrentExchangeRate()
+            print(f"Текущий курс {currency.name} к рублю: {rate}")
+        else:
+            print(f"Валюта {currency.name} не найдена в списке ЦБ РФ.")
+
+    asyncio.run(main())

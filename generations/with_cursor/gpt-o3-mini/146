@@ -1,0 +1,54 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+
+TOKEN = "TOKEN"
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+
+chat_id = 111111111
+time_time = 5
+
+b = True  # Global flag for periodic messages
+
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="stop"),
+         types.InlineKeyboardButton(text="Нет", callback_data="continue")]
+    ])
+    await bot.send_message(chat_id=chat_id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query_handler(lambda c: c.data == "stop")
+async def stop_callback(call: types.CallbackQuery):
+    global b
+    # b = False  # Optionally disable periodic messages
+    # await bot.send_message(chat_id=call.message.chat.id, text="干得好，傻瓜")
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+    await call.answer()
+
+@dp.callback_query_handler(lambda c: c.data == "continue")
+async def continue_callback(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+    await call.answer()
+
+@dp.message_handler(content_types=types.ContentType.TEXT)
+async def handle_all_messages(message: types.Message):
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=chat_id, video=vid, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    while b:
+        await bot.send_message(chat_id=chat_id, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=chat_id, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(time_time)
+
+async def main():
+    print("Бот запущен!")
+    # Запускаем задачу отправки периодических сообщений
+    asyncio.create_task(send_periodic_messages())
+    # Запускаем поллинг без использования deprecated executor
+    await dp.start_polling()
+
+if __name__ == '__main__':
+    asyncio.run(main())

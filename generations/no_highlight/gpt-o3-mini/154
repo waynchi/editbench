@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""
+这个程序允许用户输入一个单词长度N，并从英语词典中查找并打印出10个刚好具有该字符数的单词。
+注意：程序默认使用Unix系统上的字典文件 /usr/share/dict/words ，如果该文件不存在，则会提示错误。
+"""
+
+def main():
+    # 获取用户输入的单词长度
+    try:
+        n = int(input("请输入单词长度N："))
+        if n <= 0:
+            print("请输入一个正整数。")
+            return
+    except ValueError:
+        print("输入无效。请输入一个整数。")
+        return
+
+    # 尝试打开英语词典文件
+    dict_path = "/usr/share/dict/words"
+    try:
+        with open(dict_path, "r") as f:
+            all_words = f.readlines()
+    except FileNotFoundError:
+        print(f"无法打开词典文件：{dict_path}")
+        return
+
+    # 搜索符合要求的单词：长度为N且全部由字母组成（排除包含标点符号或数字的行）
+    matching_words = []
+    for word in all_words:
+        clean_word = word.strip()
+        if len(clean_word) == n and clean_word.isalpha():
+            matching_words.append(clean_word)
+            if len(matching_words) == 10:
+                break
+
+    # 打印结果
+    if matching_words:
+        print("\n找到的单词如下：")
+        for w in matching_words:
+            print(w)
+    else:
+        print(f"没有找到任何长度为 {n} 的单词。")
+
+if __name__ == "__main__":
+    main()

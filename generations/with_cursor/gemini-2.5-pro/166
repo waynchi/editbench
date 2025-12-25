@@ -1,0 +1,140 @@
+import streamlit as st
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain_community.retrievers import BM25Retriever
+from langchain_core.output_parsers import StrOutputParser
+from os import getenv
+from dotenv import load_dotenv
+import PyPDF2
+import nltk
+from nltk.tokenize import word_tokenize
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Download NLTK data if not already present (for word_tokenize)
+try:
+    nltk.data.find('tokenizers/punkt')
+except nltk.downloader.DownloadError:
+    nltk.download('punkt')
+
+st.title("♥ CardioRAG")
+
+# Function to load the PDF and create the retriever
+# This is cached to avoid reloading on every interaction
+@st.cache_resource
+def load_retriever():
+    st.text("Loading PDF for RAG...")
+    prog_bar = st.progress(0, text="Reading pages...")
+    # Use 'with' to ensure the file is closed properly
+    with open("Moss and Adams 10e Vol 1 & 2.pdf", 'rb') as f:
+        pdf_reader = PyPDF2.PdfReader(f)
+        chunks = []
+        # Define page range
+        start_page = 60
+        end_page = 600
+        total_pages = end_page - start_page
+        
+        for i, page_num in enumerate(range(start_page, end_page)):
+            prog_bar.progress(i / total_pages, text=f"Reading page {page_num+1}...")
+            page = pdf_reader.pages[page_num]
+            chunks.append(page.extract_text())
+    
+    prog_bar.progress(1.0, text="Creating retriever...")
+    # Create the BM25 retriever from the page chunks
+    retriever = BM25Retriever.from_texts(
+        chunks, 
+        metadatas=[{"page_num": p} for p in range(start_page, end_page)], 
+        preprocess_func=word_tokenize
+    )
+    prog_bar.empty() # Clear the progress bar
+    return retriever
+
+# --- Main App Logic ---
+
+# Password protection
+if "password_correct" not in st.session_state:
+    st.session_state["password_correct"] = False
+
+def check_password():
+    """Returns `True` if the user has entered the correct password."""
+    if st.session_state.get("password_correct", False):
+        return True
+
+    with st.form("password_form"):
+        password = st.text_input("Enter Password", type="password")
+        submitted = st.form_submit_button("Submit")
+        if submitted:
+            if password == getenv("PASSWORD"):
+                st.session_state["password_correct"] = True
+                st.rerun()  # Rerun the app to show the chat interface
+            else:
+                st.error("Incorrect password")
+    return False
+
+if not check_password():
+    st.stop() # Do not render the rest of the app if password is not correct
+
+# Load the retriever once the password is correct
+retriever = load_retriever()
+st.success("PDF loaded and ready for questions.")
+
+# Initialize chat history in session state
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Hi, I'm a chatbot who has read the Moss & Adams Cardiology textbook. How can I help you?"}
+    ]
+
+# Display chat messages from history
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Accept user input
+if user_input := st.chat_input("What is the incidence of congenital heart disease?"):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    # Display user message
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    # Generate and stream assistant's response
+    with st.chat_message("assistant"):
+        # Retrieve relevant documents
+        docs = retriever.get_relevant_documents(user_input)
+        DIVIDER = "\n" + "-"*20 + "\n"
+        context = DIVIDER.join([f"Page {d.metadata['page_num']}: {d.page_content}" for d in docs])
+
+        # Define the prompt template
+        prompt = PromptTemplate(
+            input_variables=["context", "question"],
+            template="""You are a helpful AI assistant who has read the Moss & Adams Cardiology textbook. \
+Use the following context to answer the question. If you don't know the answer, just say you don't know.
+
+Context: {context}
+
+Question: {question}
+
+Answer:"""
+        )
+
+        # Initialize the language model
+        llm = ChatOpenAI(
+            api_key=getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+            model_name="meta-llama/llama-3.1-8b-instruct", # Updated model name for better performance
+            streaming=True
+        )
+
+        # Create the LangChain Expression Language (LCEL) chain
+        chain = prompt | llm | StrOutputParser()
+
+        # Use st.write_stream to display the streamed response
+        # The function returns the full response once the stream is complete
+        full_response = st.write_stream(chain.stream({
+            "context": context,
+            "question": user_input
+        }))
+
+    # Add the complete assistant response to the chat history
+    st.session_state.messages.append({"role": "assistant", "content": full_response})

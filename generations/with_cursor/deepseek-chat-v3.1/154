@@ -1,0 +1,52 @@
+import requests
+import random
+
+def get_words_with_length(word_length):
+    """
+    获取指定长度的英语单词列表
+    """
+    try:
+        # 使用免费的英语词典API
+        url = f"https://api.datamuse.com/words?sp={'?' * word_length}&max=1000"
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        words = [item['word'] for item in response.json() if len(item['word']) == word_length]
+        return words
+    except Exception as e:
+        print(f"获取单词时出错: {e}")
+        return []
+
+def main():
+    print("=== 英语词典单词查找器 ===")
+    
+    try:
+        # 获取用户输入的单词长度
+        n = int(input("请输入单词的字符数: "))
+        
+        if n <= 0:
+            print("字符数必须大于0")
+            return
+        
+        # 获取单词列表
+        words = get_words_with_length(n)
+        
+        if not words:
+            print(f"没有找到长度为 {n} 个字符的单词")
+            return
+        
+        # 随机选择10个单词（如果单词数量不足10个，则显示所有单词）
+        selected_words = random.sample(words, min(10, len(words)))
+        
+        # 显示结果
+        print(f"\n长度为 {n} 个字符的单词（显示{len(selected_words)}个）:")
+        for i, word in enumerate(selected_words, 1):
+            print(f"{i}. {word}")
+            
+    except ValueError:
+        print("请输入有效的数字")
+    except Exception as e:
+        print(f"程序运行出错: {e}")
+
+if __name__ == "__main__":
+    main()

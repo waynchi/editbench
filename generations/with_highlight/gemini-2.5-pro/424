@@ -1,0 +1,71 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generuj_odpowiedz(json_path: str, prompt_path: str, model_name: str, base_url: str, client_kwargs: dict = None):
+    """
+    Ładuje dane, tworzy prompt i generuje odpowiedź z modelu językowego.
+
+    Args:
+        json_path (str): Ścieżka do pliku JSON z wartościami SHAP.
+        prompt_path (str): Ścieżka do pliku z systemowym promptem.
+        model_name (str): Nazwa modelu Ollama.
+        base_url (str): Adres bazowy usługi Ollama.
+        client_kwargs (dict, optional): Dodatkowe argumenty dla klienta, np. do autoryzacji. Domyślnie None.
+
+    Returns:
+        langchain_core.messages.ai.AIMessage: Obiekt odpowiedzi z modelu językowego.
+    """
+    # Zainicjuj model ChatOllama
+    chat_model = ChatOllama(
+        model=model_name,
+        base_url=base_url,
+        client_kwargs=client_kwargs
+    )
+
+    # Załaduj wartości SHAP z pliku JSON
+    with open(json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Wczytaj systemowy prompt z pliku
+    with open(prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Przygotuj wiadomości
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Przygotuj dane wejściowe użytkownika
+    user_input = json.dumps(shap_values_json)
+
+    # Zbuduj łańcuch i wywołaj go
+    chain = prompt | chat_model
+    response = chain.invoke(user_input)
+
+    return response
+
+# Wywołaj funkcję z parametrami z oryginalnego skryptu
+# Konfiguracja dla modelu lokalnego
+response = generuj_odpowiedz(
+    json_path="Vuori_Final_Approval_2024_09_24.json",
+    prompt_path="system.prompt",
+    model_name="llama3.2",
+    base_url="http://localhost:11434"
+)
+
+# Konfiguracja dla modelu zdalnego (przykład)
+# response = generuj_odpowiedz(
+#     json_path="Vuori_Final_Approval_2024_09_24.json",
+#     prompt_path="system.prompt",
+#     model_name="llama3.1:70b",
+#     base_url="http://ada-open-webui.serveo.net/ollama",
+#     client_kwargs={
+#         "headers": {"authorization": "Bearer <MASKED>"}
+#     }
+# )
+
+print(response.content)

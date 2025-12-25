@@ -1,0 +1,53 @@
+import os
+import shutil
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+# Путь к данным
+DATA_PATH = "path_to_data"  # замените на реальный путь
+
+# Папка со всеми фотографиями / папка с фотографиями для тренировки
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Считываем названия директорий, которые и являются видом затмения
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# Папка с фотографиями для валидации
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Папка с фотографиями для теста
+TEST_DIR = os.path.join(DATA_PATH, "test")
+os.makedirs(TEST_DIR, exist_ok=True)
+
+# Доля изображений в валидационной выборке
+VAL_FRAC = 0.3
+
+# Для каждого вида затмения создаем директорию валидационной выборки и разбиваем train выборку.
+for eclipse in ECLIPSE_LIST.values():
+    # Создаем папку для данной категории в валидационной выборке.
+    eclipse_val_dir = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(eclipse_val_dir, exist_ok=True)
+
+    # Путь к изображениям для текущей категории в тренировочной выборке.
+    eclipse_train_dir = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Считываем и сортируем изображения для детерминированности.
+    images_filenames = sorted(os.listdir(eclipse_train_dir))
+    
+    # Разбиваем выборку на train и val с использованием train_test_split,
+    # что обеспечивает случайный (но воспроизводимый) выбор благодаря random_state.
+    train_files, val_files = train_test_split(
+        images_filenames,
+        test_size=VAL_FRAC,
+        random_state=42
+    )
+
+    num_total = len(images_filenames)
+    num_val = len(val_files)
+    print(f'{eclipse} | train images = {len(train_files)} | val images = {num_val}')
+
+    # Перемещаем выбранные для валидации изображения из train в соответствующую категорию в val.
+    for image_filename in val_files:
+        source = os.path.join(eclipse_train_dir, image_filename)
+        destination = os.path.join(eclipse_val_dir, image_filename)
+        shutil.move(source, destination)

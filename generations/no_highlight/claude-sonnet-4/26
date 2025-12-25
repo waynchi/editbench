@@ -1,0 +1,180 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Решает систему линейных уравнений Ax = b методом сопряженных градиентов.
+    
+    Параметры:
+    A : array_like
+        Матрица коэффициентов (должна быть симметричной и положительно определенной)
+    b : array_like
+        Вектор правой части
+    x0 : array_like, optional
+        Начальное приближение. По умолчанию - нулевой вектор
+    tol : float, optional
+        Допустимая погрешность (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию равно размерности задачи)
+    
+    Возвращает:
+    x : ndarray
+        Решение системы уравнений
+    residual_norm : float
+        Норма остатка
+    iterations : int
+        Количество выполненных итераций
+    """
+    
+    # Преобразуем входные данные в numpy массивы
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+    
+    n = len(b)
+    
+    # Начальное приближение
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.asarray(x0, dtype=float).copy()
+    
+    # Максимальное количество итераций
+    if max_iter is None:
+        max_iter = n
+    
+    # Вычисляем начальный остаток
+    r = b - A @ x
+    
+    # Начальное направление поиска
+    p = r.copy()
+    
+    # Квадрат нормы остатка
+    rsold = r @ r
+    
+    for i in range(max_iter):
+        # Проверяем условие сходимости
+        if np.sqrt(rsold) < tol:
+            return x, np.sqrt(rsold), i
+        
+        # Вычисляем произведение A*p
+        Ap = A @ p
+        
+        # Шаг по направлению p
+        alpha = rsold / (p @ Ap)
+        
+        # Обновляем решение
+        x = x + alpha * p
+        
+        # Обновляем остаток
+        r = r - alpha * Ap
+        
+        # Новый квадрат нормы остатка
+        rsnew = r @ r
+        
+        # Коэффициент для нового направления поиска
+        beta = rsnew / rsold
+        
+        # Новое направление поиска
+        p = r + beta * p
+        
+        # Обновляем rsold для следующей итерации
+        rsold = rsnew
+    
+    return x, np.sqrt(rsold), max_iter
+
+
+def conjugate_gradient_with_preconditioning(A, b, M=None, x0=None, tol=1e-6, max_iter=None):
+    """
+    Решает систему линейных уравнений Ax = b методом сопряженных градиентов
+    с предобуславливанием.
+    
+    Параметры:
+    A : array_like
+        Матрица коэффициентов
+    b : array_like
+        Вектор правой части
+    M : array_like, optional
+        Матрица предобуславливания (по умолчанию единичная матрица)
+    x0 : array_like, optional
+        Начальное приближение
+    tol : float, optional
+        Допустимая погрешность
+    max_iter : int, optional
+        Максимальное количество итераций
+    
+    Возвращает:
+    x : ndarray
+        Решение системы уравнений
+    residual_norm : float
+        Норма остатка
+    iterations : int
+        Количество выполненных итераций
+    """
+    
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+    
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.asarray(x0, dtype=float).copy()
+    
+    if max_iter is None:
+        max_iter = n
+    
+    # Если матрица предобуславливания не задана, используем единичную
+    if M is None:
+        M_inv = np.eye(n)
+    else:
+        M_inv = np.linalg.inv(M)
+    
+    # Начальный остаток
+    r = b - A @ x
+    
+    # z = M^(-1) * r
+    z = M_inv @ r
+    
+    # Начальное направление поиска
+    p = z.copy()
+    
+    # Скалярное произведение r и z
+    rzold = r @ z
+    
+    for i in range(max_iter):
+        # Проверяем условие сходимости
+        if np.linalg.norm(r) < tol:
+            return x, np.linalg.norm(r), i
+        
+        Ap = A @ p
+        alpha = rzold / (p @ Ap)
+        
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        z = M_inv @ r
+        rznew = r @ z
+        
+        beta = rznew / rzold
+        p = z + beta * p
+        
+        rzold = rznew
+    
+    return x, np.linalg.norm(r), max_iter
+
+
+# Пример использования
+if __name__ == "__main__":
+    # Создаем тестовую систему уравнений
+    A = np.array([[4, 1], 
+                  [1, 3]], dtype=float)
+    b = np.array([1, 2], dtype=float)
+    
+    # Решаем систему методом сопряженных градиентов
+    x, residual, iterations = conjugate_gradient(A, b)
+    
+    print(f"Решение: {x}")
+    print(f"Норма остатка: {residual}")
+    print(f"Количество итераций: {iterations}")
+    print(f"Проверка (A*x): {A @ x}")
+    print(f"Правая часть (b): {b}")

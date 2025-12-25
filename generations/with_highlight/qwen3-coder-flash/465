@@ -1,0 +1,46 @@
+import numpy as np
+
+def conjugate_gradients(A, b, x0=None, max_iter=None, tol=1e-10):
+    """
+    Función para el método de gradientes conjugados
+    
+    Parameters:
+    A: matriz cuadrada simétrica y definida positiva
+    b: vector del lado derecho
+    x0: estimación inicial (por defecto cero)
+    max_iter: número máximo de iteraciones
+    tol: tolerancia para la convergencia
+    
+    Returns:
+    x: solución aproximada
+    """
+    
+    # Inicialización
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x
+    p = r.copy()
+    rsold = np.dot(r, r)
+    
+    if max_iter is None:
+        max_iter = len(b)
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        rsnew = np.dot(r, r)
+        
+        if np.sqrt(rsnew) < tol:
+            break
+            
+        beta = rsnew / rsold
+        p = r + beta * p
+        rsold = rsnew
+    
+    return x

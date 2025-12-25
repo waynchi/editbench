@@ -1,0 +1,56 @@
+function createTurnState(allyStates, foeStates) {
+  // 根据哪个组仍然有可以行动的单位来确定当前回合
+  let turnNumber = 1;
+
+  // 在游戏开始时，重置所有单位的行动状态
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = false);
+
+  /**
+   * 根据哪个小组仍有可以行动的单位来确定当前回合。
+   * 玩家（盟友）拥有优先行动权。
+   * @returns {'player' | 'cpu' | 'none'} 当前回合的归属方，如果所有单位都已行动，则返回 'none'。
+   */
+  function getCurrentTurn() {
+    const alliesCanAct = allyStates.some(unit => !unit.hasActed);
+    if (alliesCanAct) {
+      return "player";
+    }
+
+    const foesCanAct = foeStates.some(unit => !unit.hasActed);
+    if (foesCanAct) {
+      return "cpu";
+    }
+
+    // 如果双方都没有可以行动的单位，则表示本回合结束
+    return "none";
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  /**
+   * 进入下一个大回合。当 getCurrentTurn() 返回 'none' 时应调用此函数。
+   * 它会增加回合数并重置所有单位的 'hasActed' 状态，
+   * 以便开始新一轮的行动。
+   */
+  function nextTurn() {
+    turnNumber++;
+    // 为新回合重置所有单位的行动状态
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+  }
+
+  // 注意：CPU 的行动逻辑 (如此前的 cpuTurn 函数) 现在应该由外部游戏循环管理。
+  // 游戏循环会调用 getCurrentTurn()，当返回 'cpu' 时，它将执行 AI 逻辑。
+  // 当 getCurrentTurn() 返回 'none' 时，游戏循环应调用 nextTurn() 来开始新的一轮。
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

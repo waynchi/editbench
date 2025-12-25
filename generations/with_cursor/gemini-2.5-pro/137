@@ -1,0 +1,32 @@
+# 编写二分查找
+def binary_search(arr, target):
+    """
+    在已排序的列表中执行二分查找。
+
+    参数:
+    arr (list): 一个已排序的元素列表。
+    target: 要查找的元素。
+
+    返回:
+    int: 如果找到目标，则返回目标的索引；否则返回 -1。
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        guess = arr[mid]
+
+        if guess == target:
+            return mid
+        elif guess < target:
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    return -1
+
+# 示例用法
+# my_list = [1, 3, 5, 7, 9, 11, 13, 15, 17]
+# print(f"在 {my_list} 中查找 11: 索引 {binary_search(my_list, 11)}")  # 应输出 5
+# print(f"在 {my_list} 中查找 4: 索引 {binary_search(my_list, 4)}")    # 应输出 -1

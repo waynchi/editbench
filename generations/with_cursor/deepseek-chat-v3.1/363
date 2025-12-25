@@ -1,0 +1,107 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_estructura_jerarquica(posts_generator):
+    """Crea un diccionario jerárquico con posts y sus replies"""
+    estructura = {}
+    
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_key = f"{post_author}/{post_permlink}"
+        
+        # Crear entrada principal para el post
+        estructura[post_key] = {
+            'post_data': dict(post),
+            'replies': {}
+        }
+        
+        # Obtener y procesar replies si existen
+        if post['children'] > 0:
+            try:
+                comment = Comment(authorperm=post_key)
+                post_replies = comment.get_replies()
+                
+                for reply in post_replies:
+                    reply_author = reply['author']
+                    reply_permlink = reply['permlink']
+                    reply_key = f"{reply_author}/{reply_permlink}"
+                    
+                    # Añadir reply al diccionario de replies del post
+                    estructura[post_key]['replies'][reply_key] = {
+                        'reply_data': dict(reply),
+                        'processed': procesar(reply['body']),
+                        'own_author': is_own_author(reply_author),
+                        'banned': is_banned(reply_author)
+                    }
+                    
+            except Exception as e:
+                print(f"Error procesando replies de {post_key}: {e}")
+    
+    return estructura
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Crear la estructura jerárquica
+diccionario_jerarquico = crear_estructura_jerarquica(posts_generator)
+
+# Reiniciar el generador para el procesamiento original
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies :list = comment.get_replies()
+        
+        cnt = 0
+        for replies in post_replies:
+        
+            
+            author = replies['author']
+            text = replies['body']
+            if is_own_author(author):
+                # Ponownie ocenić komentarz
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt+= 1
+    if cnt > 3:
+        print("Iterador: ",X)
+        print(replies['author'],'/',replies['permlink'])

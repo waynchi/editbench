@@ -1,0 +1,93 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Utwórz sesję Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Pobierz dane z API
+api_url = "<your_api_endpoint>"  # Zastąp URL swojego API
+headers = {
+    "Content-Type": "application/json",
+    # "Authorization": "Bearer <your_token>"  # Dodaj jeśli wymagane
+}
+
+try:
+    response = requests.get(api_url, headers=headers)
+    response.raise_for_status()  # Sprawdź czy request się powiódł
+    api_data = response.json()
+    
+    # Przeanalizuj strukturę danych z API
+    print("Struktura danych z API:")
+    print(f"Typ danych: {type(api_data)}")
+    print(f"Przykładowe dane: {json.dumps(api_data, indent=2, ensure_ascii=False)}")
+    
+    # Jeśli dane są w formie listy słowników
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print(f"Liczba rekordów: {len(api_data)}")
+        print(f"Klucze pierwszego rekordu: {list(api_data[0].keys()) if isinstance(api_data[0], dict) else 'Nie jest słownikiem'}")
+    
+    # Jeśli dane są w formie słownika z zagnieżdżonymi danymi
+    elif isinstance(api_data, dict):
+        print(f"Klucze głównego obiektu: {list(api_data.keys())}")
+        for key, value in api_data.items():
+            print(f"Klucz '{key}': typ {type(value)}, długość: {len(value) if hasattr(value, '__len__') else 'N/A'}")
+    
+    # Utwórz DataFrame z danych API (dostosuj w zależności od struktury)
+    # Przykład dla listy słowników:
+    if isinstance(api_data, list):
+        df = spark.createDataFrame(api_data)
+    # Przykład dla słownika z kluczem zawierającym dane:
+    elif isinstance(api_data, dict) and 'data' in api_data:
+        df = spark.createDataFrame(api_data['data'])
+    else:
+        # Fallback - spróbuj przekonwertować bezpośrednio
+        df = spark.createDataFrame([api_data])
+    
+    # Wyświetl schemat i przykładowe dane
+    print("\nSchemat DataFrame:")
+    df.printSchema()
+    print("\nPierwsze 20 wierszy:")
+    df.show(20, truncate=False)
+    
+except requests.exceptions.RequestException as e:
+    print(f"Błąd podczas pobierania danych z API: {e}")
+    # Użyj przykładowych danych do testów
+    data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+    df = spark.createDataFrame(data)
+    print("Używam przykładowych danych do testów")
+
+except Exception as e:
+    print(f"Błąd podczas przetwarzania danych: {e}")
+    # Użyj przykładowych danych do testów
+    data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+    df = spark.createDataFrame(data)
+    print("Używam przykładowych danych do testów")
+
+# Skonfiguruj połączenie z ADL2 używając tożsamości Microsoft ID
+# Nie jest konieczne podawanie poświadczeń jawnie w notebooku Synapse
+# Spark użyje zarządzanej tożsamości notebooka do uwierzytelniania.
+
+# Określ ścieżkę do kontenera i folderu w ADL2
+container_name = "<your_container_name>"  # Zastąp nazwą swojego kontenera
+folder_path = "<your_folder_path>"  # Zastąp ścieżką do folderu w kontenerze
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Zapisać DataFrame w formacie parquet w ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcjonalnie: odczytać plik parquet w celu weryfikacji
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Zatrzymać sesję Spark
+spark.stop()

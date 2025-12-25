@@ -1,0 +1,48 @@
+# 通过python生成verilog的半加器模块
+
+# verilog代码
+verilog_code = """
+module half_adder(a, b, enable, reset, c, sum, carry);
+    input a, b, enable, reset;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# verilog 模块名称
+module_name = "half_adder"
+
+# Verilog 模块输入和输出端口（增加了 enable 和 reset 信号）
+input_ports = ["a", "b", "enable", "reset"]
+output_ports = ["c", "sum", "carry"]
+
+# Verilog 模块参数
+parameters = ["WIDTH"]
+
+# verilog 模块参数值
+parameter_values = ["8"]
+
+# verilog模块主体（更新了输入信号）
+module_body = """
+    input a, b, enable, reset;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# verilog 模块实例化（增加了 enable 和 reset 信号的连接）
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .enable(enable),
+    .reset(reset),
+    .c(c),
+    .sum(sum),
+    .carry(carry)
+);
+"""

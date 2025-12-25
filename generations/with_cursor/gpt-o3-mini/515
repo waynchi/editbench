@@ -1,0 +1,58 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+
+  // Verifica si algún grupo todavía tiene unidades que no han actuado
+  function hasAvailable(units) {
+    return units.some(unit => !unit.hasActed);
+  }
+
+  // Encuentra el turno actual basado en qué grupo todavía tiene unidades que pueden actuar.
+  // Si hay unidades del jugador disponibles, es el turno del jugador; de lo contrario, si hay unidades de la CPU disponibles, es el turno de la CPU.
+  // Si ningún grupo tiene unidades disponibles, se devuelve null, lo que indica que se debe iniciar un nuevo turno.
+  function getCurrentTurn() {
+    if (hasAvailable(allyStates)) return "player";
+    if (hasAvailable(foeStates)) return "cpu";
+    return null;
+  }
+
+  // Reinicia la disponibilidad de acción de todas las unidades
+  function resetActions() {
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+  }
+
+  // Avanza el estado del turno verificando cuál grupo tiene acciones pendientes.
+  // Si ninguno tiene acciones, se reinician las acciones y se incrementa el contador de turno.
+  // Además, si después de reiniciar las acciones el turno actual es el de la CPU,
+  // se ejecuta la lógica de acción de la CPU.
+  function nextTurn() {
+    if (getCurrentTurn() === null) {
+      turnNumber++;
+      resetActions();
+    }
+    if (getCurrentTurn() === "cpu") {
+      cpuTurn();
+    }
+  }
+
+  // Lógica de la CPU: las unidades de la CPU realizan sus acciones y se marcan como actuadas.
+  // Una vez finalizado, se invoca nextTurn() para verificar el estado para el siguiente ciclo.
+  function cpuTurn() {
+    foeStates.forEach(cpuUnit => {
+      if (!cpuUnit.hasActed) {
+        // Aquí iría la lógica real de la CPU (movimiento, ataque, etc.).
+        // Por este ejemplo, simplemente marcamos a la unidad como que ha actuado.
+        cpuUnit.hasActed = true;
+      }
+    });
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber: () => turnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

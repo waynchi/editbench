@@ -1,0 +1,44 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Пример данных (замените на ваши реальные данные)
+data = [
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+
+# Создать DataFrame из данных
+df = spark.createDataFrame(data)
+
+# Анализ данных из API
+# Здесь можно добавить логику для анализа данных после получения их из API
+# Например, можно выполнить проверки, трансформации или аналитические операции
+print("Размер DataFrame:")
+print(df.count())
+print("Схема данных:")
+df.printSchema()
+print("Пример данных:")
+df.show(5)
+
+# Настроить подключение к ADL2 с использованием идентификатора Microsoft ID
+# В блокноте Synapse не нужно явно указывать учетные данные
+# Spark будет использовать управляемую идентичность блокнота для аутентификации.
+
+# Указать путь к контейнеру и папке в ADL2
+container_name = "<your_container_name>"  # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"  # Заменить на путь к папке внутри контейнера
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате parquet в ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Опционально: прочитать файл parquet для проверки
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Остановить сессию Spark
+spark.stop()

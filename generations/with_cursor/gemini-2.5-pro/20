@@ -1,0 +1,85 @@
+import argparse
+import numpy as np
+from typing import Tuple
+
+def parse_data(file_path: str) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Parses a two-column numerical data file using numpy's efficient loader.
+
+    Args:
+        file_path: The path to the input file. The file should contain two
+                   columns of numbers separated by whitespace.
+
+    Returns:
+        A tuple containing two NumPy arrays, one for each column.
+        
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        ValueError: If the file content cannot be parsed into two columns of numbers.
+    """
+    try:
+        # np.loadtxt is robust, handles various whitespace, and converts types.
+        # The 'unpack=True' argument directly gives us the columns.
+        col1, col2 = np.loadtxt(file_path, dtype=int, unpack=True)
+        return col1, col2
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error processing file {file_path}: {e}")
+        # It's good practice to exit with a non-zero status code on error.
+        exit(1)
+
+def calculate_min_sum_of_abs_diff(arr1: np.ndarray, arr2: np.ndarray) -> int:
+    """
+    Calculates the minimum possible sum of absolute differences between
+    elements of two arrays by pairing them optimally.
+
+    The optimal strategy to minimize Σ|a_i - b_j| is to pair the elements
+    of the sorted arrays. This implementation is much more efficient
+    (O(N log N) due to sorting) than the original O(N^2) approach.
+
+    Args:
+        arr1: The first array of numbers.
+        arr2: The second array of numbers.
+
+    Returns:
+        The minimum sum of absolute differences.
+    """
+    if arr1.size != arr2.size:
+        raise ValueError("Input arrays must have the same number of elements.")
+
+    # Sort both arrays. This is the key to minimizing the sum of differences.
+    sorted_1 = np.sort(arr1)
+    sorted_2 = np.sort(arr2)
+
+    # Use NumPy's vectorized operations for efficiency.
+    # np.abs() calculates the absolute difference element-wise.
+    # np.sum() then sums the results into a single number.
+    total_distance = np.sum(np.abs(sorted_1 - sorted_2))
+
+    return total_distance
+
+def main():
+    """
+    Main function to parse arguments, process data, and print the result.
+    """
+    # Set up an argument parser for a better command-line interface.
+    # This is more flexible than hardcoding file paths.
+    parser = argparse.ArgumentParser(
+        description="Calculate the minimum sum of absolute differences between two columns of numbers from a file."
+    )
+    parser.add_argument(
+        "input_file",
+        help="Path to the input file containing two columns of numbers."
+    )
+    args = parser.parse_args()
+
+    # 1. Parse the data using a dedicated, robust function.
+    list_1, list_2 = parse_data(args.input_file)
+
+    # 2. Calculate the result using an efficient, vectorized algorithm.
+    result = calculate_min_sum_of_abs_diff(list_1, list_2)
+
+    # 3. Print the final result.
+    print(result)
+
+if __name__ == "__main__":
+    main()

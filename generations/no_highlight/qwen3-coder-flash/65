@@ -1,0 +1,117 @@
+# 导入Pymapdl
+# from ansys.mapdl.core import launch_mapdl
+
+# 创建MAPDL实例
+# mapdl = launch_mapdl(override=True)
+
+# 定义一个求数组拟合直线的函数
+def fit_line(x, y):
+    """
+    求数组拟合直线的函数
+    """
+    # 计算x和y的平均值
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # 计算x和y的偏差
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # 计算x和y的偏差的乘积
+    xy_dev = x_dev * y_dev
+    
+    # 计算x的偏差的平方
+    x_dev_squared = x_dev ** 2
+    
+    # 计算直线的斜率和截距
+    slope = np.sum(xy_dev) / np.sum(x_dev_squared)
+    intercept = y_mean - slope * x_mean
+    
+    return slope, intercept
+
+# 定义一个求xy数组二次曲线拟合的函数
+def fit_quadratic(x, y):
+    """
+    求数组二次曲线拟合的函数
+    """
+    # 创建一个Vandermonde矩阵
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # 使用最小二乘法求解系数
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    return coeffs
+
+# 定义一个求最大偏差值的函数
+def max_deviation(x, y, func_type='line', params=None):
+    """
+    求最大偏差值的函数
+    
+    Parameters:
+    x: x坐标数组
+    y: y坐标数组
+    func_type: 拟合类型 ('line' 或 'quadratic')
+    params: 拟合参数 (slope, intercept) 或 (a, b, c)
+    
+    Returns:
+    max_dev: 最大偏差值
+    """
+    if func_type == 'line':
+        slope, intercept = params
+        # 计算拟合直线上的y值
+        y_fit = slope * x + intercept
+    elif func_type == 'quadratic':
+        a, b, c = params
+        # 计算拟合二次曲线上的y值
+        y_fit = a * x**2 + b * x + c
+    else:
+        raise ValueError("func_type must be 'line' or 'quadratic'")
+    
+    # 计算实际值与拟合值之间的偏差
+    deviations = np.abs(y - y_fit)
+    
+    # 返回最大偏差值
+    return np.max(deviations)
+
+# 定义一个求所有点偏差值的函数（用于调试或详细分析）
+def all_deviations(x, y, func_type='line', params=None):
+    """
+    计算所有点的偏差值
+    
+    Parameters:
+    x: x坐标数组
+    y: y坐标数组
+    func_type: 拟合类型 ('line' 或 'quadratic')
+    params: 拟合参数
+    
+    Returns:
+    deviations: 所有点的偏差值数组
+    """
+    if func_type == 'line':
+        slope, intercept = params
+        # 计算拟合直线上的y值
+        y_fit = slope * x + intercept
+    elif func_type == 'quadratic':
+        a, b, c = params
+        # 计算拟合二次曲线上的y值
+        y_fit = a * x**2 + b * x + c
+    else:
+        raise ValueError("func_type must be 'line' or 'quadratic'")
+    
+    # 计算实际值与拟合值之间的偏差
+    deviations = np.abs(y - y_fit)
+    
+    return deviations
+
+# 示例使用方法：
+# 假设我们有以下数据点
+# x_data = np.array([1, 2, 3, 4, 5])
+# y_data = np.array([2.1, 7.9, 18.2, 32.1, 50.0])
+
+# 线性拟合
+# slope, intercept = fit_line(x_data, y_data)
+# max_dev_line = max_deviation(x_data, y_data, 'line', (slope, intercept))
+
+# 二次曲线拟合
+# coeffs = fit_quadratic(x_data, y_data)
+# max_dev_quad = max_deviation(x_data, y_data, 'quadratic', coeffs)

@@ -1,0 +1,122 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+import os
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                 std=[0.229, 0.224, 0.225])
+        ])
+
+    def create_unrelated_pairs(self, image_text_pairs):
+        """通过打乱文本描述来创建不相关的图像-文本对"""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """使用释义数据集创建语义相似的文本对"""
+        dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+        textual_pairs = []
+        for item in dataset:
+            if item.get('is_duplicate', 0) == 1:
+                pair = (item['question1'], item['question2'])
+                textual_pairs.append(pair)
+        return textual_pairs[:self.sample_size]
+
+    def create_visual_pairs(self, image_text_pairs):
+        """创建增强的图像对，同时保持语义意义"""
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                augmented = augmentation_transforms(image)
+                visual_pairs.append((image, augmented))
+        return visual_pairs
+
+    def load_mscoco_dataset(self):
+        """
+        加载和预处理 MSCOCO 数据集，并进行改进的过滤。
+        如果图片文件不存在，则捕获 FileNotFoundError 并跳过该样本。
+        为确保采样到足够样本，尝试从更多样本中选择有效数据。
+        """
+        dataset = load_dataset(
+            "shunk031/MSCOCO",
+            year=2014,
+            coco_task="captions",
+            split='train',
+            streaming=True
+        )
+        # 尝试多取一些样本以弥补可能的错误跳过
+        dataset = dataset.take(self.sample_size * 2)
+        image_text_pairs = []
+        for item in dataset:
+            try:
+                # 选择最长的 caption 作为描述
+                best_caption = max(item["captions"], key=lambda s: len(s))
+                # 过滤掉过短的标题
+                if len(best_caption.split()) < 5:
+                    continue
+                # 尝试获取图片，可能会触发 FileNotFoundError
+                image = item["image"]
+                # 如果 image 不是 PIL 图片，则尝试将其转换为 PIL Image
+                if not isinstance(image, Image.Image):
+                    image = Image.fromarray(np.array(image))
+                image_text_pairs.append((image, best_caption))
+                if len(image_text_pairs) >= self.sample_size:
+                    break
+            except FileNotFoundError as e:
+                print(f"Warning: {e}，跳过当前样本。")
+                continue
+            except Exception as e:
+                print(f"Warning: 遇到错误 {e}，跳过当前样本。")
+                continue
+
+        if not image_text_pairs:
+            raise RuntimeError("未能加载到任何有效的 MSCOCO 数据样本。")
+        return image_text_pairs
+
+def main():
+    # 初始化数据集创建器
+    creator = AlignmentDatasetCreator(sample_size=100)
+
+    # 加载和创建数据集
+    print("正在加载 MSCOCO 数据集...")
+    image_text_pairs = creator.load_mscoco_dataset()
+
+    print("正在创建不相关的对...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+
+    print("正在创建语义相似的文本对...")
+    textual_pairs = creator.create_textual_pairs()
+
+    print("正在创建增强的图像对...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+
+    # 从每个数据集中打印样本
+    print("数据集样本:")
+    if image_text_pairs:
+        print(f"Image-Text Pair: {image_text_pairs[0]}")
+    if unrelated_pairs:
+        print(f"Unrelated Pair: {unrelated_pairs[0]}")
+    if textual_pairs:
+        print(f"Textual Pair: {textual_pairs[0]}")
+    if visual_pairs:
+        print(f"Visual Pair: {visual_pairs[0]}")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,63 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Create a Spark session
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# The user's data comes from an API, so its structure is unknown.
+# First, we need to ingest and analyze it.
+
+# In a real application, you would use a library like `requests` to get the data
+# from an API endpoint.
+# import requests
+# api_response = requests.get("https://your-api.com/data")
+# api_json_string = api_response.text
+
+# For this example, we'll simulate the raw JSON string that an API might return.
+# Notice the data might be nested or have inconsistent fields.
+api_json_string = """
+[
+    {"id": 1, "personal_info": {"name": "Juan", "age": 30}},
+    {"id": 2, "personal_info": {"name": "Ana", "age": 25}, "location": "Madrid"},
+    {"id": 3, "personal_info": {"name": "Pedro", "age": 40}}
+]
+"""
+
+# Create an RDD from the JSON string and then create a DataFrame.
+# Spark's `read.json` can parse the string and infer the schema automatically.
+rdd = spark.sparkContext.parallelize([api_json_string])
+df = spark.read.json(rdd)
+
+# --- Analysis Step ---
+# Now, we analyze the DataFrame to understand its structure and content.
+
+# 1. Print the schema to see the columns, data types, and nullability.
+print("Inferred Schema from API data:")
+df.printSchema()
+
+# 2. Show some data to inspect the values.
+print("\nData from API:")
+df.show(truncate=False)
+
+# Based on this analysis, you can decide on further cleaning or transformation steps
+# before writing the data to its destination. For this example, we proceed with the raw `df`.
+
+
+# Set up the connection to ADL2 using the Microsoft ID identity
+# It is not necessary to provide credentials explicitly in a Synapse notebook
+# Spark will use the managed identity of the notebook to authenticate.
+
+# Specify the path to the container and folder in ADL2
+container_name = "<your_container_name>"  # Replace with the name of your container
+folder_path = "<your_folder_path>"  # Replace with the path to the folder within the container
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Write the DataFrame in parquet format to ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Optional: read the parquet file to verify
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Stop the Spark session
+spark.stop()

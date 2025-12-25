@@ -1,0 +1,26 @@
+from dataclasses import dataclass
+
+
+@dataclass
+class Card:
+    """
+    A data class representing a card and associated user information.
+
+    The @dataclass decorator automatically generates methods like __init__,
+    __repr__, __eq__, etc., based on the type-annotated attributes.
+    This replaces the need for a manual, error-prone __repr__ implementation.
+    """
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str

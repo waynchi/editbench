@@ -1,0 +1,111 @@
+import tkinter as tk
+import random
+import math
+
+class Square:
+    def __init__(self, canvas, size, x, y):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+        self.dx = random.choice([-2, -1, 1, 2])
+        self.dy = random.choice([-2, -1, 1, 2])
+        # Losowy kolor dla każdego kwadratu
+        colors = ["red", "blue", "green", "yellow", "orange", "purple", "pink", "cyan", "magenta", "lime"]
+        self.color = random.choice(colors)
+        self.square = canvas.create_rectangle(x, y, x + size, y + size, fill=self.color, outline="black")
+
+    def move(self):
+        # Pobierz aktualne wymiary canvas
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Sprawdź kolizje z granicami i odbij
+        if self.x <= 0 or self.x + self.size >= canvas_width:
+            self.dx = -self.dx
+        if self.y <= 0 or self.y + self.size >= canvas_height:
+            self.dy = -self.dy
+            
+        # Aktualizuj pozycję
+        self.x += self.dx
+        self.y += self.dy
+        
+        # Upewnij się, że kwadrat pozostaje w granicach
+        self.x = max(0, min(self.x, canvas_width - self.size))
+        self.y = max(0, min(self.y, canvas_height - self.size))
+        
+        # Przesuń kwadrat na canvas
+        self.canvas.coords(self.square, self.x, self.y, self.x + self.size, self.y + self.size)
+        
+        return True
+
+    def split(self):
+        if self.size > 20:
+            # Usuń bieżący kwadrat
+            self.canvas.delete(self.square)
+            
+            # Utwórz dwa nowe mniejsze kwadraty
+            new_size = self.size / 2
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            square1 = Square(self.canvas, new_size, 
+                           random.randint(0, int(canvas_width - new_size)), 
+                           random.randint(0, int(canvas_height - new_size)))
+            square2 = Square(self.canvas, new_size, 
+                           random.randint(0, int(canvas_width - new_size)), 
+                           random.randint(0, int(canvas_height - new_size)))
+            
+            return [square1, square2]
+        else:
+            return []
+
+def on_click(event):
+    global squares
+    # Sprawdź, czy kliknięto na jakiś kwadrat
+    clicked_item = canvas.find_closest(event.x, event.y)[0]
+    
+    for i, square in enumerate(squares):
+        if square.square == clicked_item:
+            # Podziel kwadrat
+            new_squares = square.split()
+            if new_squares:
+                squares.pop(i)
+                squares.extend(new_squares)
+            break
+
+def update():
+    global squares
+    # Przesuń wszystkie kwadraty
+    for square in squares:
+        square.move()
+    
+    root.after(50, update)  # Aktualizuj co 50 ms
+
+# Utwórz główne okno
+root = tk.Tk()
+root.title("Splitting Squares")
+root.geometry("800x600")
+
+# Utwórz płótno
+canvas = tk.Canvas(root, width=800, height=600, bg="white")
+canvas.pack(expand=True, fill="both")
+
+# Bind kliknięcia myszy
+canvas.bind("<Button-1>", on_click)
+
+# Poczekaj, aż canvas się wyrenderuje
+root.update()
+
+# Utwórz początkowe kwadraty
+squares = [
+    Square(canvas, 80, 100, 100),
+    Square(canvas, 60, 300, 200),
+    Square(canvas, 70, 500, 150)
+]
+
+# Rozpocznij animację
+update()
+
+# Uruchom główną pętlę
+root.mainloop()

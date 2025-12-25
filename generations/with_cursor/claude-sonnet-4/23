@@ -1,0 +1,117 @@
+import random
+
+# English dictionary - a sample of common words
+DICTIONARY = [
+    "cat", "dog", "run", "sun", "fun", "car", "bar", "far", "war", "jar",
+    "book", "look", "cook", "took", "hook", "door", "floor", "more", "core", "store",
+    "house", "mouse", "horse", "nurse", "curse", "purse", "force", "course", "source", "choice",
+    "python", "coding", "program", "computer", "keyboard", "monitor", "software", "hardware", "internet", "website",
+    "elephant", "giraffe", "penguin", "dolphin", "butterfly", "crocodile", "kangaroo", "octopus", "flamingo", "hedgehog",
+    "beautiful", "wonderful", "fantastic", "incredible", "amazing", "brilliant", "excellent", "outstanding", "remarkable", "spectacular",
+    "programming", "development", "application", "technology", "engineering", "mathematics", "architecture", "photography", "literature", "philosophy",
+    "extraordinary", "revolutionary", "international", "understanding", "responsibility", "communication", "transformation", "entertainment", "environmental", "sophisticated",
+    "a", "I", "be", "to", "of", "and", "in", "it", "you", "that",
+    "he", "was", "for", "on", "are", "as", "with", "his", "they", "at",
+    "one", "have", "this", "from", "or", "had", "by", "hot", "word", "but",
+    "what", "some", "we", "can", "out", "other", "were", "all", "there", "when",
+    "your", "how", "said", "each", "she", "which", "do", "their", "time", "will",
+    "about", "if", "up", "out", "many", "then", "them", "these", "so", "some",
+    "would", "make", "like", "into", "him", "has", "two", "more", "very", "what",
+    "know", "just", "first", "get", "over", "think", "also", "back", "after", "use",
+    "work", "life", "only", "new", "way", "may", "say", "great", "where", "much",
+    "through", "back", "good", "much", "before", "right", "too", "any", "same", "tell",
+    "boy", "follow", "came", "want", "show", "also", "around", "form", "three", "small",
+    "set", "put", "end", "why", "again", "turn", "here", "off", "went", "old",
+    "number", "no", "way", "could", "people", "my", "than", "first", "water", "been",
+    "call", "who", "oil", "sit", "now", "find", "long", "down", "day", "did",
+    "get", "come", "made", "may", "part", "over", "new", "sound", "take", "only",
+    "little", "work", "know", "place", "year", "live", "me", "back", "give", "most",
+    "very", "after", "thing", "our", "name", "good", "sentence", "man", "think", "say",
+    "great", "where", "help", "through", "much", "before", "line", "right", "too", "mean",
+    "old", "any", "same", "tell", "boy", "follow", "came", "want", "show", "also",
+    "around", "form", "three", "small", "set", "put", "end", "why", "again", "turn"
+]
+
+def find_words_by_length(word_length, word_list):
+    """
+    Find all words in the dictionary that have the specified length.
+    
+    Args:
+        word_length (int): The desired length of words
+        word_list (list): List of words to search through
+    
+    Returns:
+        list: List of words with the specified length
+    """
+    matching_words = [word for word in word_list if len(word) == word_length]
+    return matching_words
+
+def get_random_words(word_list, count=10):
+    """
+    Get a random selection of words from the list.
+    
+    Args:
+        word_list (list): List of words to choose from
+        count (int): Number of words to return (default: 10)
+    
+    Returns:
+        list: Random selection of words
+    """
+    if len(word_list) <= count:
+        return word_list
+    return random.sample(word_list, count)
+
+def main():
+    """
+    Main program function that handles user interaction.
+    """
+    print("Welcome to the English Dictionary Word Finder!")
+    print("This program will find words with a specific number of characters.")
+    print("-" * 60)
+    
+    while True:
+        try:
+            # Get user input
+            user_input = input("\nEnter the number of characters you want (or 'quit' to exit): ")
+            
+            # Check if user wants to quit
+            if user_input.lower() in ['quit', 'exit', 'q']:
+                print("Thank you for using the Word Finder! Goodbye!")
+                break
+            
+            # Convert input to integer
+            n_characters = int(user_input)
+            
+            # Validate input
+            if n_characters <= 0:
+                print("Please enter a positive number.")
+                continue
+            
+            # Find words with the specified length
+            matching_words = find_words_by_length(n_characters, DICTIONARY)
+            
+            if not matching_words:
+                print(f"Sorry, no words found with {n_characters} characters in our dictionary.")
+                continue
+            
+            # Get up to 10 random words
+            selected_words = get_random_words(matching_words, 10)
+            
+            # Display results
+            print(f"\nFound {len(matching_words)} word(s) with {n_characters} character(s).")
+            print(f"Here are {len(selected_words)} random word(s):")
+            print("-" * 30)
+            
+            for i, word in enumerate(selected_words, 1):
+                print(f"{i:2d}. {word}")
+            
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+        except KeyboardInterrupt:
+            print("\n\nProgram interrupted. Goodbye!")
+            break
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()

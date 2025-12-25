@@ -1,0 +1,10 @@
+import pandas as pd
+
+def create_column(df):
+    # This implementation creates a new column 'Frequency'.
+    # It uses .loc with a boolean condition to find all rows
+    # where the 'EventId' column contains the string 'E16'.
+    # For these matching rows, it sets the value in the 'Frequency' column to 117.
+    # Other rows will have NaN in the 'Frequency' column by default.
+    df.loc[df['EventId'].str.contains('E16', na=False), 'Frequency'] = 117
+    return df

@@ -1,0 +1,18 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# 获取当前脚本所在目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# 构建相对路径，假设chromedriver位于当前目录下的 "chromedriver-win64" 文件夹中
+driver_relative_path = os.path.join(current_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+options.binary_location = driver_relative_path
+
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)

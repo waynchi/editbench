@@ -1,0 +1,240 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Resuelve el sistema lineal Ax = b usando el método de gradientes conjugados.
+    
+    Parámetros:
+    -----------
+    A : array_like
+        Matriz simétrica y definida positiva de tamaño (n, n)
+    b : array_like
+        Vector del lado derecho de tamaño (n,)
+    x0 : array_like, opcional
+        Estimación inicial. Si es None, se usa el vector cero
+    tol : float, opcional
+        Tolerancia para la convergencia (default: 1e-6)
+    max_iter : int, opcional
+        Número máximo de iteraciones (default: 1000)
+    
+    Retorna:
+    --------
+    x : ndarray
+        Solución del sistema lineal
+    residual_norm : float
+        Norma del residual final
+    iterations : int
+        Número de iteraciones realizadas
+    converged : bool
+        True si el algoritmo convergió
+    """
+    
+    # Convertir a arrays de numpy
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float)
+    
+    # Verificar dimensiones
+    n = len(b)
+    if A.shape != (n, n):
+        raise ValueError("La matriz A debe ser cuadrada y compatible con el vector b")
+    
+    # Inicialización
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+    
+    # Calcular residual inicial
+    r = b - A @ x
+    p = r.copy()
+    
+    # Norma inicial del residual
+    r_norm_sq = np.dot(r, r)
+    initial_residual = np.sqrt(r_norm_sq)
+    
+    # Si ya está convergido
+    if initial_residual < tol:
+        return x, initial_residual, 0, True
+    
+    # Iteraciones del método de gradientes conjugados
+    for k in range(max_iter):
+        # Calcular Ap
+        Ap = A @ p
+        
+        # Calcular alpha
+        alpha = r_norm_sq / np.dot(p, Ap)
+        
+        # Actualizar x
+        x = x + alpha * p
+        
+        # Actualizar residual
+        r = r - alpha * Ap
+        
+        # Calcular nueva norma del residual
+        r_norm_sq_new = np.dot(r, r)
+        residual_norm = np.sqrt(r_norm_sq_new)
+        
+        # Verificar convergencia
+        if residual_norm < tol:
+            return x, residual_norm, k + 1, True
+        
+        # Calcular beta
+        beta = r_norm_sq_new / r_norm_sq
+        
+        # Actualizar dirección de búsqueda
+        p = r + beta * p
+        
+        # Actualizar norma del residual para la siguiente iteración
+        r_norm_sq = r_norm_sq_new
+    
+    # Si no convergió
+    return x, residual_norm, max_iter, False
+
+
+def conjugate_gradient_preconditioned(A, b, M=None, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Resuelve el sistema lineal Ax = b usando el método de gradientes conjugados
+    con precondicionamiento.
+    
+    Parámetros:
+    -----------
+    A : array_like
+        Matriz simétrica y definida positiva de tamaño (n, n)
+    b : array_like
+        Vector del lado derecho de tamaño (n,)
+    M : array_like, opcional
+        Matriz de precondicionamiento. Si es None, no se usa precondicionamiento
+    x0 : array_like, opcional
+        Estimación inicial. Si es None, se usa el vector cero
+    tol : float, opcional
+        Tolerancia para la convergencia (default: 1e-6)
+    max_iter : int, opcional
+        Número máximo de iteraciones (default: 1000)
+    
+    Retorna:
+    --------
+    x : ndarray
+        Solución del sistema lineal
+    residual_norm : float
+        Norma del residual final
+    iterations : int
+        Número de iteraciones realizadas
+    converged : bool
+        True si el algoritmo convergió
+    """
+    
+    # Si no hay precondicionamiento, usar el método estándar
+    if M is None:
+        return conjugate_gradient(A, b, x0, tol, max_iter)
+    
+    # Convertir a arrays de numpy
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float)
+    M = np.array(M, dtype=float)
+    
+    # Verificar dimensiones
+    n = len(b)
+    if A.shape != (n, n) or M.shape != (n, n):
+        raise ValueError("Las matrices A y M deben ser cuadradas y compatibles con el vector b")
+    
+    # Inicialización
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+    
+    # Calcular residual inicial
+    r = b - A @ x
+    
+    # Resolver M * z = r
+    z = np.linalg.solve(M, r)
+    p = z.copy()
+    
+    # Producto inicial
+    rz_dot = np.dot(r, z)
+    
+    # Norma inicial del residual
+    initial_residual = np.sqrt(np.dot(r, r))
+    
+    # Si ya está convergido
+    if initial_residual < tol:
+        return x, initial_residual, 0, True
+    
+    # Iteraciones del método de gradientes conjugados precondicionado
+    for k in range(max_iter):
+        # Calcular Ap
+        Ap = A @ p
+        
+        # Calcular alpha
+        alpha = rz_dot / np.dot(p, Ap)
+        
+        # Actualizar x
+        x = x + alpha * p
+        
+        # Actualizar residual
+        r = r - alpha * Ap
+        
+        # Verificar convergencia
+        residual_norm = np.sqrt(np.dot(r, r))
+        if residual_norm < tol:
+            return x, residual_norm, k + 1, True
+        
+        # Resolver M * z = r
+        z = np.linalg.solve(M, r)
+        
+        # Calcular beta
+        rz_dot_new = np.dot(r, z)
+        beta = rz_dot_new / rz_dot
+        
+        # Actualizar dirección de búsqueda
+        p = z + beta * p
+        
+        # Actualizar producto para la siguiente iteración
+        rz_dot = rz_dot_new
+    
+    # Si no convergió
+    return x, residual_norm, max_iter, False
+
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    # Crear un sistema de prueba
+    np.random.seed(42)
+    n = 5
+    
+    # Crear una matriz simétrica y definida positiva
+    A_temp = np.random.randn(n, n)
+    A = A_temp.T @ A_temp + np.eye(n)  # Asegurar que sea definida positiva
+    
+    # Vector solución verdadera
+    x_true = np.random.randn(n)
+    
+    # Vector del lado derecho
+    b = A @ x_true
+    
+    print("=== Método de Gradientes Conjugados ===")
+    print(f"Tamaño del sistema: {n}x{n}")
+    print(f"Solución verdadera: {x_true}")
+    
+    # Resolver usando gradientes conjugados
+    x_sol, residual, iterations, converged = conjugate_gradient(A, b)
+    
+    print(f"\nSolución encontrada: {x_sol}")
+    print(f"Error absoluto: {np.linalg.norm(x_sol - x_true):.2e}")
+    print(f"Residual final: {residual:.2e}")
+    print(f"Iteraciones: {iterations}")
+    print(f"Convergió: {converged}")
+    
+    # Ejemplo con precondicionamiento (usando precondicionador diagonal)
+    print("\n=== Con Precondicionamiento Diagonal ===")
+    M = np.diag(np.diag(A))  # Precondicionador de Jacobi
+    
+    x_sol_prec, residual_prec, iterations_prec, converged_prec = conjugate_gradient_preconditioned(
+        A, b, M
+    )
+    
+    print(f"Solución encontrada: {x_sol_prec}")
+    print(f"Error absoluto: {np.linalg.norm(x_sol_prec - x_true):.2e}")
+    print(f"Residual final: {residual_prec:.2e}")
+    print(f"Iteraciones: {iterations_prec}")
+    print(f"Convergió: {converged_prec}")

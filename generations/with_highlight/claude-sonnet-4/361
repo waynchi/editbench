@@ -1,0 +1,56 @@
+def can_be_expressed_as_sum_of_four_nonzero_squares(n):
+    """
+    Check if a number can be expressed as sum of four non-zero squares.
+    Returns True if possible, False otherwise.
+    """
+    # Generate all possible squares up to n
+    squares = []
+    i = 1
+    while i * i <= n:
+        squares.append(i * i)
+        i += 1
+    
+    # Check all combinations of four squares
+    for a in squares:
+        if a >= n:
+            break
+        for b in squares:
+            if a + b >= n:
+                break
+            for c in squares:
+                if a + b + c >= n:
+                    break
+                for d in squares:
+                    if a + b + c + d == n:
+                        return True, (int(a**0.5), int(b**0.5), int(c**0.5), int(d**0.5))
+                    elif a + b + c + d > n:
+                        break
+    
+    return False, None
+
+def find_numbers_as_sum_of_four_squares(limit):
+    """
+    Find all numbers up to limit that can be expressed as sum of four non-zero squares.
+    """
+    results = []
+    
+    for n in range(4, limit + 1):  # Start from 4 since we need at least 1+1+1+1=4
+        can_express, squares = can_be_expressed_as_sum_of_four_nonzero_squares(n)
+        if can_express:
+            results.append((n, squares))
+    
+    return results
+
+# Example usage
+if __name__ == "__main__":
+    limit = 50
+    numbers = find_numbers_as_sum_of_four_squares(limit)
+    
+    print(f"Liczby od 4 do {limit}, które można wyrazić jako sumę czterech niezerowych kwadratów:")
+    print()
+    
+    for number, squares in numbers:
+        a, b, c, d = squares
+        print(f"{number} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+    
+    print(f"\nZnaleziono {len(numbers)} takich liczb.")

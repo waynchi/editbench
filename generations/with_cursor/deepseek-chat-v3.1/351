@@ -1,0 +1,38 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+
+def main():
+    lines = parse_input_file()
+    cols = [line.split() for line in lines if line.strip()]
+    cols = np.array(cols).T.astype(int)
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    all_dists = []
+    while list_1 and list_2:
+        argmini_1 = np.argmin(list_1)
+        mini_1 = list_1.pop(argmini_1)
+        
+        argmini_2 = np.argmin(list_2)
+        mini_2 = list_2.pop(argmini_2)
+        
+        dist = abs(mini_1 - mini_2)
+        all_dists.append(dist)
+    
+    print(f"Suma odległości: {sum(all_dists)}")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            lines = f.read().splitlines()
+        return [line.strip() for line in lines if line.strip()]
+    except FileNotFoundError:
+        print(f"Błąd: Plik {INPUT_FILE_PATH} nie został znaleziony")
+        return []
+    except Exception as e:
+        print(f"Błąd podczas czytania pliku: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

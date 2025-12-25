@@ -1,0 +1,218 @@
+import torch
+import numpy as np
+import time
+from torch.utils.data import DataLoader
+from transformers import TrainerCallback
+from transformers.data.data_collator import default_data_collator
+
+
+def check_answer_factual(output_str, expected_answer):
+    """检查模型的输出是否与预期答案匹配。
+
+参数：
+    output_str: 模型的字符串输出
+    expected_answer: 预期答案字符串
+
+返回：
+    bool: 如果答案正确则为 True，否则为 False"""
+    # 这是一个简单的实现 - 你可能想要增强这个
+    # 根据您的具体需求，使用更复杂的匹配逻辑
+    return expected_answer.lower() in output_str.lower()
+
+
+def check_answer_format(output_str, hard=False):
+    """检查模型的输出是否符合预期格式。
+
+参数：
+    output_str: 模型的字符串输出
+    hard: 如果为 True，应用更严格的格式检查
+
+返回：
+    bool: 如果格式正确返回 True，否则返回 False"""
+    if hard:
+        # 严格格式检查（例如，必须精确匹配某个模式）
+        # 在这里实现严格的格式检查逻辑
+        return bool(output_str.strip())  # 简单检查输出不为空
+    else:
+        # 较宽松的格式检查（例如，包含预期的部分）
+        # 在这里实现您的软格式检查逻辑
+        return len(output_str.strip()) > 0  # 简单检查输出是否有内容
+
+
+# 定义 FactualAccuracyCallbackBETTER 类（如所提供）
+class FactualAccuracyCallbackBETTER(TrainerCallback):
+    """在训练期间评估和记录模型事实准确性的回调。"""
+
+    def __init__(
+        self, model, tokenizer, dataset, batch_size, verbose=False, output_format=False
+    ):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.n_samp = len(dataset)
+        self.verbose = verbose
+        self.output_format = output_format
+
+        # 为问题分词并准备一个 DataLoader
+        # 删除原始列以避免整合问题是一种良好实践
+        tokenized_questions = dataset.map(
+            lambda examples: tokenizer(
+                examples["question"],
+                padding="max_length",
+                truncation=True,
+                max_length=512,
+            ),
+            batched=True,
+            remove_columns=dataset.column_names,
+        )
+        tokenized_questions.set_format("torch")
+
+        self.tokenized_eval_dataset = DataLoader(
+            tokenized_questions,
+            batch_size=batch_size,  # 使用提供的 batch_size
+            shuffle=False,
+            collate_fn=default_data_collator,
+        )
+
+        # 为预期答案准备一个 DataLoader
+        self.batched_expected_answers = DataLoader(
+            dataset["answer"], batch_size=batch_size, shuffle=False  # 使用提供的 batch_size
+        )
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """在记录最后的日志后调用。"""
+        if model is not None:
+            self.model = model
+        elif self.model is None:
+            return
+
+        if not state.is_local_process_zero:
+            return
+
+        start_time = time.time()
+        try:
+            with torch.no_grad():
+                # 正确调用评估函数，并传入所有必要的参数
+                results = factual_score_dataloader(
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    dataset=self.tokenized_eval_dataset,
+                    expected_answers=self.batched_expected_answers,
+                    output_format=self.output_format,
+                    verbose=self.verbose,
+                )
+                if self.output_format:
+                    fact_results, format_hard_results, format_soft_results = results
+                    format_hard_avg = np.mean(format_hard_results)
+                    format_soft_avg = np.mean(format_soft_results)
+                    factual_accuracy_avg = np.mean(fact_results)
+                else:
+                    factual_accuracy_avg = np.mean(results)
+
+                if len(state.log_history) > 0:
+                    state.log_history[-1]["factual_accuracy"] = factual_accuracy_avg
+                    if self.output_format:
+                        state.log_history[-1]["format_hard"] = format_hard_avg
+                        state.log_history[-1]["format_soft"] = format_soft_avg
+        except Exception as e:
+            print(f"Error during factual accuracy evaluation: {e}")
+        finally:
+            time_taken = time.time() - start_time
+            if self.verbose:
+                print(
+                    f"[TIME] {time_taken:.2f} seconds: Model evaluated on FactualAccuracy."
+                )
+
+
+def factual_score_dataloader(
+    model,
+    tokenizer,
+    dataset,
+    expected_answers,
+    max_new_tokens=32,
+    output_format=False,
+    device=None,
+    verbose=False,
+):
+    """
+    以批处理方式评估语言模型答案的事实准确性。
+
+    Args:
+        model: 语言模型。
+        tokenizer: 分词器。
+        dataset: 用于分词后评估问题的数据加载器 (DataLoader)。
+        expected_answers: 用于预期答案字符串的数据加载器 (DataLoader)。
+        max_new_tokens: 要生成的最大新词元数。
+        output_format: 是否检查输出格式。
+        device: 运行设备（默认为 CUDA，如果可用，否则为 CPU）。
+        verbose: 如果为 True，则打印问题、生成的答案和预期答案。
+
+    Returns:
+        fact_results: 事实准确性结果列表（布尔值）。
+        format_hard_results (optional): 硬格式检查结果列表。
+        format_soft_results (optional): 软格式检查结果列表。
+    """
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    all_fact_results = []
+    all_format_hard_results, all_format_soft_results = (
+        ([], []) if output_format else (None, None)
+    )
+
+    # 遍历问题批次及其对应的预期答案
+    for batch, expected_answers_batch in zip(dataset, expected_answers):
+        batch = {
+            k: v.to(device)
+            for k, v in batch.items()
+            if k in ["input_ids", "attention_mask"]
+        }
+
+        with torch.no_grad():
+            outputs = model.generate(
+                **batch,
+                max_new_tokens=max_new_tokens,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+
+        # 优化：使用列表推导式进行批量解码和应用检查
+        # 这避免了对批次中单个样本进行缓慢的 Python 循环。
+
+        # 仅解码新生成的词元
+        output_strings = tokenizer.batch_decode(
+            outputs[:, batch["input_ids"].shape[-1] :], skip_special_tokens=True
+        )
+
+        # 将检查应用于整个批次，并扩展结果列表
+        all_fact_results.extend(
+            [
+                check_answer_factual(out, exp)
+                for out, exp in zip(output_strings, expected_answers_batch)
+            ]
+        )
+
+        if output_format:
+            all_format_hard_results.extend(
+                [check_answer_format(out, hard=True) for out in output_strings]
+            )
+            all_format_soft_results.extend(
+                [check_answer_format(out, hard=False) for out in output_strings]
+            )
+
+        if verbose:
+            # 仅在需要打印时才解码原始输入
+            detokenized_inputs = tokenizer.batch_decode(
+                batch["input_ids"], skip_special_tokens=True
+            )
+            for question, output_str, expected_answer in zip(
+                detokenized_inputs, output_strings, expected_answers_batch
+            ):
+                print(repr(question), repr(output_str), repr(expected_answer))
+
+    return (
+        (all_fact_results, all_format_hard_results, all_format_soft_results)
+        if output_format
+        else all_fact_results
+    )

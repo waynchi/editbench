@@ -1,0 +1,239 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
+function useDashboardData(user) {
+  const [data, setData] = useState({
+    customerData: { summary: null, loading: false, customers: [] },
+    healthData: [],
+    websiteStatus: { checking: false },
+    stripeApiKey: "",
+    dateRange: {
+      startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+      endDate: new Date(),
+    },
+    error: null
+  });
+
+  const hasLoadedSettings = useRef(false);
+  const abortControllerRef = useRef(null);
+
+  const calculateHealthData = useCallback(() => {
+    const customers = data.customerData.summary?.customers;
+    if (!customers?.length) return [];
+
+    const months = [];
+    const currentDate = new Date(data.dateRange.startDate);
+    
+    while (currentDate <= data.dateRange.endDate) {
+      months.push({
+        month: currentDate.getMonth(),
+        year: currentDate.getFullYear(),
+        monthYear: currentDate.toLocaleString("default", { month: "short" }) + " " + currentDate.getFullYear()
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return months.map(({ month, year, monthYear }) => {
+      const monthCustomers = customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === month && customerDate.getFullYear() === year;
+      });
+
+      const statusCounts = monthCustomers.reduce((acc, customer) => {
+        acc[customer.status] = (acc[customer.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      return {
+        monthYear,
+        healthy: statusCounts.active || 0,
+        warning: statusCounts.churned || 0,
+        critical: statusCounts.delinquent || 0,
+      };
+    });
+  }, [data.customerData.summary?.customers, data.dateRange.startDate, data.dateRange.endDate]);
+
+  const loadSettings = useCallback(async () => {
+    if (!user?.id || hasLoadedSettings.current || data.stripeApiKey) return;
+
+    hasLoadedSettings.current = true;
+
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      
+      setData(prev => ({ 
+        ...prev, 
+        stripeApiKey: settings[0]?.stripe_api_key || "",
+        error: null
+      }));
+    } catch (error) {
+      setData(prev => ({ ...prev, error: "Failed to load user settings" }));
+    }
+  }, [user?.id, data.stripeApiKey]);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id || !data.stripeApiKey || data.customerData.summary) return;
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setData(prev => ({ 
+      ...prev, 
+      customerData: { ...prev.customerData, loading: true },
+      error: null 
+    }));
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      setData(prev => ({
+        ...prev,
+        customerData: { 
+          summary, 
+          loading: false,
+          customers: summary.customers || []
+        }
+      }));
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      
+      setData(prev => ({
+        ...prev,
+        customerData: { ...prev.customerData, loading: false },
+        error: error.message
+      }));
+    }
+  }, [user?.id, data.stripeApiKey, data.customerData.summary]);
+
+  const healthData = useMemo(() => calculateHealthData(), [calculateHealthData]);
+
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      const customers = data.customerData.customers;
+      if (!customers?.length) return;
+      
+      setData(prev => ({ 
+        ...prev, 
+        websiteStatus: { checking: true },
+        error: null 
+      }));
+
+      try {
+        const batchSize = 5; // Process in batches to avoid overwhelming the server
+        const batches = [];
+        for (let i = 0; i < customers.length; i += batchSize) {
+          batches.push(customers.slice(i, i + batchSize));
+        }
+
+        let updatedCustomers = [];
+        
+        for (const batch of batches) {
+          const batchPromises = batch.map(async (customer) => {
+            try {
+              const response = await fetch("/api/website-churn-detector", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ websiteUrl: customer.website }),
+              });
+              const health = await response.json();
+              return { 
+                ...customer, 
+                health, 
+                status: health.status === "active" ? "active" : "churned" 
+              };
+            } catch {
+              return { ...customer, status: "unknown" };
+            }
+          });
+          
+          const batchResults = await Promise.all(batchPromises);
+          updatedCustomers = [...updatedCustomers, ...batchResults];
+        }
+
+        const statusCounts = updatedCustomers.reduce((acc, customer) => {
+          acc[customer.status] = (acc[customer.status] || 0) + 1;
+          return acc;
+        }, {});
+
+        const summary = {
+          ...data.customerData.summary,
+          customers: updatedCustomers,
+          active: statusCounts.active || 0,
+          churned: statusCounts.churned || 0,
+        };
+
+        setData(prev => ({
+          ...prev,
+          customerData: { ...prev.customerData, summary, customers: updatedCustomers },
+          websiteStatus: { checking: false }
+        }));
+      } catch (err) {
+        setData(prev => ({
+          ...prev,
+          websiteStatus: { checking: false },
+          error: "Failed to check websites. Please try again."
+        }));
+      }
+    },
+    
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        setData(prev => ({ ...prev, error: "Start date cannot be after end date" }));
+        return;
+      }
+      setData(prev => ({ ...prev, dateRange: range, error: null }));
+    },
+
+    clearError: () => {
+      setData(prev => ({ ...prev, error: null }));
+    }
+  }), [data.customerData]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    if (data.stripeApiKey) {
+      loadData();
+    }
+  }, [loadData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  return { 
+    data: { ...data, healthData }, 
+    actions,
+    isLoading: data.customerData.loading || data.websiteStatus.checking 
+  };
+}
+
+export default useDashboardData;

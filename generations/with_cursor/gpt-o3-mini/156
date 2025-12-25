@@ -1,0 +1,36 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def main():
+    # 初始化 ChatOllama 模型
+    chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+    # 从 JSON 文件加载 SHAP 值
+    with open("Vuori_Final_Approval_2024_09_24.json", "r", encoding="utf8") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # 从文件加载系统提示
+    with open("system.prompt", "r", encoding="utf8") as file:
+        sys_prompt = file.read().strip()
+
+    # 准备消息模板，对应 human 消息中的占位符 {user_input}
+    template = ChatPromptTemplate([
+        ("system", sys_prompt),
+        ("human", "{user_input}"),
+    ])
+
+    # 正确传入参数，使用关键字参数填充模板，避免直接传入字符串
+    prompt_value = template.invoke(user_input=json.dumps(shap_values_json))
+
+    # 使用管道操作符构造链
+    chain = prompt_value | chat_model
+
+    # 生成响应
+    response = chain.invoke()
+
+    # 打印响应
+    print(response)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,45 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Define the expected feature names that the models were trained on
+# This should match the training data structure exactly
+expected_columns = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 
+                   'Embarked_C', 'Embarked_Q', 'Embarked_S']
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create DataFrame with only the necessary columns
+            my_df = pd.DataFrame({"Pclass": [pclass],
+                                  "Name": [24],
+                                  "Sex": [0],
+                                  "Age": [19],
+                                  "SibSp": [0],
+                                  "Parch": [0],
+                                  "Fare": [fare],
+                                  "Embarked": [embarked]
+                                  })
+            
+            # Apply one-hot encoding for Embarked
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Ensure all expected embarked columns exist with correct values
+            for col in ['Embarked_C', 'Embarked_Q', 'Embarked_S']:
+                if col in my_df.columns:
+                    my_df[col] = my_df[col].astype(int)
+                else:
+                    my_df[col] = 0
+            
+            # Reorder columns to match training data structure
+            my_df = my_df.reindex(columns=expected_columns, fill_value=0)
+            
+            try:
+                knn_pred = knn.predict(my_df)
+                mlp_pred = mlp.predict(my_df)
+                
+                print(f"-------------------------------------------------------")
+                print(f"Параметры: класс {pclass}, плата {fare}, embarked {embarked}")
+                print(f"По knn: {knn_pred[0]}")
+                print(f"По mlp: {mlp_pred[0]}")
+            except Exception as e:
+                print(f"Ошибка предсказания: {e}")

@@ -1,0 +1,45 @@
+import os
+import shutil
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+# Define your data path. This should be set to the directory that contains your data.
+DATA_PATH = "/path/to/data"
+
+# Directories for the original training images and for saving the validation images.
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+VAL_DIR = os.path.join(DATA_PATH, "val")
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Fraction of images to be used as validation data.
+VAL_FRAC = 0.3
+
+# List of classes (eclipse types) in the training folder.
+# We assume each subfolder in TRAIN_DIR represents one class.
+classes = [folder for folder in os.listdir(TRAIN_DIR)
+           if os.path.isdir(os.path.join(TRAIN_DIR, folder))]
+
+# Prepare the validation directory:
+os.makedirs(VAL_DIR, exist_ok=True)
+for cls in classes:
+    os.makedirs(os.path.join(VAL_DIR, cls), exist_ok=True)
+
+# Splitting the train dataset into new training and validation sets for each class.
+for cls in classes:
+    class_train_path = os.path.join(TRAIN_DIR, cls)
+
+    # Get a sorted list of image file names for determinism.
+    image_filenames = sorted(os.listdir(class_train_path))
+
+    # Split the list into training and validation parts.
+    train_files, val_files = train_test_split(
+        image_filenames, test_size=VAL_FRAC, random_state=42)
+
+    print(f'{cls} | train images = {len(train_files)} | val images = {len(val_files)}')
+
+    # Move the validation files to the validation directory.
+    for filename in val_files:
+        source = os.path.join(class_train_path, filename)
+        destination = os.path.join(VAL_DIR, cls, filename)
+        shutil.copy(source, destination)
+        os.remove(source)

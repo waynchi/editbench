@@ -1,0 +1,167 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("AnalysisAndWriteParquetADL2").getOrCreate()
+
+# Функция для получения данных из API
+def get_data_from_api(api_url, headers=None):
+    """
+    Получить данные из API
+    """
+    try:
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка при получении данных из API: {e}")
+        return None
+
+# Функция для анализа структуры данных
+def analyze_data_structure(data):
+    """
+    Анализировать структуру данных, полученных из API
+    """
+    print("=== АНАЛИЗ СТРУКТУРЫ ДАННЫХ ===")
+    print(f"Тип данных: {type(data)}")
+    
+    if isinstance(data, dict):
+        print("Данные представляют собой словарь")
+        print(f"Ключи: {list(data.keys())}")
+        for key, value in data.items():
+            print(f"  {key}: {type(value)} - {len(value) if isinstance(value, (list, dict, str)) else value}")
+    
+    elif isinstance(data, list):
+        print(f"Данные представляют собой список из {len(data)} элементов")
+        if len(data) > 0:
+            print(f"Тип первого элемента: {type(data[0])}")
+            if isinstance(data[0], dict):
+                print(f"Ключи первого элемента: {list(data[0].keys())}")
+                for key, value in data[0].items():
+                    print(f"  {key}: {type(value)}")
+    
+    print("=" * 40)
+    return data
+
+# Функция для нормализации данных
+def normalize_data_for_dataframe(data):
+    """
+    Нормализовать данные для создания DataFrame
+    """
+    if isinstance(data, dict):
+        # Если данные - словарь, попробуем найти список внутри
+        for key, value in data.items():
+            if isinstance(value, list) and len(value) > 0:
+                print(f"Найден список в ключе '{key}', используем его для DataFrame")
+                return value
+        
+        # Если список не найден, преобразуем словарь в список с одним элементом
+        print("Преобразуем словарь в список с одним элементом")
+        return [data]
+    
+    elif isinstance(data, list):
+        print("Данные уже представляют собой список")
+        return data
+    
+    else:
+        print("Неподдерживаемый тип данных, создаем список с одним элементом")
+        return [{"data": data}]
+
+# Настройки API (замените на ваши реальные данные)
+API_URL = "https://your-api-endpoint.com/data"  # Замените на ваш API endpoint
+API_HEADERS = {
+    "Authorization": "Bearer your_token_here",  # Если требуется авторизация
+    "Content-Type": "application/json"
+}
+
+# Получить данные из API
+print("Получение данных из API...")
+raw_data = get_data_from_api(API_URL, API_HEADERS)
+
+if raw_data is None:
+    print("Не удалось получить данные из API. Используем тестовые данные.")
+    # Тестовые данные для демонстрации
+    raw_data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+
+# Анализировать структуру данных
+analyzed_data = analyze_data_structure(raw_data)
+
+# Нормализовать данные для DataFrame
+normalized_data = normalize_data_for_dataframe(analyzed_data)
+
+# Показать образец данных
+print("=== ОБРАЗЕЦ ДАННЫХ ===")
+print(json.dumps(normalized_data[:3] if len(normalized_data) > 3 else normalized_data, 
+                 indent=2, ensure_ascii=False))
+print("=" * 40)
+
+# Создать DataFrame из нормализованных данных
+try:
+    df = spark.createDataFrame(normalized_data)
+    
+    # Показать схему DataFrame
+    print("=== СХЕМА DATAFRAME ===")
+    df.printSchema()
+    
+    # Показать первые несколько строк
+    print("=== ПЕРВЫЕ СТРОКИ ДАННЫХ ===")
+    df.show(5, truncate=False)
+    
+    # Показать статистику
+    print("=== СТАТИСТИКА ===")
+    print(f"Количество строк: {df.count()}")
+    print(f"Количество столбцов: {len(df.columns)}")
+    print(f"Столбцы: {df.columns}")
+    
+except Exception as e:
+    print(f"Ошибка при создании DataFrame: {e}")
+    print("Попробуем альтернативный подход...")
+    
+    # Альтернативный подход: создание DataFrame через RDD
+    try:
+        rdd = spark.sparkContext.parallelize(normalized_data)
+        df = spark.read.json(rdd)
+        print("DataFrame успешно создан через RDD")
+        df.printSchema()
+        df.show(5)
+    except Exception as e2:
+        print(f"Альтернативный подход также не сработал: {e2}")
+        spark.stop()
+        exit(1)
+
+# Настроить подключение к ADL2 с использованием идентификатора Microsoft ID
+# В блокноте Synapse не нужно явно указывать учетные данные
+# Spark будет использовать управляемую идентичность блокнота для аутентификации.
+
+# Указать путь к контейнеру и папке в ADL2
+container_name = "<your_container_name>"  # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"  # Заменить на путь к папке внутри контейнера
+storage_account_name = "<your_storage_account_name>"  # Заменить на имя вашего storage account
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате parquet в ADL2
+try:
+    print("=== ЗАПИСЬ В ADL2 ===")
+    df.write.mode("overwrite").parquet(adl2_path)
+    print(f"Данные успешно записаны в: {adl2_path}")
+    
+    # Опционально: прочитать файл parquet для проверки
+    print("=== ПРОВЕРКА ЗАПИСАННЫХ ДАННЫХ ===")
+    df_leido = spark.read.parquet(adl2_path)
+    print("Схема прочитанных данных:")
+    df_leido.printSchema()
+    print("Первые строки прочитанных данных:")
+    df_leido.show(5)
+    
+except Exception as e:
+    print(f"Ошибка при записи в ADL2: {e}")
+    print("Проверьте настройки подключения к Azure Data Lake Storage Gen2")
+
+# Остановить сессию Spark
+spark.stop()

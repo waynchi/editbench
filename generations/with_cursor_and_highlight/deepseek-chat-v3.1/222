@@ -1,0 +1,51 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_explanation(shap_json_path="Vuori_Final_Approval_2024_09_24.json", 
+                             system_prompt_path="system.prompt",
+                             model_name="llama3.2", 
+                             base_url="http://localhost:11434"):
+    """
+    生成基于SHAP值的解释
+    
+    Args:
+        shap_json_path (str): SHAP值JSON文件路径
+        system_prompt_path (str): 系统提示文件路径
+        model_name (str): Ollama模型名称
+        base_url (str): Ollama服务地址
+    
+    Returns:
+        str: 模型的响应内容
+    """
+    # 初始化 ChatOllama 模型
+    chat_model = ChatOllama(model=model_name, base_url=base_url)
+    
+    # 从 JSON 文件加载 SHAP 值
+    with open(shap_json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # 从文件加载系统提示
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # 准备消息
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # 生成响应
+    user_input = json.dumps(shap_values_json)  # 准备用户输入
+    
+    chain = prompt | chat_model
+    
+    # 获取并返回响应
+    response = chain.invoke(user_input)
+    return response.content
+
+# 打印响应
+response_content = generate_shap_explanation()
+print(response_content)

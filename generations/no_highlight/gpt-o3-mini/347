@@ -1,0 +1,64 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Text
+
+TOKEN = "TOKEN"
+CHAT_ID = 111111111
+TIME_INTERVAL = 5
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+# Flaga sterująca cyklicznym wysyłaniem wiadomości
+continue_periodic = True
+
+@dp.message(commands=["start"])
+async def start_handler(message: types.Message):
+    markup = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="Да", callback_data="stop"),
+                types.InlineKeyboardButton(text="Нет", callback_data="continue")
+            ]
+        ]
+    )
+    await bot.send_message(chat_id=CHAT_ID, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query(Text(text="stop"))
+async def stop_handler(callback: types.CallbackQuery):
+    # Jeśli chcesz zatrzymać cykliczne wysyłanie, odkomentuj poniższą linię:
+    # global continue_periodic
+    # continue_periodic = False
+    await bot.send_message(chat_id=callback.message.chat.id, text="<obscene message>!")
+    await callback.answer()  # potwierdzamy odebranie callback_query
+
+@dp.callback_query(Text(text="continue"))
+async def continue_handler(callback: types.CallbackQuery):
+    await bot.send_message(chat_id=callback.message.chat.id, text="Лох^лох, лох")
+    await callback.answer()  # potwierdzamy odebranie callback_query
+
+@dp.message(lambda message: message.text is not None)
+async def handle_all_text_messages(message: types.Message):
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=CHAT_ID, video=vid, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    global continue_periodic
+    while continue_periodic:
+        await bot.send_message(chat_id=CHAT_ID, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=CHAT_ID, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(TIME_INTERVAL)
+
+async def on_startup():
+    print("Бот запущен!")
+    # Uruchamiamy wysyłanie okresowych wiadomości jako oddzielne zadanie
+    asyncio.create_task(send_periodic_messages())
+
+async def main():
+    await on_startup()
+    # Uruchamiamy long-polling bez użycia executor
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())

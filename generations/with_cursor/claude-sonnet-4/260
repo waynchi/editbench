@@ -1,0 +1,191 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Решение системы линейных уравнений Ax = b методом сопряжённых градиентов
+    
+    Параметры:
+    A : array_like, shape (n, n)
+        Симметричная положительно определённая матрица
+    b : array_like, shape (n,)
+        Вектор правой части
+    x0 : array_like, shape (n,), optional
+        Начальное приближение (по умолчанию нулевой вектор)
+    tol : float, optional
+        Точность решения (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию 1000)
+    
+    Возвращает:
+    x : ndarray, shape (n,)
+        Решение системы уравнений
+    residual_norm : float
+        Норма невязки
+    iterations : int
+        Количество выполненных итераций
+    """
+    
+    A = np.array(A)
+    b = np.array(b)
+    n = len(b)
+    
+    # Начальное приближение
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0)
+    
+    # Начальная невязка
+    r = b - A @ x
+    p = r.copy()
+    
+    # Квадрат нормы начальной невязки
+    rsold = r @ r
+    
+    for i in range(max_iter):
+        # Произведение матрицы на направление поиска
+        Ap = A @ p
+        
+        # Размер шага
+        alpha = rsold / (p @ Ap)
+        
+        # Обновление решения
+        x = x + alpha * p
+        
+        # Обновление невязки
+        r = r - alpha * Ap
+        
+        # Квадрат нормы новой невязки
+        rsnew = r @ r
+        
+        # Проверка сходимости
+        if np.sqrt(rsnew) < tol:
+            return x, np.sqrt(rsnew), i + 1
+        
+        # Коэффициент для обновления направления поиска
+        beta = rsnew / rsold
+        
+        # Обновление направления поиска
+        p = r + beta * p
+        
+        # Подготовка к следующей итерации
+        rsold = rsnew
+    
+    return x, np.sqrt(rsnew), max_iter
+
+
+def preconditioned_conjugate_gradient(A, b, M=None, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Решение системы линейных уравнений Ax = b методом сопряжённых градиентов
+    с предобуславливанием
+    
+    Параметры:
+    A : array_like, shape (n, n)
+        Симметричная положительно определённая матрица
+    b : array_like, shape (n,)
+        Вектор правой части
+    M : array_like, shape (n, n), optional
+        Матрица предобуславливания (по умолчанию единичная матрица)
+    x0 : array_like, shape (n,), optional
+        Начальное приближение (по умолчанию нулевой вектор)
+    tol : float, optional
+        Точность решения (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию 1000)
+    
+    Возвращает:
+    x : ndarray, shape (n,)
+        Решение системы уравнений
+    residual_norm : float
+        Норма невязки
+    iterations : int
+        Количество выполненных итераций
+    """
+    
+    A = np.array(A)
+    b = np.array(b)
+    n = len(b)
+    
+    # Матрица предобуславливания
+    if M is None:
+        M = np.eye(n)
+    else:
+        M = np.array(M)
+    
+    # Начальное приближение
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0)
+    
+    # Начальная невязка
+    r = b - A @ x
+    
+    # Решение системы M * z = r
+    z = np.linalg.solve(M, r)
+    p = z.copy()
+    
+    # Скалярное произведение r и z
+    rzold = r @ z
+    
+    for i in range(max_iter):
+        # Произведение матрицы на направление поиска
+        Ap = A @ p
+        
+        # Размер шага
+        alpha = rzold / (p @ Ap)
+        
+        # Обновление решения
+        x = x + alpha * p
+        
+        # Обновление невязки
+        r = r - alpha * Ap
+        
+        # Проверка сходимости
+        if np.linalg.norm(r) < tol:
+            return x, np.linalg.norm(r), i + 1
+        
+        # Решение системы M * z = r
+        z = np.linalg.solve(M, r)
+        
+        # Скалярное произведение r и z
+        rznew = r @ z
+        
+        # Коэффициент для обновления направления поиска
+        beta = rznew / rzold
+        
+        # Обновление направления поиска
+        p = z + beta * p
+        
+        # Подготовка к следующей итерации
+        rzold = rznew
+    
+    return x, np.linalg.norm(r), max_iter
+
+
+# Пример использования
+if __name__ == "__main__":
+    # Создание тестовой системы
+    n = 4
+    A = np.array([[4, 1, 0, 0],
+                  [1, 3, 1, 0],
+                  [0, 1, 2, 1],
+                  [0, 0, 1, 1]], dtype=float)
+    
+    b = np.array([1, 2, 3, 4], dtype=float)
+    
+    # Решение методом сопряжённых градиентов
+    x, residual, iterations = conjugate_gradient(A, b)
+    
+    print("Метод сопряжённых градиентов:")
+    print(f"Решение: {x}")
+    print(f"Невязка: {residual:.2e}")
+    print(f"Итераций: {iterations}")
+    print(f"Проверка Ax: {A @ x}")
+    print(f"Правая часть b: {b}")
+    print()
+    
+    # Сравнение с точным решением
+    x_exact = np.linalg.solve(A, b)
+    print(f"Точное решение: {x_exact}")
+    print(f"Ошибка: {np.linalg.norm(x - x_exact):.2e}")

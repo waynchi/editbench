@@ -1,0 +1,52 @@
+import numpy as np
+
+# Path to the input file
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    # Parse the input file into non-empty, stripped lines.
+    lines = parse_input_file(INPUT_FILE_PATH)
+    if not lines:
+        print("No valid input lines were found.")
+        return
+
+    print("Input lines:")
+    for line in lines:
+        print(line)
+
+    # Split each line by exactly three spaces as the delimiter.
+    # This gives us a list of lists where each inner list is expected to have two elements.
+    split_data = [line.split("   ") for line in lines]
+
+    # Convert list of lists to a NumPy array of integers.
+    try:
+        data = np.array(split_data, dtype=int)
+    except ValueError as err:
+        print("Error converting data to integers:", err)
+        return
+
+    # Ensure data has two columns.
+    if data.ndim != 2 or data.shape[1] != 2:
+        print(f"Data format error: Expected 2 columns but got shape {data.shape}.")
+        return
+
+    # Instead of iteratively popping minimums,
+    # we sort both columns and compute the sum of pairwise absolute differences directly.
+    col1_sorted = np.sort(data[:, 0])
+    col2_sorted = np.sort(data[:, 1])
+    total_distance = np.sum(np.abs(col1_sorted - col2_sorted))
+
+    print("Total distance:", total_distance)
+
+def parse_input_file(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            # Read each line, strip whitespace, and filter out any empty lines.
+            lines = [line.strip() for line in file if line.strip()]
+        return lines
+    except FileNotFoundError:
+        print(f"Input file not found: {file_path}")
+        return []
+
+if __name__ == "__main__":
+    main()

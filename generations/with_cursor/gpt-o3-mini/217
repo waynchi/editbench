@@ -1,0 +1,111 @@
+import asyncio
+import aiohttp
+import aiofiles
+import xml.etree.ElementTree as ET  # Renamed for convenience
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+
+# Helper functions to wrap blocking pickle operations
+def write_pickle(obj, path):
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+
+def load_pickle(path):
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+# 文件路径设置
+INFO_FILE_PATH = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+SET_VALUTES_FILE_PATH = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+
+# “货币类”
+class valute():
+    """
+    货币及其相关内容，通过俄罗斯央行
+
+    所需库：
+      aiohttp
+      aiofiles
+      xml.etree.ElementTree
+      matplotlib.pyplot as plt
+      pandas as pd
+      datetime
+      pickle
+      json
+      asyncio
+    """
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """
+        检查货币名称是否存在于货币集合中。
+        集合每天更新不超过一次。如果更新日期早于一天前，则从远程源更新集合。
+        """
+        # 异步读取 Info.json 文件
+        async with aiofiles.open(INFO_FILE_PATH, "r", encoding="utf-8") as f:
+            info_content = await f.read()
+        info = json.loads(info_content)
+
+        last_check_str = info["last_day_check"]["valute"]
+        last_check = datetime.datetime.strptime(last_check_str, "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            # 更新货币集合
+            set_valutes = set()
+            url = "http://www.cbr.ru/scripts/XML_daily.asp"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    # 获取响应内容
+                    xml_content = await response.text()
+            root = ET.fromstring(xml_content)
+            for Valute in root.findall("Valute"):
+                CharCode = Valute.find("CharCode")
+                if CharCode is not None:
+                    set_valutes.add(CharCode.text)
+            # 异步调用阻塞的 pickle 写入操作
+            await asyncio.to_thread(write_pickle, set_valutes, SET_VALUTES_FILE_PATH)
+            # 更新 Info.json 中的日期
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with aiofiles.open(INFO_FILE_PATH, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(info, indent=3, ensure_ascii=False))
+        # 异步调用阻塞的 pickle 读取操作
+        set_valutes = await asyncio.to_thread(load_pickle, SET_VALUTES_FILE_PATH)
+        if self.name in set_valutes:
+            return True
+        else:
+            return False
+
+    async def CurrentExchangeRate(self):
+        """
+        当前货币兑换卢布的汇率
+        """
+        url = "http://www.cbr.ru/scripts/XML_daily.asp"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                xml_content = await response.text()
+        root = ET.fromstring(xml_content)
+        # 遍历所有货币节点，并查找匹配的货币代码
+        for Valute in root.findall("Valute"):
+            charcode_elem = Valute.find("CharCode")
+            if charcode_elem is not None and charcode_elem.text == self.name:
+                # 返回该货币相对于卢布的汇率
+                vunit_rate_elem = Valute.find("VunitRate")
+                if vunit_rate_elem is not None:
+                    return vunit_rate_elem.text
+        return None
+
+# 示例：如何运行异步方法
+# 如果需要调试或者运行，可以取消下面代码的注释
+# async def main():
+#     currency = valute("USD")
+#     valid = await currency.correct_name()
+#     if valid:
+#         rate = await currency.CurrentExchangeRate()
+#         print(f"当前{currency.name}兑换卢布的汇率: {rate}")
+#     else:
+#         print(f"货币代码 {currency.name} 无效。")
+#
+# asyncio.run(main())

@@ -1,0 +1,73 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+
+# --- Modified section begins here ---
+posts_generator = d.get_discussions("created", q, limit=6000)
+
+def build_hierarchical_dict(posts_generator) -> dict:
+    hierarchy = {}
+    iterator = 0
+    for post in posts_generator:
+        iterator += 1
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_id = f"{post_author}/{post_permlink}"
+        hierarchy[post_id] = {"post": post, "replies": []}
+        if post['children'] > n_respuestas_minimas:
+            comment = Comment(authorperm=post_id)
+            replies_list: list = comment.get_replies()
+            for reply in replies_list:
+                reply_author = reply['author']
+                reply_body = reply['body']
+                # Skip processing if the reply is from own author or banned
+                if is_own_author(reply_author):
+                    continue
+                if is_banned(reply_author):
+                    continue
+                if procesar(reply_body):
+                    hierarchy[post_id]["replies"].append(reply)
+    return hierarchy
+
+diccionario = build_hierarchical_dict(posts_generator)
+
+# Optionally, print posts that have more than 3 valid replies
+for post_id, content in diccionario.items():
+    if len(content["replies"]) > 3:
+        print("Post:", post_id)
+        for reply in content["replies"]:
+            print("    Reply:", reply['author'], "/", reply['permlink'])
+# --- Modified section ends here ---

@@ -1,0 +1,83 @@
+function createTurnState(allyStates, foeStates) {
+  // This helper checks whether a group has any units that can still act.
+  function hasAvailable(units) {
+    return units.some(unit => !unit.hasActed);
+  }
+
+  // Determine which group is ready to act based on available units.
+  // If both groups have available units, we prioritize the player's turn.
+  function determineAvailableTurn() {
+    if (hasAvailable(allyStates)) {
+      return "player";
+    } else if (hasAvailable(foeStates)) {
+      return "cpu";
+    }
+    return null;
+  }
+
+  let turnNumber = 1;
+  // Start with whichever group can act. Default to "player" if available.
+  let currentTurn = determineAvailableTurn() || "player";
+
+  function getCurrentTurn() {
+    // Return the current turn if the group has any units that can act,
+    // otherwise return null (meaning both groups have acted and a new cycle is needed).
+    if (currentTurn === "player" && hasAvailable(allyStates)) {
+      return "player";
+    } else if (currentTurn === "cpu" && hasAvailable(foeStates)) {
+      return "cpu";
+    }
+    return null;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // Reset the action availability on all units for a new turn cycle.
+  function resetActions() {
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+  }
+
+  // CPU behavior: iterate through foe units that haven't acted and perform actions.
+  function cpuTurn() {
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // Replace the following with your actual AI logic (movement, attack, etc.)
+        // For demonstration, we simply mark the CPU unit as having acted.
+        cpuUnit.hasActed = true;
+      }
+    }
+    // After the CPU turn completes, attempt to advance to the next turn.
+    nextTurn();
+  }
+
+  // This function advances the turn state.
+  // It updates the current turn based on which group still has units that can act.
+  // If neither group has available actions, it resets unit actions and increments the turn counter.
+  function nextTurn() {
+    // Check if the current group still has actions. If not, check if the other group is available.
+    const availableTurn = determineAvailableTurn();
+    if (availableTurn) {
+      currentTurn = availableTurn;
+      // If it's the CPU's turn, immediately process its actions.
+      if (currentTurn === "cpu") {
+        cpuTurn();
+      }
+    } else {
+      // Neither group has remaining actions so start a new turn: reset actions and set to player's turn.
+      resetActions();
+      turnNumber++;
+      currentTurn = "player";
+    }
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

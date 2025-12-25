@@ -1,0 +1,27 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Przygotuj dane
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Stwórz macierz projektową (bez stylu R)
+# Zmienna objaśniająca – kodowanie zmiennej kategorycznej jako zmienne zero-jedynkowe
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)
+
+# Zmienna objaśniana
+y = df['Cost']
+
+# Dopasuj model wykorzystując OLS
+model = sm.OLS(y, X).fit()
+
+# Oblicz tabelę ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Wydrukuj tabelę ANOVA
+print(anova_table)

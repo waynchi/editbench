@@ -1,0 +1,195 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// Helper function defined outside the hook to prevent re-creation on every render.
+const getInitialStartDate = () => {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 1);
+  return date;
+};
+
+/**
+ * A custom hook to manage all dashboard data, fetching, and actions.
+ * This optimized version splits state into logical pieces, derives computed state
+ * with useMemo, and uses clean, stable dependencies for effects and callbacks
+ * to prevent unnecessary re-renders and re-fetches.
+ *
+ * @param {object} user - The current user object, containing at least an `id`.
+ * @returns {object} An object containing the dashboard state, actions, and loading status.
+ */
+function useDashboardData(user) {
+  // 1. State is split into logical, independent pieces for cleaner updates.
+  const [summary, setSummary] = useState(null);
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRange] = useState({
+    startDate: getInitialStartDate(),
+    endDate: new Date(),
+  });
+  const [loadingStates, setLoadingStates] = useState({
+    settings: false,
+    customers: false,
+    websites: false,
+  });
+  const [error, setError] = useState(null);
+
+  // 2. Derived state is calculated with useMemo for efficiency.
+  // `customers` is derived from `summary` to maintain a single source of truth.
+  const customers = useMemo(() => summary?.customers || [], [summary]);
+
+  // `healthData` is recalculated only when `summary` or `dateRange` changes.
+  const healthData = useMemo(() => {
+    if (!customers.length) return [];
+
+    const months = [];
+    const currentDate = new Date(dateRange.startDate);
+    const endDate = new Date(dateRange.endDate);
+
+    while (currentDate <= endDate) {
+      months.push({
+        month: currentDate.toLocaleString("default", { month: "short" }),
+        year: currentDate.getFullYear(),
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return months.map(({ month, year }) => {
+      const monthYear = `${month} ${year}`;
+      const monthCustomers = customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.toLocaleString("default", { month: "short" }) === month &&
+               customerDate.getFullYear() === year;
+      });
+
+      return {
+        monthYear,
+        healthy: monthCustomers.filter(c => c.status === "active").length,
+        warning: monthCustomers.filter(c => c.status === "churned").length,
+        critical: monthCustomers.filter(c => c.status === "delinquent").length,
+      };
+    });
+  }, [customers, dateRange]);
+
+  // 3. Async functions are wrapped in useCallback with minimal, stable dependencies.
+  const loadSettings = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingStates(prev => ({ ...prev, settings: true }));
+    setError(null);
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const settings = await response.json();
+      setStripeApiKey(settings[0]?.stripe_api_key || "");
+    } catch (e) {
+      setError("Failed to load user settings.");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, settings: false }));
+    }
+  }, [user?.id]);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id || !stripeApiKey) return;
+    setLoadingStates(prev => ({ ...prev, customers: true }));
+    setError(null);
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!response.ok) throw new Error("Failed to fetch customer summary.");
+      const newSummary = await response.json();
+      if (newSummary.error) throw new Error(newSummary.error);
+      setSummary(newSummary);
+    } catch (e) {
+      setError(e.message);
+      setSummary(null); // Clear stale data on error
+    } finally {
+      setLoadingStates(prev => ({ ...prev, customers: false }));
+    }
+  }, [user?.id, stripeApiKey]);
+
+  // 4. Effects have clear triggers and guards to prevent unnecessary execution.
+  useEffect(() => {
+    if (user?.id && !stripeApiKey) {
+      loadSettings();
+    }
+  }, [user?.id, stripeApiKey, loadSettings]);
+
+  useEffect(() => {
+    if (user?.id && stripeApiKey) {
+      loadData();
+    }
+  }, [user?.id, stripeApiKey, loadData]);
+
+  // 5. Actions are memoized to provide a stable interface to consuming components.
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      if (!customers.length) return;
+      setLoadingStates(prev => ({ ...prev, websites: true }));
+      setError(null);
+      try {
+        const updatedCustomers = await Promise.all(
+          customers.map(async (customer) => {
+            try {
+              const response = await fetch("/api/website-churn-detector", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ websiteUrl: customer.website }),
+              });
+              if (!response.ok) return customer; // On server error, keep original data
+              const health = await response.json();
+              return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+            } catch {
+              return customer; // On network error, keep original data
+            }
+          })
+        );
+
+        const newSummary = {
+          ...summary,
+          customers: updatedCustomers,
+          active: updatedCustomers.filter(c => c.status === "active").length,
+          churned: updatedCustomers.filter(c => c.status === "churned").length,
+        };
+        setSummary(newSummary);
+      } catch (err) {
+        setError("Failed to check websites. Please try again.");
+      } finally {
+        setLoadingStates(prev => ({ ...prev, websites: false }));
+      }
+    },
+    setDateRange: (newRange) => {
+      if (newRange.startDate > newRange.endDate) {
+        setError("Start date cannot be after end date.");
+        return;
+      }
+      setError(null);
+      setDateRange(newRange);
+    },
+    clearError: () => setError(null),
+    refreshData: loadData,
+  }), [customers, summary, loadData]);
+
+  // A single, convenient loading flag derived from specific loading states.
+  const isLoading = useMemo(() => loadingStates.settings || loadingStates.customers, [loadingStates]);
+
+  // 6. Return a flattened, easy-to-use object for the consuming component.
+  return {
+    summary,
+    customers,
+    healthData,
+    dateRange,
+    error,
+    actions,
+    isLoading,
+    isCheckingWebsites: loadingStates.websites,
+  };
+}
+
+export default useDashboardData;

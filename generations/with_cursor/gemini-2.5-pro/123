@@ -1,0 +1,12 @@
+import os
+from pymilvus import MilvusClient
+
+# Record the current path as cwd
+# Create vector database path
+cwd = os.getcwd()
+db_path = os.path.join(cwd, 'milvus_db.db')
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# Use pymilvus to create a database connection to a local file (Milvus Lite)
+client = MilvusClient(uri=db_path)

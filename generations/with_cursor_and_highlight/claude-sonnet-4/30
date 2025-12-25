@@ -1,0 +1,43 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Verifica se um número pode ser expresso como a soma de quatro quadrados não nulos.
+    """
+    # Verifica todos os possíveis valores para os quatro quadrados
+    for a in range(1, int(n**0.5) + 1):
+        a_squared = a * a
+        if a_squared >= n:
+            break
+        for b in range(1, int((n - a_squared)**0.5) + 1):
+            b_squared = b * b
+            if a_squared + b_squared >= n:
+                break
+            for c in range(1, int((n - a_squared - b_squared)**0.5) + 1):
+                c_squared = c * c
+                if a_squared + b_squared + c_squared >= n:
+                    break
+                d_squared = n - a_squared - b_squared - c_squared
+                d = int(d_squared**0.5)
+                if d > 0 and d * d == d_squared:
+                    return True, (a, b, c, d)
+    return False, None
+
+def find_numbers_sum_of_four_squares(limit):
+    """
+    Encontra números que podem ser expressos como a soma de quatro quadrados não nulos.
+    """
+    results = []
+    for n in range(4, limit + 1):  # Mínimo é 4 (1² + 1² + 1² + 1²)
+        can_express, squares = can_be_sum_of_four_nonzero_squares(n)
+        if can_express:
+            results.append((n, squares))
+    return results
+
+# Exemplo de uso
+if __name__ == "__main__":
+    limit = 50
+    numbers = find_numbers_sum_of_four_squares(limit)
+    
+    print(f"Números até {limit} que podem ser expressos como soma de quatro quadrados não nulos:")
+    for number, squares in numbers:
+        a, b, c, d = squares
+        print(f"{number} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")

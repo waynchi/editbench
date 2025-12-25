@@ -1,0 +1,81 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    X += 1
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_children_count = post['children']
+
+    # Check if the post has enough replies to be worth processing
+    if post_children_count > n_respuestas_minimas:
+        
+        # This post might be a candidate, fetch its replies
+        comment_obj = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies: list = comment_obj.get_replies()
+        
+        valid_replies = []
+        author_already_replied = False
+
+        for reply in post_replies:
+            reply_author = reply['author']
+            reply_body = reply['body']
+
+            # If our own author ('subidu') has already replied, skip this post entirely
+            if is_own_author(reply_author):
+                author_already_replied = True
+                break  # Stop processing replies for this post
+
+            # If a replier is banned, stop processing replies for this post
+            if is_banned(reply_author):
+                break 
+
+            # If the reply text contains the target phrase, add it to our list
+            if procesar(reply_body):
+                valid_replies.append(reply.copy())
+        
+        # After checking all replies, if the criteria are met, add to the dictionary.
+        # Criteria:
+        # 1. Our own author has not replied yet.
+        # 2. We found more than 3 valid replies ("count me in").
+        if not author_already_replied and len(valid_replies) > 3:
+            post_identifier = f"{post_author}/{post_permlink}"
+            print(f"Iterador: {X}: Post {post_identifier} added with {len(valid_replies)} valid replies.")
+            
+            # Create the hierarchical structure for this post in the main dictionary
+            diccionario[post_identifier] = {
+                'post_info': post.copy(),
+                'qualifying_replies': valid_replies
+            }

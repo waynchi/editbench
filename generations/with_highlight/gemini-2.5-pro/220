@@ -1,0 +1,29 @@
+import os
+import hashlib
+import base64
+
+project_name = "CheckerKMV"
+
+
+def createLicense(secretKey: str) -> None:
+    # 项目文件夹在 %APPDATA% (通常是 Roaming) 的路径
+    appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+
+    # 如果文件夹不存在，则创建它
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+
+    # 为了安全，不应直接存储原始密钥。
+    # 此处修正了原始代码的问题：
+    # 1. 修复了 b"" + secretKey 导致的 TypeError (bytes + str)。
+    # 2. 使用 hashlib 和 base64 实现了更安全的许可证生成方式。
+
+    # 1. 使用 SHA-256 对密钥进行哈希处理
+    hashed_key = hashlib.sha256(secretKey.encode('utf-8')).digest()
+
+    # 2. 对二进制哈希结果进行 Base64 编码，使其更适合存储
+    license_data = base64.b64encode(hashed_key)
+
+    # 3. 将生成的许可证数据以二进制形式写入文件
+    with open(os.path.join(appdata_path, "license.dat"), "wb") as f:
+        f.write(license_data)

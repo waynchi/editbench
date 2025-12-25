@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+import random
+
+def main():
+    # ===============================
+    # Sección modificada: búsqueda de palabras en inglés
+    # ===============================
+    try:
+        n = int(input("Ingresa el número de caracteres: "))
+    except ValueError:
+        print("Entrada inválida. Por favor ingresa un número entero.")
+        return
+
+    palabras = []
+    try:
+        # Se asume que el diccionario en inglés se encuentra en '/usr/share/dict/words'
+        with open('/usr/share/dict/words', 'r') as diccionario:
+            for linea in diccionario:
+                palabra = linea.strip()
+                if len(palabra) == n:
+                    palabras.append(palabra)
+    except Exception as e:
+        print("No se pudo abrir el diccionario:", e)
+        return
+
+    if len(palabras) < 10:
+        print("No hay suficientes palabras con ese número de caracteres.")
+    else:
+        seleccionadas = random.sample(palabras, 10)
+        for palabra in seleccionadas:
+            print(palabra)
+    # ===============================
+    # Fin de la sección modificada
+    # ===============================
+
+if __name__ == '__main__':
+    main()

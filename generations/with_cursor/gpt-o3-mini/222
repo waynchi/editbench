@@ -1,0 +1,46 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def generate_chat_response(json_filepath, system_prompt_filepath):
+    """
+    加载 JSON 文件中的 SHAP 值和系统提示，并生成响应打印输出。
+
+    参数：
+        json_filepath: 包含 SHAP 值的 JSON 文件路径。
+        system_prompt_filepath: 包含系统提示的文件路径。
+    """
+    # 初始化 ChatOllama 模型
+    chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+    
+    # 从 JSON 文件加载 SHAP 值
+    with open(json_filepath, "r") as file:
+        shap_values = json.load(file).get("shap_values")
+    
+    # 从文件加载系统提示
+    with open(system_prompt_filepath, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # 准备消息模板
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # 将 SHAP 值转换为 JSON 字符串作为用户输入
+    user_input = json.dumps(shap_values)
+
+    # 构造链式调用并生成响应
+    chain = prompt | chat_model
+    response = chain.invoke(user_input)
+    
+    # 打印响应内容
+    print(response.content)
+
+if __name__ == "__main__":
+    # 请根据实际情况调整文件名路径
+    json_file = "Vuori_Final_Approval_2024_09_24.json"
+    system_prompt_file = "system.prompt"
+    generate_chat_response(json_file, system_prompt_file)

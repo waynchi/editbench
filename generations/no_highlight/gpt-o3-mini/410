@@ -1,0 +1,91 @@
+function createTurnState(allyStates, foeStates) {
+  // Ustal, od której strony zaczynamy turę.
+  // Na początku oznaczamy, że jednostki gracza (allyStates)
+  // mogą jeszcze działać, a CPU (foeStates) już “zakończyło” swoje działania.
+  let turnNumber = 1;
+  let currentTurn = "player";
+
+  // Na starcie: gracz może działać, a CPU – nie.
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = true);
+
+  // Znajdź bieżącą turę na podstawie tego, która grupa nadal ma jednostki mogące działać.
+  function getCurrentTurn() {
+    // Jeśli oczekujemy na turę gracza i którakolwiek z jednostek gracza nie wykonała akcji,
+    // to bieżąca tura należy do gracza.
+    if (currentTurn === "player" && allyStates.some(unit => !unit.hasActed)) {
+      return "player";
+    }
+    // Analogicznie, jeśli oczekujemy na turę CPU i któraś jednostka CPU nie wykonała akcji,
+    // to bieżąca tura należy do CPU.
+    if (currentTurn === "cpu" && foeStates.some(unit => !unit.hasActed)) {
+      return "cpu";
+    }
+    // Jeśli grupa oczekiwana nie ma już jednostek do działania, sprawdź czy druga grupa ma.
+    if (allyStates.some(unit => !unit.hasActed)) {
+      currentTurn = "player";
+      return "player";
+    }
+    if (foeStates.some(unit => !unit.hasActed)) {
+      currentTurn = "cpu";
+      return "cpu";
+    }
+    // Jeśli żadna grupa nie ma więcej akcji do wykonania, zwróć null.
+    return null;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // Przejście do następnej tury zależy od tego, która grupa zakończyła już swoje akcje.
+  function nextTurn() {
+    const activeTurn = getCurrentTurn();
+
+    if (activeTurn === "player") {
+      // Koniec tury gracza:
+      // Oznacz wszystkie jednostki gracza jako wykonane
+      allyStates.forEach(unit => unit.hasActed = true);
+      // Przygotuj jednostki CPU do działania.
+      foeStates.forEach(unit => unit.hasActed = false);
+      currentTurn = "cpu";
+      cpuTurn(); // Automatycznie wykonaj logikę CPU.
+    } else if (activeTurn === "cpu") {
+      // Koniec tury CPU:
+      // Oznacz wszystkie jednostki CPU jako wykonane
+      foeStates.forEach(unit => unit.hasActed = true);
+      // Przygotuj jednostki gracza do działania w nowej turze.
+      allyStates.forEach(unit => unit.hasActed = false);
+      turnNumber++; // Inkrementacja numeru tury po zakończeniu fazy CPU.
+      currentTurn = "player";
+    } else {
+      // Jeśli żadna grupa nie ma jednostek do wykonania akcji,
+      // możemy uznać, że tura została zakończona – restartujemy stany i ustawiamy turę gracza.
+      allyStates.forEach(unit => unit.hasActed = false);
+      foeStates.forEach(unit => unit.hasActed = true);
+      currentTurn = "player";
+      turnNumber++;
+    }
+  }
+
+  function cpuTurn() {
+    // Przykładowa logika CPU – można tu dodać bardziej złożoną logikę.
+    foeStates.forEach(cpuUnit => {
+      if (!cpuUnit.hasActed) {
+        // Tutaj można implementować ruchy, ataki lub inne akcje dla CPU.
+        // Na potrzeby przykładu po prostu oznaczamy jednostkę jako działającą.
+        cpuUnit.hasActed = true;
+      }
+    });
+    // Po zakończeniu działań CPU przełącz turę.
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

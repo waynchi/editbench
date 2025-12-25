@@ -1,0 +1,46 @@
+class SimpleConvNet1(nn.Module):
+    def __init__(self, input_size=(3, 32, 32)):  # Add default input_size parameter
+        super().__init__()
+        
+        # Calculate the flattened size automatically
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        
+        # Calculate the flattened size automatically
+        with torch.no_grad():
+            self._flattened_size = self._get_conv_output(input_size)
+        
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Sequential(
+            nn.Linear(self._flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+    
+    def _get_conv_output(self, shape):
+        batch_size = 1
+        input = torch.autograd.Variable(torch.rand(batch_size, *shape))
+        output_feat = self._forward_features(input)
+        n_size = output_feat.data.view(batch_size, -1).size(1)
+        return n_size
+    
+    def _forward_features(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x

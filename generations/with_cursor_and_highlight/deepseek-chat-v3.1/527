@@ -1,0 +1,16 @@
+import os
+# importar hashlib
+# importar base64
+
+project_name = "CheckerKMV"
+
+
+def createLicense(secretKey: str) -> None:
+    # Ruta a la carpeta del proyecto en %appdata%/Local
+    appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+
+    with open(os.path.join(appdata_path, "license.dat"), "w") as f:
+        f.write(secretKey)

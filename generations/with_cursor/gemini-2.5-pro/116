@@ -1,0 +1,310 @@
+import aiohttp  # for async API request
+import aiofiles  # for async file operations
+import asyncio  # for running async code
+import xml.etree.ElementTree  # for processing the API's XML response
+import matplotlib.pyplot as plt  # for plotting graphs
+import pandas as pd  # To create a dataframe and divide all candles into two types: close and open
+import datetime  # for dates on the x-axis
+import pickle  # for storing variables in a file
+import json  # for working with the database
+
+# No issues with technical analysis tools and empty days (without trading), because non-trading days in the dataframe are not zeros, they simply do not exist. Therefore, they do not spoil the indicator values.
+# class ticker, methods chart and current price
+class ticker():
+    """Stock ticker and everything related to it, through MoexApi
+
+Required libraries:
+
+aiohttp
+
+aiofiles
+
+asyncio
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name: str):
+        """self.name - ticker name
+self.tech_dict - technical analysis dictionary"""
+        self.name = name
+        """Имя тикера, то есть сам по себе тикер"""
+        # In principle, here you can change the default settings common to all users. Potentially, custom technical analysis tools need to be implemented through this.
+        self.tech_dict = {"value" : {"use" : False, "has_periods" : False, "need_graph_space" : True},
+                          "sma" : {"use" : False, "has_periods" : True, "periods" : [], "need_graph_space" : False},
+                          "ema" : {"use" : False, "has_periods" : True, "periods" : [],"need_graph_space" : False}
+                          }
+        """Словарь реализованных опций теханализа. Имеет вид \n
+        {"sma": {"use": True, "periods": [20, 50], "need_graph_space": False}, "rsi": {"use": True, "periods": [10], "need_graph_space": True}} \n
+        Где use отвечает за использование, period - список периодов, по которым будут считаться значения, need_graph_space за то, требует ли осциллятор доп места на графике \n
+        Изначально все use имеют значение False, а списки периодов пусты \n \n
+        При реализации нового инструмента теханализа достаточно дописать его в self.tech_dict \n
+        При этом функцию, соответствующую этому инструменту важно назвать также, как и сам инструмент в словаре. А её аргументы - self и ax (редактируемый/заполняемый график) \n
+        Доп графики инструментов теханализа, которые их требуют, будут отображаться в таком же порядке, в котором инструменты располагаются в словаре. Также в этом порядке будут высвечиваться кнопки в боте и уже выбранные инструменты теханализа"""
+    async def correct_name(self):
+        """Checking the ticker name for presence in the set of tickers. The set is updated no more than once a day."""
+        # Asynchronously open and read the info file
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_opened_file:
+            content = await info_opened_file.read()
+            info = json.loads(content)
+
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f"):
+            # if it differs by more than 1 day, then rewrite the list (set) of tickers:
+            set_tickers = set()
+            s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            # Asynchronous HTTP request using aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(s) as r:
+                    content = await r.read()  # Use .read() for binary content like XML
+                    root = xml.etree.ElementTree.fromstring(content)
+
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID"))
+
+            # Asynchronously write the set of tickers to a binary file
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb") as set_tickers_file_opened:
+                pickled_data = pickle.dumps(set_tickers)
+                await set_tickers_file_opened.write(pickled_data)
+
+            # Change the last update time and write back to the info file
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_opened_file:
+                json_string = json.dumps(info, indent=3, ensure_ascii=False)
+                await info_opened_file.write(json_string)
+
+        # Asynchronously read the set of tickers to check for presence
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb") as set_tickers_file_opened:
+            content = await set_tickers_file_opened.read()
+            set_tickers = pickle.loads(content)
+
+        return self.name in set_tickers
+
+    async def CurrentPrice(self):
+        """Current price for this ticker"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        # Asynchronous HTTP request
+        async with aiohttp.ClientSession() as session:
+            async with session.get(s) as r:
+                content = await r.read()
+                root = xml.etree.ElementTree.fromstring(content)
+
+        for data in root.findall("data"):
+            if data.get("id") == "marketdata":
+                rows = data.find("rows")
+                row = rows.find("row")
+                return row.get("LAST")
+
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """List of candles for this ticker
+
+candles_name - necessary component of candles
+
+candles_name: open, close, high, low, value, volume, begin, end
+
+timeframe - timeframe: 1 - 1 min, 10 - 10 min, 60 - 1h, 24 - 1d, 7 - 1w, 31 - 1m, 4 - 4m
+
+start, end - start and end of the period, format YYYY-MM-DD HH:MM:SS"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + f"/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}"
+        # Asynchronous HTTP request
+        async with aiohttp.ClientSession() as session:
+            async with session.get(s) as r:
+                content = await r.read()
+                root = xml.etree.ElementTree.fromstring(content)
+
+        candles = root.find("data")
+        rows = candles.find("rows")
+        listcandles = []
+        if candles_name == "begin" or candles_name == "end":
+            for row in rows.findall("row"):
+                datetime_str = row.get(candles_name)
+                datetime_datetime = datetime.datetime(int(datetime_str[0:4]), int(datetime_str[5:7]), int(datetime_str[8:10]), int(datetime_str[11:13]), int(datetime_str[14:16]), int(datetime_str[17:]))
+                listcandles.append(datetime_datetime)
+        else:
+            for row in rows.findall("row"):
+                listcandles.append(float(row.get(candles_name)))
+        return listcandles
+
+    async def setattr_candles_dataframe(self, timeframe=str("24"), start=str(""), end=str("")):
+        """Creates a dataframe of candles with the corresponding timeframe, start, and end and places it in self.candles_dataframe
+
+Not during initialization, because if the ticker is initialized to get the current price, there is no reason to perform unnecessary operations"""
+        # Concurrently fetch all required candle data using asyncio.gather
+        tasks = [
+            self.candles("open", timeframe, start, end),
+            self.candles("close", timeframe, start, end),
+            self.candles("high", timeframe, start, end),
+            self.candles("low", timeframe, start, end),
+            self.candles("value", timeframe, start, end),
+            self.candles("begin", timeframe, start, end)
+        ]
+        open_c, close_c, high_c, low_c, value_c, begin_c = await asyncio.gather(*tasks)
+
+        candles_dataframe = pd.DataFrame({
+            "open": open_c,
+            "close": close_c,
+            "high": high_c,
+            "low": low_c,
+            "value": value_c,
+            "begin": begin_c
+        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+
+    async def graphic(self, timeframe=str("24"), start=str(""), end=str("")):
+        """Returns an open candlestick price chart from the time
+
+timeframe - timeframe: 1 - 1 min, 10 - 10 min, 60 - 1h, 24 - 1d, 7 - 1w, 31 - 1m, 4 - 4m | None = 24
+
+start, end - start and end of the period, format YYYY-MM-DD HH:MM:SS | None = ""
+
+sma - whether sma is needed, sma_periods - array of sma periods | None = False, []
+
+ema - whether ema is needed, ema_periods - array of ema periods | None = False, []"""
+        # Await the asynchronous creation of the dataframe
+        await self.setattr_candles_dataframe(timeframe, start, end)
+
+        # The following part is CPU-bound (pandas/matplotlib) and remains synchronous
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+
+        if timeframe == "1": width_big = 1/24/60
+        elif timeframe == "10": width_big = 1/24/6
+        elif timeframe == "60": width_big = 1/24
+        elif timeframe == "24": width_big = 1
+        elif timeframe == "7": width_big = 7
+        elif timeframe == "31": width_big = 30
+        elif timeframe == "4": width_big = 90
+        else: width_big = 0
+        width_small = width_big / 10
+        setattr(self, "width_big", width_big)
+
+        number_of_additional_graphics = sum(1 for tech in self.tech_dict if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"])
+
+        if number_of_additional_graphics > 0:
+            height_ratios_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics
+            fig, axs = plt.subplots(nrows=1 + number_of_additional_graphics, ncols=1, sharex=True, gridspec_kw={'height_ratios': height_ratios_list})
+            plt.suptitle(self.name, fontsize=15)
+            main_ax = axs[0]
+            main_ax.grid(True)
+
+            # Plot candles on the main chart
+            main_ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            main_ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            main_ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            main_ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            main_ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            main_ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+
+            # Plot indicators that don't need extra space on the main chart
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"] and not self.tech_dict[tech]["need_graph_space"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(main_ax)
+
+            # Plot indicators that need extra space on their respective subplots
+            ax_index = 1
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]:
+                    sub_ax = axs[ax_index]
+                    sub_ax.grid(True)
+                    tech_func = getattr(self, tech)
+                    tech_func(sub_ax)
+                    ax_index += 1
+        else:
+            fig = plt.figure()
+            plt.title(self.name, fontsize=15)
+            ax = fig.add_subplot()
+            ax.grid(True)
+            ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(ax)
+
+        # Matplotlib's savefig is blocking, but it's a common practice when mixing with async code.
+        fig.savefig(r"D:\Python files\!MoexApiBot\graphic.png")
+        # Asynchronously open the saved file to return a file object.
+        opened_graphic = await aiofiles.open(r"D:\Python files\!MoexApiBot\graphic.png", "rb")
+        return opened_graphic
+
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                sma_list = []
+                sma_list.append(sum(self.candles_dataframe.close[0: period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period]) / period)
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list)
+
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1) * ema_list[i - period] + 2 * self.candles_dataframe.close[i]) / (period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+
+    def value(self, ax):
+        ax.bar(x=self.up.begin, height=self.up.value, width=self.width_big, color="green")
+        ax.bar(x=self.down.begin, height=self.down.value, width=self.width_big, color="red")
+        ax.set_title("Value", fontsize=7)
+
+async def main_test():
+    """
+    Тесты
+    """
+    print("--- Test 1: Get candles dataframe ---")
+    beb = ticker("SBER")
+    await beb.setattr_candles_dataframe("24", "2024-01-01", "2024-01-07")
+    print(beb.candles_dataframe)
+    print("\n--- Test 2: Generate graphic with 'value' indicator ---")
+    beb.tech_dict["value"]["use"] = True
+    graphic_file = await beb.graphic("24", "2024-01-01", "2024-02-01")
+    print(f"Graphic file object created: {graphic_file}")
+    await graphic_file.close() # Close the async file handle
+    print("Graphic file 'graphic.png' should be saved.")
+    # To see the plot, you would typically run plt.show() in a synchronous script.
+    # In an async context, this is more complex. The file is saved, which is the main goal.
+    print("\n--- Test 3: Generate graphic with multiple indicators ---")
+    beb_multi = ticker("SBER")
+    beb_multi.tech_dict["sma"]["use"] = True
+    beb_multi.tech_dict["sma"]["periods"] = [20, 10]
+    beb_multi.tech_dict["ema"]["use"] = True
+    beb_multi.tech_dict["ema"]["periods"] = [15, 25]
+    beb_multi.tech_dict["value"]["use"] = True
+    graphic_file_multi = await beb_multi.graphic("24", "2024-01-01", "2024-05-01")
+    print(f"Multi-indicator graphic file object created: {graphic_file_multi}")
+    await graphic_file_multi.close()
+    print("Multi-indicator graphic file 'graphic.png' should be saved.")
+
+if __name__ == "__main__":
+    # To run the async test functions
+    # Note: This requires creating the directory structure and dummy files
+    # (e.g., D:\MoexAPI_bot_aiogram3\data_files\Info.json) if they don't exist.
+    # For a quick test, you might need to create them manually.
+    # Example Info.json:
+    # { "last_day_check": { "ticker": "2000-01-01 00:00:00.000000" } }
+    try:
+        asyncio.run(main_test())
+    except FileNotFoundError:
+        print("\nERROR: Test execution failed. Please ensure the necessary directories and files exist.")
+        print(r"Example: Create D:\MoexAPI_bot_aiogram3\data_files\ and place an Info.json file inside.")

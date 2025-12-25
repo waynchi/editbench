@@ -1,0 +1,62 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+def setup_chrome_driver():
+    """Setup Chrome driver with proper configuration"""
+    options = uc.ChromeOptions()
+    
+    # Add common Chrome options for better compatibility
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-plugins")
+    options.add_argument("--disable-images")
+    options.add_argument("--disable-javascript")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--ignore-certificate-errors")
+    options.add_argument("--ignore-ssl-errors")
+    options.add_argument("--ignore-certificate-errors-spki-list")
+    
+    # Don't set binary_location for chromedriver - let undetected_chromedriver handle it
+    # The binary_location should point to chrome.exe, not chromedriver.exe
+    
+    return options
+
+def main():
+    print("Starting Chrome driver setup...")
+    
+    try:
+        options = setup_chrome_driver()
+        
+        # Initialize Chrome driver without specifying binary location
+        # Let undetected_chromedriver find Chrome automatically
+        driver = uc.Chrome(options=options, use_subprocess=True)
+        
+        print("Chrome driver initialized successfully")
+        
+        # Navigate to the website
+        print("Navigating to lmarena.ai...")
+        driver.get("https://lmarena.ai/")
+        print("Page loaded successfully")
+        
+        # Wait for page to load
+        time.sleep(10)
+        
+        print("Test completed successfully")
+        
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        
+    finally:
+        try:
+            if 'driver' in locals():
+                driver.quit()
+                print("Driver closed successfully")
+        except Exception as e:
+            print(f"Error closing driver: {e}")
+
+if __name__ == "__main__":
+    main()

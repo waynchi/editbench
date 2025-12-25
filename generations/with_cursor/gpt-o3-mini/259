@@ -1,0 +1,53 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def main():
+    # Инициализировать модель ChatOllama
+    try:
+        chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+    except Exception as e:
+        print(f"Ошибка при инициализации модели: {e}")
+        return
+
+    # Загрузить значения SHAP из файла JSON
+    try:
+        with open("Vuori_Final_Approval_2024_09_24.json", "r", encoding="utf-8") as file:
+            data = json.load(file)
+        shap_values = data.get("shap_values")
+        if shap_values is None:
+            print("Ошибка: в JSON-файле отсутствует ключ 'shap_values'.")
+            return
+    except Exception as e:
+        print(f"Ошибка при загрузке JSON файла: {e}")
+        return
+
+    # Загрузить системный запрос из файла
+    try:
+        with open("system.prompt", "r", encoding="utf-8") as file:
+            sys_prompt = file.read().strip()
+    except Exception as e:
+        print(f"Ошибка при чтении файла системного запроса: {e}")
+        return
+
+    # Подготовить шаблон сообщений
+    prompt_template = ChatPromptTemplate([
+        ("system", sys_prompt),
+        ("human", "{user_input}"),
+    ])
+
+    # Сгенерировать сообщение для модели, передавая SHAP значения как строку JSON
+    prompt_value = prompt_template.invoke({"user_input": json.dumps(shap_values, ensure_ascii=False)})
+
+    # Используем оператор pipe для формирования цепочки: сначала генерация запроса, затем вызов модели
+    chain = prompt_value | chat_model
+
+    # Отправить сообщение модели и вывести ответ
+    try:
+        response = chain.invoke()
+        print(response)
+    except Exception as e:
+        print(f"Ошибка при вызове модели: {e}")
+
+if __name__ == "__main__":
+    main()

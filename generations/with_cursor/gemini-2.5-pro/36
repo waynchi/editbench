@@ -1,0 +1,33 @@
+import numpy as np
+
+
+def linear_regression_gradient_descent(
+    X: np.ndarray, y: np.ndarray, alpha: float, iterations: int
+) -> np.ndarray:
+    # Your code here, make sure to round
+    m, n = X.shape
+    
+    # Ensure y is a column vector to prevent broadcasting errors
+    if y.ndim == 1:
+        y = y.reshape(-1, 1)
+
+    theta = np.zeros((n, 1))
+
+    for _ in range(iterations):
+        # The hypothesis h_theta(x) is the dot product of X and theta
+        predictions = X @ theta
+        # The error is the difference between the predictions and the actual values
+        errors = predictions - y
+        # The gradient is the partial derivative of the cost function
+        gradient = (1 / m) * X.T @ errors
+        # Update theta by taking a step in the direction of the negative gradient
+        theta -= alpha * gradient
+
+    return theta
+
+
+print(
+    linear_regression_gradient_descent(
+        np.array([[1, 1], [1, 2], [1, 3]]), np.array([1, 2, 3]), 0.01, 1000
+    )
+)

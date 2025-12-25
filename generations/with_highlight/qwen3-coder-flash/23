@@ -1,0 +1,55 @@
+import random
+
+def load_dictionary():
+    # This would typically load from a file or API
+    # For this example, I'll use a sample dictionary
+    return [
+        "cat", "dog", "bird", "fish", "tree", "book", "door", "wall", "floor", "ceiling",
+        "apple", "banana", "orange", "grape", "melon", "peach", "plum", "cherry", "berry", "mango",
+        "happy", "sad", "angry", "calm", "excited", "bored", "tired", "sleepy", "hungry", "thirsty",
+        "house", "car", "road", "bridge", "building", "window", "door", "roof", "floor", "wall",
+        "computer", "keyboard", "mouse", "screen", "printer", "scanner", "camera", "phone", "tablet", "laptop"
+    ]
+
+def find_words_by_length(words, length):
+    """Find all words with the specified number of characters"""
+    return [word for word in words if len(word) == length]
+
+def get_random_words(words, count=10):
+    """Get random words from the list"""
+    if len(words) <= count:
+        return words
+    return random.sample(words, count)
+
+def main():
+    # Load dictionary
+    dictionary = load_dictionary()
+    
+    # Get user input
+    try:
+        n = int(input("Enter the number of characters: "))
+        if n <= 0:
+            print("Please enter a positive number.")
+            return
+    except ValueError:
+        print("Please enter a valid number.")
+        return
+    
+    # Find words with N characters
+    words_with_n_chars = find_words_by_length(dictionary, n)
+    
+    # Check if any words were found
+    if not words_with_n_chars:
+        print(f"No words found with exactly {n} characters.")
+        return
+    
+    # Get 10 random words (or all if less than 10)
+    random_words = get_random_words(words_with_n_chars, 10)
+    
+    # Print results
+    print(f"\n10 random words with {n} characters:")
+    for i, word in enumerate(random_words, 1):
+        print(f"{i}. {word}")
+
+if __name__ == "__main__":
+    main()

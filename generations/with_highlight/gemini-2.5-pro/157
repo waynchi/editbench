@@ -1,0 +1,103 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=1000):
+    """
+    使用共轭梯度法求解线性方程组 Ax = b。
+
+    此方法适用于 A 是对称正定矩阵的情况。
+
+    参数:
+    A (np.ndarray): 系数矩阵，必须是n x n的对称正定矩阵。
+    b (np.ndarray): 右端项向量，维度为n。
+    x0 (np.ndarray, optional): 初始猜测解。如果为None，则默认为零向量。
+    tol (float, optional): 收敛的容差。当残差的范数小于此值时，迭代停止。
+    max_iter (int, optional): 最大迭代次数。
+
+    返回:
+    np.ndarray: 方程组的近似解 x。
+    """
+    n = A.shape[0]
+
+    # 初始化解向量 x
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()  # 使用副本以避免修改原始输入
+
+    # 计算初始残差 r = b - Ax
+    r = b - A @ x
+
+    # 初始搜索方向 p 等于初始残差
+    p = r.copy()
+
+    # 初始残差的L2范数的平方
+    rs_old = np.dot(r, r)
+
+    if np.sqrt(rs_old) < tol:
+        print("初始猜测已满足收敛条件。")
+        return x
+
+    for i in range(max_iter):
+        # 计算矩阵与搜索方向的乘积
+        Ap = A @ p
+
+        # 计算最优步长 alpha
+        alpha = rs_old / np.dot(p, Ap)
+
+        # 更新解向量
+        # x_{k+1} = x_k + alpha_k * p_k
+        x = x + alpha * p
+
+        # 更新残差
+        # r_{k+1} = r_k - alpha_k * A * p_k
+        r = r - alpha * Ap
+
+        # 计算新残差的L2范数的平方
+        rs_new = np.dot(r, r)
+
+        # 检查收敛条件
+        if np.sqrt(rs_new) < tol:
+            # print(f"在 {i + 1} 次迭代后收敛。")
+            break
+
+        # 更新搜索方向
+        # p_{k+1} = r_{k+1} + beta_k * p_k  (其中 beta_k = rs_new / rs_old)
+        p = r + (rs_new / rs_old) * p
+
+        # 更新残差范数的平方
+        rs_old = rs_new
+    else:  # 如果循环完成而未收敛
+        print(f"警告：在 {max_iter} 次迭代后未达到收敛容差。")
+
+    return x
+
+if __name__ == '__main__':
+    # --- 示例用法 ---
+
+    # 1. 创建一个对称正定矩阵 A
+    A = np.array([[4, 1],
+                  [1, 3]], dtype=float)
+
+    # 2. 创建一个右端项向量 b
+    b = np.array([1, 2], dtype=float)
+
+    # 3. 提供一个初始猜测解 x0 (可选, 默认为零向量)
+    x0 = np.array([0, 0], dtype=float)
+
+    print("求解 Ax = b")
+    print("矩阵 A:\n", A)
+    print("向量 b:\n", b)
+    print("-" * 20)
+
+    # 4. 调用共轭梯度函数求解
+    solution = conjugate_gradient(A, b, x0)
+
+    print(f"共轭梯度法求得的解: {solution}")
+
+    # 5. 验证解 (与精确解比较)
+    exact_solution = np.linalg.solve(A, b)
+    print(f"Numpy linalg.solve 求得的精确解: {exact_solution}")
+
+    # 6. 检查残差
+    final_residual = b - A @ solution
+    print(f"最终残差 (b - Ax) 的范数: {np.linalg.norm(final_residual)}")

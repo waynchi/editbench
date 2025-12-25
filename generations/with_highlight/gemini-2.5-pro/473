@@ -1,0 +1,33 @@
+import numpy as np
+
+
+def linear_regression_gradient_descent(
+    X: np.ndarray, y: np.ndarray, alpha: float, iterations: int
+) -> np.ndarray:
+    # Tu código aquí, asegúrate de redondear
+    m, n = X.shape
+    theta = np.zeros((n, 1))
+
+    # Reshape y to be a column vector (m, 1) to avoid broadcasting errors
+    # during matrix subtraction. The original y is a rank-1 array (m,).
+    y = y.reshape(m, 1)
+
+    for _ in range(iterations):
+        # The equation for the gradient is correct, but failed due to y's shape.
+        # With y as a (m, 1) vector, the dimensions match for all operations:
+        # X @ theta -> (m, n) @ (n, 1) -> (m, 1)
+        # (X @ theta - y) -> (m, 1) - (m, 1) -> (m, 1)
+        # X.T @ ... -> (n, m) @ (m, 1) -> (n, 1)
+        # The gradient has shape (n, 1), same as theta.
+        gradient = (1/m) * X.T @ (X @ theta - y)
+        theta -= alpha * gradient
+
+    # Round the final theta values to 4 decimal places as per the instruction.
+    return np.round(theta, 4)
+
+
+print(
+    linear_regression_gradient_descent(
+        np.array([[1, 1], [1, 2], [1, 3]]), np.array([1, 2, 3]), 0.01, 1000
+    )
+)

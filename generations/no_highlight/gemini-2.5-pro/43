@@ -1,0 +1,42 @@
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+
+# Define sample data for a complete, runnable example
+# In a real scenario, you would load your data here.
+np.random.seed(42)
+brand_A = np.random.normal(20, 5, 30)
+brand_B = np.random.normal(25, 5, 30)
+brand_C = np.random.normal(22, 5, 30)
+all_data = np.concatenate([brand_A, brand_B, brand_C])
+
+# Create the DataFrame
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+df = pd.DataFrame(data)
+
+# --- New implementation using Python style (not R-style formulas) ---
+
+# 1. Prepare the dependent variable (endog)
+y = df['Cost']
+
+# 2. Prepare the independent variables (exog)
+# The 'Brand' column is categorical, so we create dummy variables.
+# We also add a constant for the model's intercept.
+X = pd.get_dummies(df['Brand'], prefix='Brand', drop_first=True)
+X = sm.add_constant(X, prepend=True)
+
+# 3. Fit the Ordinary Least Squares (OLS) model
+model = sm.OLS(y, X).fit()
+
+# 4. Perform ANOVA analysis on the fitted model
+# The anova_lm function takes the fitted model object as input.
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# 5. Print the ANOVA table
+print(anova_table)
+
+# For comparison, you can print the model summary as well
+# print(model.summary())

@@ -1,0 +1,36 @@
+def conjugate_gradient_method(A, b, x0, tol=1e-10, max_iter=1000):
+    """
+    Функция для метода спряжённых градиентов
+    
+    Parameters:
+    A: симметричная положительно определённая матрица
+    b: вектор правой части
+    x0: начальное приближение
+    tol: точность решения
+    max_iter: максимальное количество итераций
+    
+    Returns:
+    x: решение системы Ax = b
+    """
+    
+    x = x0.copy()
+    r = b - A @ x
+    p = r.copy()
+    rsold = r.T @ r
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / (p.T @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        rsnew = r.T @ r
+        
+        if rsnew < tol:
+            break
+            
+        beta = rsnew / rsold
+        p = r + beta * p
+        rsold = rsnew
+    
+    return x

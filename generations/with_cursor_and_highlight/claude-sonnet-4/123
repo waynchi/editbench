@@ -1,0 +1,15 @@
+# Record the current path as cwd
+import os
+from pymilvus import MilvusClient
+
+# Record the current path as cwd
+cwd = os.getcwd()
+
+# Create vector database path
+db_path = cwd + '/milvus_db.db'
+
+# Create database connection using pymilvus
+client = MilvusClient(uri=db_path)
+
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128

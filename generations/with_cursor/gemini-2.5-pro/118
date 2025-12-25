@@ -1,0 +1,136 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+# --- Configuration ---
+n_respuestas_minimas = 5
+BOT_AUTHOR = 'subidu'
+list_banned = []
+
+# --- Helper Functions ---
+
+def procesar(texto: str) -> bool:
+    """Checks if the text contains the target phrase."""
+    return "count me " in texto.lower()
+
+def is_own_author(autor: str) -> bool:
+    """Checks if the author is the bot itself."""
+    return autor == BOT_AUTHOR
+
+def is_banned(autor: str) -> bool:
+    """Checks if the author is in the banned list."""
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    """Generates a unique permlink for a new comment."""
+    return "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = BOT_AUTHOR, body: str = 'Count me in ^^ @subidu') -> dict:
+    """Prepares the dictionary for a new comment."""
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+# --- New Function to Create Hierarchical Dictionary ---
+
+def create_hierarchical_dict(posts_iterator) -> dict:
+    """
+    Creates a hierarchical dictionary from a post iterator.
+    The structure is:
+    {
+        "post_author/permlink": {
+            "post_data": <Comment object for the post>,
+            "replies": {
+                "reply_author/permlink": <Comment object for the reply>,
+                ...
+            }
+        },
+        ...
+    }
+    """
+    hierarchical_data = {}
+    print("Building hierarchical dictionary from posts...")
+    for post in posts_iterator:
+        post_authorperm = post.authorperm
+        
+        # Initialize the entry for the post
+        hierarchical_data[post_authorperm] = {
+            'post_data': post,
+            'replies': {}
+        }
+        
+        # If the post has children, fetch the full reply objects
+        if post.get('children', 0) > 0:
+            try:
+                # get_replies() fetches all comments for the post
+                replies = post.get_replies()
+                for reply in replies:
+                    reply_authorperm = reply.authorperm
+                    hierarchical_data[post_authorperm]['replies'][reply_authorperm] = reply
+            except Exception as e:
+                print(f"Error fetching replies for {post_authorperm}: {e}")
+                
+    print("Finished building dictionary.")
+    return hierarchical_data
+
+# --- Main Execution Logic ---
+
+# Setup beem components
+q = Query()
+d = Discussions()
+
+# Get a generator for recent posts
+# Using a smaller limit for demonstration purposes
+posts_generator = d.get_discussions("created", q, limit=100)
+
+# 1. Create the hierarchical data structure using the new function
+full_data_structure = create_hierarchical_dict(posts_generator)
+
+# 2. Process the data from the newly created dictionary
+print("\nProcessing posts from the dictionary...")
+X = 0
+for post_authorperm, post_content in full_data_structure.items():
+    X += 1
+    post_data = post_content['post_data']
+    post_replies = post_content['replies']
+
+    # Check if the number of replies meets the minimum requirement
+    if len(post_replies) > n_respuestas_minimas:
+        
+        cnt = 0
+        bot_has_replied = False
+        
+        # Iterate through the replies of the current post
+        for reply_authorperm, reply in post_replies.items():
+            author = reply['author']
+            text = reply['body']
+            
+            # If we have already replied, we can stop checking this post's replies
+            if is_own_author(author):
+                bot_has_replied = True
+                break
+            
+            # Skip replies from banned authors
+            if is_banned(author):
+                continue
+            
+            # Process the reply text to see if it matches our criteria
+            if procesar(text):
+                cnt += 1
+        
+        # If the bot hasn't replied and the count of valid replies is high enough
+        if not bot_has_replied and cnt > 3:
+            print(f"Iterator: {X}")
+            print(f"Found suitable post: https://hive.blog/@{post_authorperm}")
+            print(f"It has {cnt} replies matching the criteria.")
+            # Here you would typically prepare and broadcast a comment
+            # new_permlink = generar_permlink_unico()
+            # comment_to_post = preparar_comentario(post_data['author'], post_data['permlink'], new_permlink)
+            # print(f"Prepared comment: {comment_to_post}")
+            print("-" * 20)

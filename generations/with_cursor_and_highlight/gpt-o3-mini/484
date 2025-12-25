@@ -1,0 +1,19 @@
+import requests
+
+
+def registerKey(key: str, user: str):
+    print(f'chave: {key}\nnome: {user}')
+    try:
+        # Realiza una solicitud POST con los datos en formato JSON
+        payload = {'key': key, 'user': user}
+        response = requests.post('http://127.0.0.1:5000/register', json=payload)
+        response = response.json()
+
+        if response.get('valid'):
+            return True
+
+        return False
+
+    except requests.RequestException as e:
+        print(f"Erro de conexão: {e}")
+        return False

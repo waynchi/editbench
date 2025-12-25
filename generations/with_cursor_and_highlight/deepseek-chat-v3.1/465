@@ -1,0 +1,46 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=None):
+    """
+    Resuelve el sistema de ecuaciones lineales Ax = b usando el método de gradientes conjugados.
+    
+    Parámetros:
+    A: matriz del sistema (n x n)
+    b: vector del lado derecho (n)
+    x0: aproximación inicial (opcional)
+    tol: tolerancia para el criterio de parada
+    max_iter: número máximo de iteraciones (opcional)
+    
+    Retorna:
+    x: solución aproximada
+    convergencia: lista con la norma del residuo en cada iteración
+    """
+    n = len(b)
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x
+    p = r.copy()
+    rs_old = r @ r
+    
+    if max_iter is None:
+        max_iter = n
+    
+    convergencia = [np.sqrt(rs_old)]
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x += alpha * p
+        r -= alpha * Ap
+        rs_new = r @ r
+        
+        convergencia.append(np.sqrt(rs_new))
+        
+        if np.sqrt(rs_new) < tol:
+            break
+            
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x, convergencia

@@ -1,0 +1,36 @@
+import numpy as np
+from pathlib import Path
+
+# Use a single, clear input file path
+INPUT_FILE_PATH = Path('./example_in.txt')
+
+def main():
+    # Load data from file with error handling.
+    try:
+        # Expecting a whitespace-delimited file with two columns.
+        data = np.loadtxt(INPUT_FILE_PATH)
+    except Exception as e:
+        print(f"Error reading the input file: {e}")
+        return
+
+    # Reshape data in case the file contains only one line.
+    if data.ndim == 1:
+        data = data.reshape(1, -1)
+
+    # Check that input data has exactly two columns.
+    if data.shape[1] != 2:
+        print("Input file must have exactly two columns.")
+        return
+
+    # Instead of iteratively removing elements,
+    # sort each column and then compute the sum of absolute differences.
+    sorted_col1 = np.sort(data[:, 0])
+    sorted_col2 = np.sort(data[:, 1])
+
+    # Compute differences using vectorized operations.
+    differences = np.abs(sorted_col1 - sorted_col2)
+    total_distance = np.sum(differences)
+    print("Total distance:", total_distance)
+
+if __name__ == "__main__":
+    main()

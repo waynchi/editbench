@@ -1,0 +1,105 @@
+# env: pyAI
+
+import os
+from openai import OpenAI
+import json
+
+def save_conversation(filename="conversation_history.json"):
+    with open(filename, "w") as f:
+        json.dump(conversation_history, f, ensure_ascii=False, indent=4)
+
+
+def load_conversation(filename="conversation_history.json"):
+    try:
+        with open(filename, "r") as f:
+            conversation_history = json.load(f)
+        print(f"Conversation history from {filename} loaded successfully.")
+        return conversation_history
+    except FileNotFoundError:
+        print(f"No saved conversation history found for {filename}.")
+        return None
+
+
+# token = os.environ["GITHUB_TOKEN"]
+endpoint = "https://models.inference.ai.azure.com"
+model_name = "gpt-4o"
+
+client = OpenAI(
+    base_url=endpoint,
+    api_key="XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+)
+
+# Спросите пользователя, хочет ли он загрузить историю разговора
+load_history = input("Do you want to load a conversation history? (yes/no): ").strip().lower()
+conversation_history = []
+
+if load_history == "yes":
+    # Получить все файлы истории разговоров в текущем каталоге
+    history_files = [f for f in os.listdir() if f.endswith(".json")]
+    if history_files:
+        print("Available conversation history files:")
+        for i, file in enumerate(history_files, 1):
+            print(f"{i}. {file}")
+        choice = input("Enter the number of the conversation history file to load: ")
+        try:
+            choice = int(choice)
+            if 1 <= choice <= len(history_files):
+                history_file = history_files[choice - 1]
+                loaded_history = load_conversation(history_file)
+                if loaded_history is not None:
+                    conversation_history = loaded_history
+                else:
+                    conversation_history = [{
+                        "role": "system",
+                        "content": "You are a helpful assistant.",
+                    }]
+            else:
+                print("Invalid choice. Initializing new conversation history.")
+                conversation_history = [{
+                    "role": "system",
+                    "content": "You are a helpful assistant.",
+                }]
+        except ValueError:
+            print("Invalid input. Initializing new conversation history.")
+            conversation_history = [{
+                "role": "system",
+                "content": "You are a helpful assistant.",
+            }]
+    else:
+        print("No conversation history files found. Initializing new conversation history.")
+        conversation_history = [{
+            "role": "system",
+            "content": "You are a helpful assistant.",
+        }]
+else:
+    # Инициализация истории диалога
+    conversation_history = [{
+        "role": "system",
+        "content": "You are a helpful assistant.",
+    }]
+
+# Симуляция непрерывного диалога
+while True:
+    user_input = input("User: ")
+    if user_input.lower() in ["exit", "quit"]:
+        print("Exiting the conversation.")
+        break
+
+    conversation_history.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    response = client.chat.completions.create(
+        messages=conversation_history,
+        temperature=1.0,
+        top_p=1.0,
+        max_tokens=4086,
+        model=model_name
+    )
+
+    conversation_history.append(response.choices[0].message)
+    print("GPT: ", response.choices[0].message.content)
+
+# Сохранить историю разговора в конце
+save_conversation()

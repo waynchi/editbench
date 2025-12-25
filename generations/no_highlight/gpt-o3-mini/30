@@ -1,0 +1,54 @@
+import math
+
+def numeros_soma_quatro_quadrados_nao_nulos(limite):
+    """
+    Retorna uma lista ordenada de números <= limite que podem ser expressos
+    como a soma de quatro quadrados NÃO nulos (ou seja, cada termo é o quadrado
+    de um número natural maior que zero).
+
+    Exemplo: 4 = 1^2 + 1^2 + 1^2 + 1^2
+
+    Parâmetros:
+        limite: int - o limite superior para os números resultantes
+
+    Retorna:
+        lista de inteiros representáveis
+    """
+    representaveis = set()
+
+    # Como cada quadrado é pelo menos 1 e a soma tem quatro termos,
+    # o menor número é 4. 
+    # Para a soma a^2 + b^2 + c^2 + d^2 ser <= limite,
+    # cada um dos termos a, b, c, d pode assumir valores entre 1 e int(sqrt(limite)).
+    max_base = int(math.sqrt(limite))
+    
+    for a in range(1, max_base + 1):
+        quadrado_a = a * a
+        for b in range(1, max_base + 1):
+            quadrado_b = b * b
+            for c in range(1, max_base + 1):
+                quadrado_c = c * c
+                for d in range(1, max_base + 1):
+                    soma = quadrado_a + quadrado_b + quadrado_c + d * d
+                    if soma <= limite:
+                        representaveis.add(soma)
+    
+    return sorted(representaveis)
+
+def main():
+    try:
+        limite = int(input("Digite o limite superior para a busca: "))
+    except ValueError:
+        print("Entrada inválida! Por favor, digite um número inteiro.")
+        return
+
+    if limite < 4:
+        print("Não existe nenhuma soma de quatro quadrados não nulos para números menores que 4.")
+        return
+
+    resultado = numeros_soma_quatro_quadrados_nao_nulos(limite)
+    print("Números que podem ser expressos como a soma de quatro quadrados não nulos até", limite, ":")
+    print(resultado)
+
+if __name__ == '__main__':
+    main()

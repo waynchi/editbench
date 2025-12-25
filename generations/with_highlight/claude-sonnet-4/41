@@ -1,0 +1,68 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Obtener datos de la API
+api_url = "<your_api_url>"  # Reemplazar con la URL de tu API
+response = requests.get(api_url)
+
+# Verificar si la respuesta fue exitosa
+if response.status_code == 200:
+    api_data = response.json()
+    
+    # Analizar la estructura de los datos
+    print("Estructura de los datos de la API:")
+    print(f"Tipo de datos: {type(api_data)}")
+    
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print(f"Número de registros: {len(api_data)}")
+        print("Ejemplo del primer registro:")
+        print(json.dumps(api_data[0], indent=2))
+        data = api_data
+    elif isinstance(api_data, dict):
+        print("Claves disponibles en la respuesta:")
+        print(list(api_data.keys()))
+        print("Estructura completa:")
+        print(json.dumps(api_data, indent=2))
+        # Si los datos están anidados, ajustar según la estructura
+        # Por ejemplo: data = api_data['results'] o api_data['data']
+        data = api_data
+    else:
+        print("Estructura de datos no reconocida")
+        data = []
+else:
+    print(f"Error al obtener datos de la API: {response.status_code}")
+    data = []
+
+# Crear un DataFrame a partir de los datos
+df = spark.createDataFrame(data)
+
+# Mostrar información del DataFrame para análisis
+print("\nInformación del DataFrame:")
+df.printSchema()
+print(f"Número de filas: {df.count()}")
+print("Primeras 5 filas:")
+df.show(5)
+
+# Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+# No es necesario proporcionar credenciales explícitamente en un notebook de Synapse
+# Spark utilizará la identidad administrada del notebook para autenticarse.
+
+# Especificar la ruta al contenedor y la carpeta en ADL2
+container_name = "<your_container_name>"  # Reemplazar con el nombre de tu contenedor
+folder_path = "<your_folder_path>"  # Reemplazar con la ruta a la carpeta dentro del contenedor
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Escribir el DataFrame en formato parquet en ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcional: leer el archivo parquet para verificar
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Detener la sesión Spark
+spark.stop()

@@ -1,0 +1,47 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Get the expected columns from the trained models
+try:
+    expected_columns = knn.feature_names_in_
+except:
+    # If feature_names_in_ is not available, define expected columns manually
+    expected_columns = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked_C', 'Embarked_Q', 'Embarked_S']
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create base dataframe
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # Create one-hot encoding for Embarked
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Ensure all expected embarked columns exist
+            for col in ['Embarked_C', 'Embarked_Q', 'Embarked_S']:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Reorder columns to match expected order
+            my_df = my_df.reindex(columns=expected_columns, fill_value=0)
+            
+            try:
+                knn_prediction = knn.predict(my_df)[0]
+                mlp_prediction = mlp.predict(my_df)[0]
+                
+                print(f"""-------------------------------------------------------
+Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+По knn: {knn_prediction}
+По mlp: {mlp_prediction}""")
+            except Exception as e:
+                print(f"Błąd dla parametrów: класс {pclass}, плата {fare}, embarked {embarked}")
+                print(f"Błąd: {e}")

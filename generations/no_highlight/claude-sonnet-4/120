@@ -1,0 +1,145 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+# Create a Spark session
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Fetch data from API
+api_url = "<your_api_endpoint>"  # Replace with your actual API endpoint
+headers = {
+    "Content-Type": "application/json",
+    # Add any required headers like authorization tokens
+    # "Authorization": "Bearer <your_token>"
+}
+
+try:
+    # Make API request
+    response = requests.get(api_url, headers=headers)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    
+    # Parse JSON response
+    api_data = response.json()
+    
+    # Analyze the structure of the API data
+    print("API Response Structure Analysis:")
+    print("=" * 50)
+    print(f"Response type: {type(api_data)}")
+    print(f"Response keys (if dict): {list(api_data.keys()) if isinstance(api_data, dict) else 'Not a dictionary'}")
+    
+    # Print first few records to understand structure
+    if isinstance(api_data, list):
+        print(f"Number of records: {len(api_data)}")
+        if len(api_data) > 0:
+            print("Sample record structure:")
+            print(json.dumps(api_data[0], indent=2))
+            data_to_process = api_data
+    elif isinstance(api_data, dict):
+        # If the data is nested in a dictionary, try to find the actual data array
+        print("Analyzing nested structure...")
+        for key, value in api_data.items():
+            print(f"Key '{key}': type={type(value)}, length={len(value) if hasattr(value, '__len__') else 'N/A'}")
+            if isinstance(value, list) and len(value) > 0:
+                print(f"Sample record from '{key}':")
+                print(json.dumps(value[0], indent=2))
+        
+        # Assume the data is in a key called 'data', 'results', 'items', etc.
+        # Adjust this based on your API structure
+        possible_data_keys = ['data', 'results', 'items', 'records', 'response']
+        data_to_process = None
+        for key in possible_data_keys:
+            if key in api_data and isinstance(api_data[key], list):
+                data_to_process = api_data[key]
+                print(f"Using data from key: '{key}'")
+                break
+        
+        if data_to_process is None:
+            # If no standard key found, use the first list value
+            for key, value in api_data.items():
+                if isinstance(value, list):
+                    data_to_process = value
+                    print(f"Using data from key: '{key}' (first list found)")
+                    break
+    
+    if data_to_process is None or len(data_to_process) == 0:
+        raise ValueError("No usable data found in API response")
+    
+    # Infer schema from the first record
+    sample_record = data_to_process[0]
+    print("\nInferred Schema:")
+    print("=" * 30)
+    
+    schema_fields = []
+    for key, value in sample_record.items():
+        if isinstance(value, int):
+            field_type = IntegerType()
+            data_type = "Integer"
+        elif isinstance(value, float):
+            field_type = StringType()  # Use StringType for safety, can be cast later
+            data_type = "Float (stored as String)"
+        elif isinstance(value, bool):
+            field_type = StringType()
+            data_type = "Boolean (stored as String)"
+        else:
+            field_type = StringType()
+            data_type = "String"
+        
+        schema_fields.append(StructField(key, field_type, True))
+        print(f"Field: {key} -> {data_type}")
+    
+    # Create DataFrame schema
+    schema = StructType(schema_fields)
+    
+    # Create DataFrame from API data
+    df = spark.createDataFrame(data_to_process, schema)
+    
+    # Show basic information about the DataFrame
+    print(f"\nDataFrame created successfully!")
+    print(f"Number of rows: {df.count()}")
+    print(f"Number of columns: {len(df.columns)}")
+    print("\nColumn names and types:")
+    df.printSchema()
+    
+    # Show sample data
+    print("\nSample data (first 10 rows):")
+    df.show(10, truncate=False)
+    
+    # Data quality checks
+    print("\nData Quality Analysis:")
+    print("=" * 30)
+    for column in df.columns:
+        null_count = df.filter(col(column).isNull()).count()
+        print(f"Column '{column}': {null_count} null values")
+    
+    # Set up the connection to ADL2 using the Microsoft ID identity
+    container_name = "<your_container_name>"  # Replace with the name of your container
+    folder_path = "<your_folder_path>"  # Replace with the path to the folder within the container
+    storage_account_name = "<your_storage_account_name>"  # Replace with your storage account name
+    adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+    
+    # Write the DataFrame in parquet format to ADL2
+    print(f"\nWriting data to ADL2: {adl2_path}")
+    df.write.mode("overwrite").parquet(adl2_path)
+    print("Data written successfully!")
+    
+    # Optional: read the parquet file to verify
+    print("\nVerifying written data...")
+    df_leido = spark.read.parquet(adl2_path)
+    print(f"Verification: Read {df_leido.count()} rows from parquet file")
+    df_leido.show(5)
+
+except requests.exceptions.RequestException as e:
+    print(f"Error fetching data from API: {e}")
+except json.JSONDecodeError as e:
+    print(f"Error parsing JSON response: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+    # Print the raw response for debugging if available
+    if 'response' in locals():
+        print(f"Raw response: {response.text[:500]}...")
+
+finally:
+    # Stop the Spark session
+    spark.stop()

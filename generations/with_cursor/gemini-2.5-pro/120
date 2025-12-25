@@ -1,0 +1,67 @@
+import requests
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Create a Spark session
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# --- 1. Fetch data from an API ---
+# Since the data structure is unknown, we first fetch it from the API.
+# Replace with the actual URL of your API
+api_url = "<your_api_endpoint>"
+try:
+    response = requests.get(api_url)
+    # This will raise an exception for HTTP errors (e.g., 404, 500)
+    response.raise_for_status()
+
+    # Assuming the API returns a JSON list of objects.
+    # e.g., [{"id": 1, "nombre": "Juan"}, {"id": 2, "nombre": "Ana"}]
+    # If the JSON is nested (e.g., {"results": [...]}), you'll need to extract the list:
+    # api_data = response.json()['results']
+    api_data = response.json()
+
+    # If the data is empty, stop the process
+    if not api_data:
+        print("API returned no data. Exiting.")
+        spark.stop()
+        exit()
+
+    # --- 2. Create a DataFrame and Analyze it ---
+    # Create a DataFrame from the data obtained from the API
+    df = spark.createDataFrame(api_data)
+
+    # Analyze the data structure (schema) and content
+    print("--- Analyzing API Data ---")
+    print("Inferred Schema:")
+    df.printSchema()
+
+    print("\nSample Data:")
+    df.show(truncate=False)
+    print("--------------------------\n")
+
+    # --- 3. Write the DataFrame to ADL2 ---
+    # Set up the connection to ADL2 using the Microsoft ID identity
+    # It is not necessary to provide credentials explicitly in a Synapse notebook
+    # Spark will use the managed identity of the notebook to authenticate.
+
+    # Specify the path to the container and folder in ADL2
+    container_name = "<your_container_name>"  # Replace with the name of your container
+    folder_path = "<your_folder_path>"  # Replace with the path to the folder within the container
+    adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+    # Write the DataFrame in parquet format to ADL2
+    print(f"Writing DataFrame to {adl2_path}...")
+    df.write.parquet(adl2_path, mode="overwrite")
+    print("Write complete.")
+
+    # Optional: read the parquet file to verify
+    print("\nReading data back from Parquet to verify:")
+    df_leido = spark.read.parquet(adl2_path)
+    df_leido.show()
+
+except requests.exceptions.RequestException as e:
+    print(f"Error fetching data from API: {e}")
+finally:
+    # Stop the Spark session
+    print("\nStopping Spark session.")
+    spark.stop()

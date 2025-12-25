@@ -1,0 +1,87 @@
+import math
+
+def find_sums_of_four_non_zero_squares(limit):
+    """
+    Finds all numbers up to a given limit that can be expressed as the sum
+    of four non-zero squares.
+
+    This function uses an efficient generative approach. It constructs sums
+    (n = a^2 + b^2 + c^2 + d^2) from integers a, b, c, d >= 1, rather than
+    testing each number 'n' up to the limit. To avoid duplicate combinations
+    and permutations, it enforces the constraint 1 <= a <= b <= c <= d.
+    The loops are optimized by calculating the maximum possible value for
+    each variable based on the limit and the values of the outer loop variables.
+
+    Args:
+        limit (int): The upper integer bound (inclusive) to search up to.
+
+    Returns:
+        dict: A dictionary where keys are the numbers found to be a sum of four
+              non-zero squares, and values are a tuple (a, b, c, d)
+              representing the components of the sum. For example:
+              {4: (1, 1, 1, 1), 6: (1, 1, 2, 0) is not there...}
+              The components are sorted: (a, b, c, d) with a <= b <= c <= d.
+    """
+    results = {}
+    if limit < 4:
+        return results
+
+    # Loop for 'a' with an optimized limit.
+    # From 1 <= a <= b <= c <= d, we have 4*a^2 <= a^2+b^2+c^2+d^2 <= limit.
+    # So, a <= sqrt(limit/4).
+    a_limit = int(math.sqrt(limit / 4))
+    for a in range(1, a_limit + 1):
+        a2 = a * a
+
+        # Loop for 'b' with an optimized limit.
+        # From a^2 + 3*b^2 <= a^2+b^2+c^2+d^2 <= limit, so b <= sqrt((limit-a^2)/3).
+        b_limit = int(math.sqrt((limit - a2) / 3))
+        for b in range(a, b_limit + 1):
+            b2 = b * b
+            sum_ab = a2 + b2
+
+            # Loop for 'c' with an optimized limit.
+            # From a^2+b^2+2*c^2 <= a^2+b^2+c^2+d^2 <= limit, so c <= sqrt((limit-a^2-b^2)/2).
+            c_limit = int(math.sqrt((limit - sum_ab) / 2))
+            for c in range(b, c_limit + 1):
+                c2 = c * c
+                sum_abc = sum_ab + c2
+
+                # Loop for 'd' with an optimized limit.
+                # d^2 <= limit - (a^2+b^2+c^2)
+                d_limit = int(math.sqrt(limit - sum_abc))
+                for d in range(c, d_limit + 1):
+                    d2 = d * d
+                    n = sum_abc + d2
+
+                    # Store the first representation found for n.
+                    # As a,b,c,d are iterated from smallest to largest, this gives
+                    # a canonical (lexicographically smallest) representation.
+                    if n not in results:
+                        results[n] = (a, b, c, d)
+
+    return results
+
+# Example usage:
+if __name__ == "__main__":
+    try:
+        limit_input = input("Digite o limite superior: ")
+        limit = int(limit_input)
+
+        if limit < 4:
+            print(f"Nenhum número encontrado. O menor número que é soma de quatro quadrados não nulos é 4 (1²+1²+1²+1²).")
+        else:
+            sums_found = find_sums_of_four_non_zero_squares(limit)
+            
+            print("\nNúmeros que podem ser expressos como a soma de quatro quadrados não nulos:")
+            
+            if not sums_found:
+                print(f"Nenhum número encontrado até o limite de {limit}.")
+            else:
+                # Sort the dictionary by keys (the numbers found) for ordered printing.
+                for num in sorted(sums_found.keys()):
+                    a, b, c, d = sums_found[num]
+                    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+
+    except ValueError:
+        print("Entrada inválida. Por favor, digite um número inteiro válido.")

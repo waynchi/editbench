@@ -1,0 +1,79 @@
+import random
+
+# English dictionary with words of different lengths
+english_words = {
+    3: ["cat", "dog", "run", "sun", "car", "bat", "hat", "map", "cup", "pen", "box", "fox", "red", "big", "hot"],
+    4: ["book", "tree", "fish", "bird", "moon", "star", "door", "hand", "foot", "head", "blue", "cold", "fast", "slow", "good"],
+    5: ["house", "water", "green", "black", "white", "happy", "music", "dance", "smile", "heart", "light", "night", "world", "peace", "dream"],
+    6: ["flower", "garden", "friend", "family", "school", "summer", "winter", "spring", "orange", "purple", "yellow", "bright", "strong", "gentle", "beauty"],
+    7: ["rainbow", "morning", "evening", "kitchen", "bedroom", "freedom", "journey", "picture", "machine", "science", "history", "library", "perfect", "amazing", "special"],
+    8: ["computer", "elephant", "mountain", "sunshine", "birthday", "vacation", "sandwich", "umbrella", "hospital", "airplane", "building", "language", "beautiful", "wonderful", "fantastic"],
+    9: ["adventure", "chocolate", "butterfly", "telephone", "newspaper", "education", "important", "different", "wonderful", "beautiful", "fantastic", "excellent", "dangerous", "expensive", "delicious"],
+    10: ["basketball", "strawberry", "watermelon", "playground", "restaurant", "television", "motorcycle", "helicopter", "university", "calculator", "refrigerator", "comfortable", "interesting", "incredible", "magnificent"]
+}
+
+def search_words_by_length(n):
+    """
+    Search for words with N characters in the English dictionary
+    Returns up to 10 words with the specified length
+    """
+    if n in english_words:
+        words = english_words[n]
+        # If there are more than 10 words, randomly select 10
+        if len(words) > 10:
+            return random.sample(words, 10)
+        else:
+            return words
+    else:
+        return []
+
+def main():
+    print("=== ПОИСК СЛОВ В АНГЛИЙСКОМ СЛОВАРЕ ===")
+    print("Эта программа найдет английские слова с заданным количеством символов")
+    print("Доступные длины слов: 3-10 символов")
+    print()
+    
+    while True:
+        try:
+            # Get user input
+            user_input = input("Введите количество символов (или 'выход' для завершения): ")
+            
+            # Check if user wants to exit
+            if user_input.lower() in ['выход', 'exit', 'quit']:
+                print("До свидания!")
+                break
+            
+            # Convert input to integer
+            n = int(user_input)
+            
+            # Validate input range
+            if n < 1:
+                print("Количество символов должно быть положительным числом!")
+                continue
+            
+            # Search for words
+            words = search_words_by_length(n)
+            
+            # Display results
+            if words:
+                print(f"\nНайдено слов с {n} символами:")
+                print("-" * 30)
+                for i, word in enumerate(words, 1):
+                    print(f"{i:2d}. {word}")
+                print(f"\nВсего показано: {len(words)} слов")
+            else:
+                print(f"\nИзвините, слова с {n} символами не найдены в словаре.")
+                print("Попробуйте другое количество символов (3-10).")
+            
+            print()
+            
+        except ValueError:
+            print("Пожалуйста, введите корректное число!")
+        except KeyboardInterrupt:
+            print("\n\nПрограмма прервана пользователем. До свидания!")
+            break
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,83 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Реализация метода сопряжённых градиентов для решения системы линейных уравнений Ax = b.
+    
+    Параметры:
+    A : двумерный массив или матрица
+        Матрица коэффициентов системы (должна быть симметричной и положительно определённой)
+    b : одномерный массив
+        Вектор правой части системы
+    x0 : одномерный массив, необязательный
+        Начальное приближение решения (по умолчанию нулевой вектор)
+    tol : float, необязательный
+        Допуск для критерия остановки (по умолчанию 1e-6)
+    max_iter : int, необязательный
+        Максимальное количество итераций (по умолчанию len(b))
+    
+    Возвращает:
+    x : одномерный массив
+        Приближённое решение системы
+    converged : bool
+        Флаг сходимости метода
+    iterations : int
+        Количество выполненных итераций
+    residuals : list
+        История невязок по итерациям
+    """
+    
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x  # начальная невязка
+    p = r.copy()   # начальное направление
+    rsold = np.dot(r, r)
+    
+    residuals = [np.sqrt(rsold)]
+    converged = False
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rsnew = np.dot(r, r)
+        
+        residuals.append(np.sqrt(rsnew))
+        
+        # Проверка критерия остановки
+        if np.sqrt(rsnew) < tol:
+            converged = True
+            break
+        
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+    
+    return x, converged, i + 1, residuals
+
+# Пример использования
+if __name__ == "__main__":
+    # Создаём симметричную положительно определённую матрицу
+    n = 5
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n)  # делаем матрицу положительно определённой
+    
+    # Создаём точное решение и правую часть
+    x_exact = np.random.randn(n)
+    b = A @ x_exact
+    
+    # Решаем систему методом сопряжённых градиентов
+    x_sol, converged, iterations, residuals = conjugate_gradient(A, b)
+    
+    print(f"Сходимость: {converged}")
+    print(f"Количество итераций: {iterations}")
+    print(f"Норма ошибки: {np.linalg.norm(x_sol - x_exact):.2e}")
+    print(f"Финальная невязка: {residuals[-1]:.2e}")

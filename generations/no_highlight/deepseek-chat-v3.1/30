@@ -1,0 +1,50 @@
+def sum_of_four_squares(n):
+    """
+    Find all representations of n as a sum of four non-zero squares.
+    Returns a list of tuples (a, b, c, d) where a² + b² + c² + d² = n
+    and 1 <= a <= b <= c <= d to avoid duplicate permutations.
+    """
+    solutions = []
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        rem1 = n - a*a
+        if rem1 < 3:  # Need at least 3 more squares (1²+1²+1²)
+            continue
+            
+        for b in range(a, max_val):
+            rem2 = rem1 - b*b
+            if rem2 < 2:  # Need at least 2 more squares (1²+1²)
+                break
+                
+            for c in range(b, max_val):
+                rem3 = rem2 - c*c
+                if rem3 < 1:  # Need at least 1 more square (1²)
+                    break
+                    
+                d_squared = rem3
+                d = int(d_squared**0.5)
+                
+                if d >= c and d*d == d_squared:
+                    solutions.append((a, b, c, d))
+    
+    return solutions
+
+def main():
+    # Find numbers that can be expressed as sum of four non-zero squares
+    results = {}
+    
+    for n in range(1, 101):
+        solutions = sum_of_four_squares(n)
+        if solutions:
+            results[n] = solutions
+    
+    # Display results
+    print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+    print("-" * 60)
+    
+    for n, solutions in results.items():
+        print(f"{n}: {solutions}")
+
+if __name__ == "__main__":
+    main()

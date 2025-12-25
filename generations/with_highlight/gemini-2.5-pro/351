@@ -1,0 +1,61 @@
+import numpy as np
+
+# The path to the input file. The duplicate definition has been removed.
+# For more flexibility, consider passing the file path as a command-line argument.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Reads two columns of integers from a file, and calculates the sum of the
+    absolute differences between the elements of the two lists when both are sorted.
+    """
+    try:
+        # The parsing logic is now encapsulated and improved in parse_input_file.
+        list_1, list_2 = parse_input_file()
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error: Could not read or parse the input file. Details: {e}")
+        return
+
+    # The original implementation used a loop with `argmin` and `pop` on Python lists.
+    # This approach is inefficient, with a time complexity of O(N^2), because
+    # finding the minimum and removing an element from a list are both O(N) operations.
+
+    # The problem is equivalent to pairing the smallest element from the first list
+    # with the smallest from the second, the second-smallest with the second-smallest, and so on.
+    # A much more efficient approach (O(N log N), dominated by sorting) is to sort both arrays.
+    list_1.sort()
+    list_2.sort()
+
+    # After sorting, we can calculate the sum of absolute differences using a single,
+    # highly efficient vectorized operation in NumPy. This is significantly faster
+    # than iterating and summing manually.
+    total_distance = np.sum(np.abs(list_1 - list_2))
+    
+    print(total_distance)
+
+def parse_input_file():
+    """
+    Parses the file specified by the global INPUT_FILE_PATH. The file should
+    contain two columns of integers separated by whitespace.
+
+    Returns:
+        A tuple of two NumPy arrays, representing the two columns of data.
+
+    Raises:
+        FileNotFoundError: If the file does not exist at INPUT_FILE_PATH.
+        ValueError: If the file content is not valid (e.g., not two columns, contains non-integers).
+    """
+    # We use np.loadtxt, which is a robust and efficient function for reading
+    # numerical data from text files into NumPy arrays. It handles various
+    # whitespace delimiters and type conversion automatically.
+    data = np.loadtxt(INPUT_FILE_PATH, dtype=int)
+
+    # Add validation to ensure the data has the expected two-column shape.
+    if data.ndim != 2 or data.shape[1] != 2:
+        raise ValueError(f"Input file must contain exactly two columns, but found shape {data.shape}")
+
+    # Return the columns as two separate NumPy arrays.
+    return data[:, 0], data[:, 1]
+
+if __name__ == "__main__":
+    main()

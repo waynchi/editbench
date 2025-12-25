@@ -1,0 +1,53 @@
+import nltk
+from nltk.corpus import words
+
+# Descargar el corpus de palabras en inglés si no está disponible
+try:
+    nltk.data.find('corpora/words')
+except LookupError:
+    nltk.download('words')
+
+def obtener_palabras_por_longitud(longitud):
+    """Obtiene palabras en inglés de una longitud específica"""
+    todas_palabras = words.words()
+    palabras_filtradas = [palabra for palabra in todas_palabras if len(palabra) == longitud]
+    return palabras_filtradas
+
+def main():
+    print("Bienvenido al diccionario de palabras en inglés")
+    print("Este programa te mostrará 10 palabras con la longitud que especifiques")
+    
+    while True:
+        try:
+            # Solicitar la longitud de las palabras
+            longitud = int(input("\n¿Cuántas letras deben tener las palabras? (0 para salir): "))
+            
+            if longitud == 0:
+                print("¡Hasta luego!")
+                break
+            
+            if longitud < 1:
+                print("Por favor, ingresa un número positivo mayor que 0.")
+                continue
+            
+            # Obtener palabras de la longitud especificada
+            palabras = obtener_palabras_por_longitud(longitud)
+            
+            if not palabras:
+                print(f"No se encontraron palabras con {longitud} letras.")
+                continue
+            
+            # Mostrar hasta 10 palabras
+            print(f"\n10 palabras con {longitud} letras:")
+            for i, palabra in enumerate(palabras[:10], 1):
+                print(f"{i}. {palabra}")
+                
+            print(f"\nTotal de palabras encontradas: {len(palabras)}")
+            
+        except ValueError:
+            print("Por favor, ingresa un número válido.")
+        except Exception as e:
+            print(f"Ocurrió un error: {e}")
+
+if __name__ == "__main__":
+    main()

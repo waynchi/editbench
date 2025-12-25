@@ -1,0 +1,6 @@
+import pandas as pd
+
+def create_column(df):
+    # Uzupełnij kolumnę 'Frequency' wartością 117 dla wierszy, w których 'EventId' ma wartość 'E16'
+    df.loc[df['EventId'] == 'E16', 'Frequency'] = 117
+    return df

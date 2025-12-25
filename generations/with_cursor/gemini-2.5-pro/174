@@ -1,0 +1,28 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# To make the example runnable, let's define the missing variables
+brand_A = [26, 28, 29, 27, 30]
+brand_B = [32, 34, 31, 33, 35]
+brand_C = [21, 23, 22, 24, 20]
+all_data = brand_A + brand_B + brand_C
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# 准备数据：定义因变量y和自变量X
+y = df['Cost']
+# 将分类变量'Brand'转换为哑变量，并添加常数项（截距）
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)
+
+# 执行ANOVA分析
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# 打印 ANOVA 表格
+print(anova_table)

@@ -1,0 +1,45 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Obtener el directorio del script actual
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construir la ruta relativa al chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# Remove the incorrect binary_location setting - this should point to Chrome browser, not chromedriver
+# options.binary_location = chromedriver_path
+
+# Add some additional options to help with stability
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--remote-debugging-port=9222")
+
+print("Starting Chrome...")
+try:
+    # Pass the chromedriver path as driver_executable_path parameter instead
+    with uc.Chrome(use_subprocess=True, options=options, driver_executable_path=chromedriver_path) as driver:
+        print("Chrome started successfully")
+        driver.get("https://lmarena.ai/")
+        print("Page loaded")
+        time.sleep(10)
+except Exception as e:
+    print(f"Error occurred: {e}")
+    # Fallback: try without specifying chromedriver path (let undetected_chromedriver handle it)
+    try:
+        print("Trying fallback method...")
+        options = uc.ChromeOptions()
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        
+        with uc.Chrome(use_subprocess=True, options=options) as driver:
+            print("Chrome started with fallback method")
+            driver.get("https://lmarena.ai/")
+            print("Page loaded")
+            time.sleep(10)
+    except Exception as e2:
+        print(f"Fallback also failed: {e2}")

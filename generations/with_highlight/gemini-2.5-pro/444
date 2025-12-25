@@ -1,0 +1,27 @@
+from flask import Flask
+from datetime import datetime
+
+# Crear una instancia de la aplicación Flask
+app = Flask(__name__)
+
+# Definir una ruta para la URL raíz ('/')
+@app.route('/')
+def mostrar_fecha_hora():
+    """
+    Esta función se ejecuta cuando un usuario visita la página principal.
+    Devuelve la fecha y hora actuales formateadas en una cadena HTML.
+    """
+    # Obtener la fecha y hora actuales
+    ahora = datetime.now()
+    
+    # Formatear la fecha y hora en un formato legible (ej: 24-05-2023 15:30:00)
+    fecha_hora_formateada = ahora.strftime("%d-%m-%Y %H:%M:%S")
+    
+    # Devolver una respuesta HTML con la información
+    return f"<h1>La fecha y hora actuales son: {fecha_hora_formateada}</h1>"
+
+# Ejecutar la aplicación si este script es el punto de entrada principal
+if __name__ == '__main__':
+    # app.run() inicia un servidor de desarrollo local.
+    # debug=True permite ver errores detallados en el navegador y recarga automáticamente el servidor al cambiar el código.
+    app.run(debug=True)

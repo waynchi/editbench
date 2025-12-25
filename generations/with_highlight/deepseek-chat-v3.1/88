@@ -1,0 +1,69 @@
+import requests #для запроса к API
+import xml.etree.ElementTree #для обработки xml-ответа API
+import matplotlib.pyplot as plt #для построения графиков
+import pandas as pd #для создания датафрейма и разденеия всех свечей на два типа: close и open
+import datetime #для дат по оси иксов
+import pickle #для хранения переменных в файле
+import json
+import aiohttp
+import asyncio
+
+#фак ю нигер
+#допиши чтобы set_valutes заполнялось!!! оно факинг нигер и не заполняется
+
+
+#класс валюта
+class valute():
+    """Валюта и всё с ней связанное, через ЦБ РФ \n
+    Требуются библеотеки: \n
+    requests \n
+    xml.etree.ElementTree \n
+    matplotlib.pyplot as plt \n
+    pandas as pd \n
+    datetime \n
+    pickle \n
+    json \n
+    """
+    def __init__(self, name):
+        self.name = name
+    async def correct_name(self):
+        """Проверка имени валюты на наличие в множестве валют. Множество обновляется не чаще раза в день"""
+        info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") #открываем файл инфы, encoding чтобы не было
+        info = json.load(info_opened_file)
+        info_opened_file.close()
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"): #проверяем условие что дата перезаписи списка валют это хотя бы 1 день назад
+            #если отличается более чем на 1 день, то переписываем список (множество) валют:
+            set_valutes = set() #создаём пустое множество, в него будем заливать валюты
+            s = "http://www.cbr.ru/scripts/XML_daily.asp"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(s) as response:
+                    content = await response.read()
+                    root = xml.etree.ElementTree.fromstring(content) #запрос всё равно выдаёт данные сайта как строку, так что без fromstring никак
+                    for Valute in root.findall("Valute"):
+                        CharCode = Valute.find("CharCode")
+                        set_valutes.add(CharCode.text) #заливаем валюты в наше множество
+            set_valutes_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb") #открываем файл для бинарной записи множества тикеров в него
+            pickle.dump(set_valutes, set_valutes_file_opened) #закидываем созданное множество в файл. Если что, каждый раз будет перезаписываться (проверено)
+            set_valutes_file_opened.close() #закрываем файл
+            #поменяем время последнего обновления
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8")
+            json.dump(info, info_opened_file, indent = 3, ensure_ascii = False) #запишем новый файл
+            info_opened_file.close()
+        #теперь просто проверим есть ли валюта в списке валют
+        set_valutes_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb") #открываем файл с множеством тикеров чтобы его оттуда получить
+        set_valutes = pickle.load(set_valutes_file_opened) #из открытого файла выгружаем значение множества валют в переменную. Если вдруг запишется несколько множеств (такого быть не должно), то откроется только первое из них
+        if self.name in set_valutes: #просто проверяем есть ли валюта в множестве тикеров
+            return True
+        else:
+            return False
+    async def CurrentExchangeRate(self):
+        '''Текущий курс обмена валюты на рубль'''
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://www.cbr.ru/scripts/XML_daily.asp") as response: #Api ЦБ РФ
+                content = await response.read()
+                root = xml.etree.ElementTree.fromstring(content)
+                for Valute in root.findall("Valute"): #ищем контейнеры валюты
+                    for CharCode in Valute.findall("CharCode"): #ищем контейнеры чаркодов
+                        if CharCode.text == self.name: #находим контейнер с нужной валютой
+                            return (Valute.find("VunitRate").text)

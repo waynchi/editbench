@@ -1,0 +1,61 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import json
+import requests
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("AnalisisDatosAPI").getOrCreate()
+
+# 从API获取数据
+def obtener_datos_desde_api(url_api):
+    try:
+        respuesta = requests.get(url_api)
+        respuesta.raise_for_status()  # Verificar si la solicitud fue exitosa
+        return respuesta.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error al obtener datos de la API: {e}")
+        return []
+
+# URL de la API (reemplazar con la URL real)
+url_api = "https://api.ejemplo.com/datos"
+
+# Obtener datos de la API
+datos_api = obtener_datos_desde_api(url_api)
+
+# Verificar si se obtuvieron datos
+if datos_api:
+    # Crear DataFrame desde los datos de la API
+    df = spark.createDataFrame(datos_api)
+    
+    # Análisis exploratorio de datos
+    print("=== Esquema del DataFrame ===")
+    df.printSchema()
+    
+    print("\n=== Primeras 10 filas ===")
+    df.show(10)
+    
+    print("\n=== Estadísticas descriptivas ===")
+    df.describe().show()
+    
+    print("\n=== Conteo de filas ===")
+    print(f"Total de registros: {df.count()}")
+    
+    # Verificar valores nulos por columna
+    print("\n=== Valores nulos por columna ===")
+    for col_name in df.columns:
+        nulos = df.filter(col(col_name).isNull()).count()
+        print(f"{col_name}: {nulos} valores nulos")
+    
+    # Configurar la escritura a ADL2 (opcional, si se desea guardar después del análisis)
+    container_name = "<your_container_name>"
+    folder_path = "<your_folder_path>"
+    adl2_path = f"abfss://{container_name}@<your_storage_account_name>.dfs.core.windows.net/{folder_path}"
+    
+    # Guardar solo si los datos son válidos después del análisis
+    # df.write.parquet(adl2_path, mode="overwrite")
+    
+else:
+    print("No se pudieron obtener datos de la API")
+
+# Detener la sesión de Spark
+spark.stop()

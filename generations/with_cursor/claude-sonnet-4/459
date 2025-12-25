@@ -1,0 +1,64 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Commented out for clarity
+
+def main():
+    """Main function to calculate the sum of distances between sorted pairs."""
+    try:
+        lines = parse_input_file()
+        if not lines:
+            print("No data found in input file.")
+            return
+        
+        list_1, list_2 = parse_columns(lines)
+        total_distance = calculate_total_distance(list_1, list_2)
+        print(f"Total distance: {total_distance}")
+        
+    except FileNotFoundError:
+        print(f"Error: Input file '{INPUT_FILE_PATH}' not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def parse_input_file() -> List[str]:
+    """Parse the input file and return non-empty lines."""
+    file_path = Path(INPUT_FILE_PATH)
+    with file_path.open('r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f if line.strip()]
+    return lines
+
+def parse_columns(lines: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+    """Parse lines into two columns of integers."""
+    try:
+        # Split each line and convert to numpy array
+        cols = [line.split() for line in lines]
+        cols_array = np.array(cols, dtype=int).T
+        
+        if cols_array.shape[0] != 2:
+            raise ValueError("Input file must contain exactly 2 columns")
+        
+        return cols_array[0], cols_array[1]
+    
+    except ValueError as e:
+        if "invalid literal for int()" in str(e):
+            raise ValueError("All values in the input file must be integers")
+        raise
+
+def calculate_total_distance(list_1: np.ndarray, list_2: np.ndarray) -> int:
+    """Calculate the total distance between sorted pairs from two lists."""
+    if len(list_1) != len(list_2):
+        raise ValueError("Both lists must have the same length")
+    
+    # Sort both arrays efficiently
+    sorted_list_1 = np.sort(list_1)
+    sorted_list_2 = np.sort(list_2)
+    
+    # Calculate distances vectorized
+    distances = np.abs(sorted_list_1 - sorted_list_2)
+    
+    return int(np.sum(distances))
+
+if __name__ == "__main__":
+    main()

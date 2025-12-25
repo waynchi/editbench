@@ -1,0 +1,82 @@
+import numpy as np
+
+def fit_line(x, y):
+    """Function to fit a line to an array using the least squares method.
+    
+    Returns:
+        slope (float): Slope of the fitted line.
+        intercept (float): Intercept of the fitted line.
+    """
+    # Calculate the average values of x and y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Calculate the deviation of x and y from their means
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # Calculate the product of the deviations of x and y and sum it up
+    xy_dev = x_dev * y_dev
+    
+    # Calculate the squared deviations of x and sum them up
+    x_dev_squared = x_dev ** 2
+    
+    # Compute the slope and intercept of the line
+    slope = np.sum(xy_dev) / np.sum(x_dev_squared)
+    intercept = y_mean - slope * x_mean
+    
+    return slope, intercept
+
+def fit_quadratic(x, y):
+    """Function to perform quadratic curve fitting on arrays.
+    
+    Returns:
+        coeffs (ndarray): An array of coefficients [a, b, c] for the quadratic equation:
+                          y = a * x**2 + b * x + c
+    """
+    # Create a Vandermonde matrix for quadratic fitting
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # Use the least squares method to solve for the quadratic coefficients
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    return coeffs
+
+def max_deviation_line(x, y, slope, intercept):
+    """Calculate the maximum absolute deviation of the data points from the fitted line.
+    
+    Args:
+        x (array-like): Array of x values.
+        y (array-like): Array of y values.
+        slope (float): Slope of the fitted line.
+        intercept (float): Intercept of the fitted line.
+    
+    Returns:
+        max_dev (float): Maximum absolute deviation.
+    """
+    # Calculate predicted y values based on the line
+    y_pred = slope * x + intercept
+    # Compute absolute deviations from the actual y values
+    deviations = np.abs(y - y_pred)
+    # Find and return the maximum deviation value
+    max_dev = np.max(deviations)
+    return max_dev
+
+def max_deviation_quadratic(x, y, coeffs):
+    """Calculate the maximum absolute deviation of the data points from the fitted quadratic curve.
+    
+    Args:
+        x (array-like): Array of x values.
+        y (array-like): Array of y values.
+        coeffs (array-like): Coefficients [a, b, c] for the quadratic curve.
+    
+    Returns:
+        max_dev (float): Maximum absolute deviation.
+    """
+    # Calculate predicted y values based on the quadratic model
+    y_pred = coeffs[0] * x**2 + coeffs[1] * x + coeffs[2]
+    # Compute absolute deviations from the actual y values
+    deviations = np.abs(y - y_pred)
+    # Find and return the maximum deviation value
+    max_dev = np.max(deviations)
+    return max_dev

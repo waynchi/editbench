@@ -1,0 +1,279 @@
+import pandas as pd
+import numpy as np
+
+class Stock:
+	def __init__(self, filename, name):
+		self.filename = filename
+		try:
+			self.data = pd.read_csv(self.filename,index_col=0,parse_dates=True)
+		except Exception as e:
+			print(f"Unable to read file {self.filename}")
+			raise e
+		self.data.index.name = 'time'
+		self.name = name
+		self.attrs = {}
+
+	def get_attr(self, key):
+		try:
+			return self.attrs[key]
+		except KeyError:
+			return None
+
+	def set_attr(self, key, value):
+		self.attrs[key] = value
+
+	def get(self, i):
+		return self.data.iloc[i]
+
+	def get_range(self, s, t):
+		return self.data.iloc[s:t+1]
+
+	def __len__(self):
+		return len(self.data)
+
+class Transaction:
+	def __init__(self, num, price):
+		self.num = num
+		self.price = price
+		self.date = None
+
+	def set_date(self, date):
+		self.date = date
+
+class Trade:
+	def __init__(self, stock, long=True, num=0, price=0.0):
+		self.stock = stock
+		self.num = 0
+		self.profit = 0
+		self.closed = False
+		self.long = long
+
+		self.opens = []
+		self.closes = []
+
+		if num != 0:
+			self.open(num, price)
+
+	def close(self, num, price):
+		if num > self.num:
+			raise ValueError(f"ERR: Trying to close {num} of {self.stock.name} but only {self.num} available")
+		self.num -= num
+		self.closes.append(Transaction(num, price))
+
+		if self.long:
+			self.profit = self.get_num_closed() * (self.get_avg_close_price() - self.get_avg_open_price())
+		else:
+			self.profit = self.get_num_closed() * (self.get_avg_open_price() - self.get_avg_close_price())
+
+		if self.num == 0:
+			self.closed = True
+
+	def open(self, num, price):
+		self.num += num
+
+		self.opens.append(Transaction(num, price))
+
+	def get_equity(self, i):
+		current_price = self.stock.get(i)["close"]
+		if self.long:
+			return self.num * current_price
+		else:
+			# Dla krótkich transakcji, kapitał może odzwierciedlać potencjalny koszt zamknięcia pozycji
+			return self.num * (self.get_avg_open_price() - current_price)
+
+	def set_date(self, date):
+		[transaction.set_date(date) for transaction in self.opens if transaction.date is None]
+		[transaction.set_date(date) for transaction in self.closes if transaction.date is None]
+
+	def get_avg_open_price(self):
+		total_price = sum(transaction.price * transaction.num for transaction in self.opens)
+		total_num = sum(transaction.num for transaction in self.opens)
+		return total_price / total_num if total_num else 0
+	
+	def get_avg_close_price(self):
+		total_price = sum(transaction.price * transaction.num for transaction in self.closes)
+		total_num = sum(transaction.num for transaction in self.closes)
+		return total_price / total_num if total_num else 0
+
+	def get_num_opened(self):
+		return sum(transaction.num for transaction in self.opens)
+
+	def get_num_closed(self):
+		return sum(transaction.num for transaction in self.closes)
+
+class Strategy:
+	def __init__(self):
+		self.stocks = []
+		self.starting_money = 100000.0
+		self.money = self.starting_money
+		self.closed_trades = []
+		self.open_trades = []
+		self.attrs = {}
+		self.analyzers = []
+
+	def get_attr(self, key):
+		return self.attrs[key]
+
+	def set_attr(self, key, value):
+		self.attrs[key] = value
+
+	def add_analyzer(self, analyzer):
+		analyzer.strategy = self
+		self.analyzers.append(analyzer)
+
+	def has_open_trade(self, stock):
+		for trade in self.open_trades:
+			if stock is trade.stock:
+				return True
+		return False
+
+	def get_open_trade(self, stock):
+		for trade in self.open_trades:
+			if trade.stock is stock:
+				return trade
+		raise ValueError("No open trade on stock "+str(stock.name))
+
+	def open_trade(self, stock, num, price):
+		if self.money < num*price:
+			raise ValueError("Insufficient funds: have $"+str(self.money)+" available and trying to open "+str(num)+" of "+str(stock.name)+" at $"+str(price)+" on "+str(stock.get(self.get_attr("i")).name))
+
+		if self.has_open_trade(stock):
+			trade = self.get_open_trade(stock)
+			trade.open(num, price)
+			trade.set_date(stock.get(self.get_attr("i")).name)
+		else:
+			self.open_trades.append(Trade(stock, True, num, price))
+			self.open_trades[-1].set_date(stock.get(self.get_attr("i")).name)
+
+		self.money -= num*price
+
+	def sell(self, stock, num, price):
+		if self.has_open_trade(stock):
+			trade = self.get_open_trade(stock)
+			trade.close(num, price)
+			if trade.closed:
+				self.open_trades.remove(trade)
+				self.closed_trades.append(trade)
+			trade.set_date(stock.get(self.get_attr("i")).name)
+		else:
+			raise ValueError("No position to close in "+str(stock.name))
+
+		self.money += num*price
+
+	def get_equity(self, i):
+		res = self.money
+		for trade in self.open_trades:
+			res += trade.get_equity(i)
+		return res
+
+	def next(self, i):
+		pass
+
+class Computer:
+	def __init__(self, samples_per_candle=10):
+		self.stocks = []
+		self.strategies = []
+		self.samples_per_candle = samples_per_candle
+
+	def add_stock(self, stock):
+		if type(stock) is not Stock:
+			exit("ERR: called 'add_stock' on type: "+str(type(stock)))
+		self.stocks.append(stock)
+	
+	def add_strategy(self, strategy):
+		if not isinstance(strategy, Strategy):
+			exit("ERR: called 'add_strategy' on type: "+str(type(strategy)))
+		self.strategies.append(strategy)
+
+	def _simulate_candle_formation(self, stock, candle_index):
+		"""Generate intermediate values for the candle being formed"""
+		if candle_index == 0:
+			# For the first candle, use previous close as open, or just use open
+			prev_close = stock.data.iloc[candle_index]['open']
+		else:
+			prev_close = stock.data.iloc[candle_index - 1]['close']
+		
+		current_candle = stock.data.iloc[candle_index]
+		final_open = current_candle['open']
+		final_high = current_candle['high']
+		final_low = current_candle['low']
+		final_close = current_candle['close']
+		final_volume = current_candle['volume']
+		
+		# Generate sample points for this candle
+		samples = []
+		for sample_idx in range(self.samples_per_candle):
+			progress = (sample_idx + 1) / self.samples_per_candle
+			
+			# Interpolate values based on progress through the candle
+			# High and low gradually approach their final values
+			current_high = final_open + (final_high - final_open) * progress
+			current_low = final_open - (final_open - final_low) * progress
+			
+			# Close price moves towards final close
+			current_close = final_open + (final_close - final_open) * progress
+			
+			# Volume accumulates over time
+			current_volume = final_volume * progress
+			
+			# Ensure high is highest and low is lowest
+			current_high = max(current_high, final_open, current_close)
+			current_low = min(current_low, final_open, current_close)
+			
+			sample = {
+				'open': final_open,
+				'high': current_high,
+				'low': current_low,
+				'close': current_close,
+				'volume': current_volume
+			}
+			samples.append(sample)
+		
+		return samples
+
+	def run(self):
+		# put stocks in strategies
+		for strategy in self.strategies:
+			j = 1
+			for stock in self.stocks:
+				strategy.stocks = [stock]
+				print(f"stock #{j}/{len(self.stocks)}")
+				j += 1
+
+				# Store original data for restoration
+				original_data = stock.data.copy()
+
+				# run every day on the strategies
+				for i in range(len(stock)):
+					# Generate samples for current candle
+					candle_samples = self._simulate_candle_formation(stock, i)
+					
+					# Process each sample in the candle
+					for sample_idx, sample_data in enumerate(candle_samples):
+						# Temporarily modify the current candle with sample data
+						for column in ['open', 'high', 'low', 'close', 'volume']:
+							stock.data.iloc[i, stock.data.columns.get_loc(column)] = sample_data[column]
+						
+						strategy.set_attr("i", i)
+						strategy.next(i)
+
+						for analyzer in strategy.analyzers:
+							analyzer.next(i)
+
+					# Restore original final values for this candle
+					for column in ['open', 'high', 'low', 'close', 'volume']:
+						stock.data.iloc[i, stock.data.columns.get_loc(column)] = original_data.iloc[i][column]
+
+					# close any open trades on the end of the last day
+					if i == len(stock)-1:
+						for strat in self.strategies:
+							while len(strat.open_trades) > 0:
+								trade = strat.open_trades[0]
+								strat.sell(trade.stock, trade.num, trade.stock.get(i)["close"])
+
+				# Ensure data is fully restored
+				stock.data = original_data
+
+		# get rid of strategies
+		for strategy in self.strategies:
+			strategy.stocks = []

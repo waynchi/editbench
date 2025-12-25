@@ -1,0 +1,113 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+def create_posts_hierarchy(posts_generator):
+    """
+    Creates a hierarchical dictionary from a generator of posts and their replies.
+    
+    The structure is:
+    {
+        "post_author/post_permlink": {
+            "post_data": {...},
+            "replies": {
+                "reply_author/reply_permlink": {...}
+            }
+        }
+    }
+    """
+    posts_dict = {}
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_authorperm = f"{post_author}/{post_permlink}"
+
+        # Initialize the entry for the current post
+        posts_dict[post_authorperm] = {
+            'post_data': post.json(),  # Store post data as a dictionary
+            'replies': {}
+        }
+
+        # Fetch and store replies only if the post has a minimum number of children
+        if post['children'] > n_respuestas_minimas:
+            try:
+                comment = Comment(authorperm=post_authorperm)
+                # get_replies() returns a list of Comment objects
+                post_replies = comment.get_replies()
+                
+                # Populate the replies dictionary for the current post
+                for reply in post_replies:
+                    reply_authorperm = f"{reply['author']}/{reply['permlink']}"
+                    # Store reply data as a dictionary
+                    posts_dict[post_authorperm]['replies'][reply_authorperm] = reply.json()
+            except Exception as e:
+                # Handle cases where replies can't be fetched
+                print(f"Error fetching replies for {post_authorperm}: {e}")
+    
+    return posts_dict
+
+# Fetch the posts from the blockchain
+posts_generator = d.get_discussions("created", q, limit=6000)
+
+# 1. Create the hierarchical dictionary by calling the new function
+diccionario = create_posts_hierarchy(posts_generator)
+
+# 2. Process the data from the newly created dictionary
+# Using enumerate to get an iterator count similar to the original 'X'
+for i, (post_authorperm, post_content) in enumerate(diccionario.items()):
+    cnt = 0
+    # This flag helps cleanly skip posts that contain a reply from our own account
+    post_should_be_skipped = False
+    
+    # Iterate through the replies that were stored in our dictionary
+    for reply_authorperm, reply_data in post_content['replies'].items():
+        author = reply_data['author']
+        text = reply_data['body']
+        
+        if is_own_author(author):
+            # If a reply from our own author is found, we skip this entire post
+            post_should_be_skipped = True
+            break
+        if is_banned(author):
+            # If a banned author's reply is found, we also skip this post
+            post_should_be_skipped = True
+            break
+        if procesar(text):
+            cnt += 1
+            
+    # If the flag was set, continue to the next post in the main loop
+    if post_should_be_skipped:
+        continue
+    
+    # After checking all replies, see if the counter exceeds the threshold
+    if cnt > 3:
+        # The iterator 'i' is 0-based, so add 1 to match the original 1-based 'X'
+        print("Iterador: ", i + 1)
+        # Printing the post's unique identifier (author/permlink)
+        print(post_authorperm)

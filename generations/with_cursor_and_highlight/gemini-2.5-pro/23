@@ -1,0 +1,65 @@
+import random
+
+try:
+    # For a more comprehensive dictionary, use a library like NLTK.
+    # To run this, you must first install NLTK: pip install nltk
+    # Then run python and type:
+    # >>> import nltk
+    # >>> nltk.download('words')
+    import nltk
+    from nltk.corpus import words
+    WORD_LIST = words.words()
+    print("Using NLTK dictionary. Make sure you have downloaded the 'words' corpus.")
+except (ImportError, LookupError):
+    print("NLTK not found or 'words' corpus not downloaded.")
+    print("Falling back to a basic internal word list.")
+    # A smaller, fallback list if NLTK is not available
+    WORD_LIST = [
+        'apple', 'banana', 'orange', 'grape', 'kiwi', 'lemon', 'lime', 'mango',
+        'peach', 'pear', 'plum', 'python', 'program', 'code', 'computer',
+        'keyboard', 'mouse', 'monitor', 'software', 'hardware', 'internet',
+        'network', 'database', 'algorithm', 'variable', 'function', 'class',
+        'object', 'loop', 'condition', 'debug', 'test', 'hello', 'world',
+        'example', 'string', 'integer', 'float', 'boolean', 'true', 'false',
+        'awesome', 'learning', 'challenge', 'solution'
+    ]
+
+
+def find_words_of_length_n():
+    """
+    Asks the user for a number N and prints 10 random words
+    from the dictionary that have N characters.
+    """
+    try:
+        n_str = input("Enter the number of characters for the words you want to find: ")
+        n = int(n_str)
+        if n <= 0:
+            print("Please enter a positive number greater than zero.")
+            return
+    except ValueError:
+        print("Invalid input. Please enter a valid number.")
+        return
+
+    # Find all words that have the specified number of characters
+    matching_words = [word for word in WORD_LIST if len(word) == n]
+
+    # Check if we found any words
+    if not matching_words:
+        print(f"Sorry, no words with {n} characters were found.")
+        return
+
+    # Determine how many words to show (up to 10)
+    num_to_display = min(10, len(matching_words))
+
+    # Select a random sample of those words
+    selected_words = random.sample(matching_words, num_to_display)
+
+    # Print the result
+    print(f"\nHere are {num_to_display} words with {n} characters:")
+    for word in selected_words:
+        print(f"- {word}")
+
+
+# Main execution point of the program
+if __name__ == "__main__":
+    find_words_of_length_n()

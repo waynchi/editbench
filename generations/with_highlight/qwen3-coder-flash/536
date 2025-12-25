@@ -1,0 +1,76 @@
+import logging
+from typing import List, Dict
+import random
+
+app = FastAPI()
+
+CHAT_URL = "https://duckduckgo.com/duckchat/v1/chat"
+STATUS_URL = "https://duckduckgo.com/duckchat/v1/status"
+MODELS = {
+    "gpt-4o-mini": {"owned_by": "openai", "is_free": True},
+    "llama-3.1-70b": {"owned_by": "Meta", "is_free": True},
+    "mixtral-8x7b": {"owned_by": "mistralai", "is_free": True},
+    "claude-3-haiku": {"owned_by": "Anthropic", "is_free": False},
+}
+
+# Tabla de cadenas de agente de usuario válidas
+USER_AGENTS = {
+    "windows": [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/120.0 Safari/537.3",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/129.0.0.0 Safari/537.3"
+    ],
+    "mac": [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/120.0 Safari/537.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15"
+    ],
+    "linux": [
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+        "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
+    ]
+}
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def fetch_vqd() -> dict:
+    """Obtener el token VQD requerido para la autenticación con agente de usuario aleatorio."""
+    # Seleccionar plataforma aleatoria
+    platform = random.choice(["windows", "mac", "linux"])
+    
+    # Seleccionar agente de usuario aleatorio para la plataforma
+    user_agent = random.choice(USER_AGENTS[platform])
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            STATUS_URL,
+            headers={
+                "User-Agent": user_agent,
+                "x-vqd-accept": "1",
+            },
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch VQD: {response.status_code}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve VQD token")
+        return {
+            "vqd": response.headers.get("x-vqd-4", ""),
+            "user-agent": user_agent
+        }
+
+async def stream_chat_response(client, vqd_data: dict, messages: List[Dict], model: str):
+    """Transmitir la respuesta desde la API de chat."""
+    headers = {
+        "User-Agent": vqd_data["user-agent"],
+        "Content-Type": "application/json",
+        "x-vqd-4": vqd_data["vqd"],
+    }
+    payload = {"model": model, "messages": messages}
+
+    async with client.stream("POST", CHAT_URL, headers=headers, json=payload) as response:
+        if response.status_code != 200:
+            logger.error(f"Chat request failed: {response.status_code}")
+            raise HTTPException(status_code=response.status_code, detail="Chat API request failed")
+        async for line in response.aiter_lines():
+            yield line

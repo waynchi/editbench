@@ -1,0 +1,48 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def show_current_time():
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f'''
+    <html>
+        <head>
+            <title>Current Date and Time</title>
+            <style>
+                body {{ 
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    margin-top: 100px;
+                    background-color: #f0f0f0;
+                }}
+                .time-container {{
+                    background-color: white;
+                    padding: 40px;
+                    border-radius: 10px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                    display: inline-block;
+                }}
+                .time {{
+                    font-size: 2.5em;
+                    color: #333;
+                    margin-bottom: 10px;
+                }}
+                .date {{
+                    font-size: 1.5em;
+                    color: #666;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="time-container">
+                <div class="time">{datetime.now().strftime("%H:%M:%S")}</div>
+                <div class="date">{datetime.now().strftime("%A, %B %d, %Y")}</div>
+            </div>
+        </body>
+    </html>
+    '''
+
+if __name__ == '__main__':
+    app.run(debug=True)

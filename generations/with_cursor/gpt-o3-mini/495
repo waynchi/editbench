@@ -1,0 +1,52 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, num_classes=3):
+        super(SimpleConvNet1, self).__init__()
+        
+        # Primer bloque convolucional
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        
+        # Segundo bloque convolucional
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        
+        self.flatten = nn.Flatten()
+        
+        # Supongamos que las imágenes de entrada tienen tamaño 32x32.
+        # Cálculo de las dimensiones después de las capas convolucionales:
+        #  - Primer bloque: conv: (32 - 3 + 1 = 30) -> maxpool: floor(30/2)=15
+        #  - Segundo bloque: conv: (15 - 3 + 1 = 13) -> maxpool: floor(13/2)=6
+        # La salida es de tamaño 6 x 6 con 64 canales, por lo que el tamaño a aplanar es 6*6*64.
+        flattened_size = 6 * 6 * 64
+        
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, num_classes)
+        )
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == '__main__':
+    # Prueba la red con una entrada aleatoria de tamaño (batch_size, channels, height, width)
+    model = SimpleConvNet1(num_classes=3)
+    print(model)
+    
+    # Crear una imagen aleatoria de prueba (batch_size=1, 3 canales, 32x32)
+    x = torch.randn(1, 3, 32, 32)
+    output = model(x)
+    print("Tamaño de salida:", output.shape)

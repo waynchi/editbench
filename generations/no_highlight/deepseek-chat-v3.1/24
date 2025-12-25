@@ -1,0 +1,278 @@
+import aiohttp
+import asyncio
+import xml.etree.ElementTree
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+from typing import Optional, List, Dict, Any
+
+class ticker():
+    """Тикер акции и всё с ним связанное, через MoexApi \n
+    Требуются библеотеки: \n
+    aiohttp \n
+    xml.etree.ElementTree \n
+    matplotlib.pyplot as plt \n
+    pandas as pd \n
+    datetime \n
+    pickle \n
+    json \n
+    """
+    def __init__(self, name: str):
+        """self.name - имя тикера
+        self.tech_dict - словарь теханализа"""
+        self.name = name 
+        """Имя тикера, то есть сам по себе тикер"""
+        self.tech_dict = {"value" : {"use" : False, "has_periods" : False, "need_graph_space" : True}, 
+                          "sma" : {"use" : False, "has_periods" : True, "periods" : [], "need_graph_space" : False},
+                          "ema" : {"use" : False, "has_periods" : True, "periods" : [],"need_graph_space" : False}
+                          }
+        """Словарь реализованных опций теханализа."""
+        self.session: Optional[aiohttp.ClientSession] = None
+
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+
+    async def _make_request(self, url: str) -> str:
+        """Асинхронный запрос к API"""
+        if not self.session:
+            self.session = aiohttp.ClientSession()
+        
+        async with self.session.get(url) as response:
+            response.raise_for_status()
+            return await response.text()
+
+    async def correct_name(self) -> bool:
+        """Проверка имени тикера на наличие в множестве тикеров. Множество обновляется не чаще раза в день"""
+        info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8")
+        info = json.load(info_opened_file)
+        info_opened_file.close()
+        
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f"):
+            set_tickers = set()
+            s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            
+            try:
+                content = await self._make_request(s)
+                root = xml.etree.ElementTree.fromstring(content)
+                
+                for data in root.findall("data"):
+                    if data.get("id") == "securities":
+                        rows = data.find("rows")
+                        for row in rows.findall("row"):
+                            set_tickers.add(row.get("SECID"))
+                
+                set_tickers_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb")
+                pickle.dump(set_tickers, set_tickers_file_opened)
+                set_tickers_file_opened.close()
+                
+                info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+                info_opened_file = open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8")
+                json.dump(info, info_opened_file, indent=3, ensure_ascii=False)
+                info_opened_file.close()
+                
+            except Exception as e:
+                print(f"Error updating ticker set: {e}")
+                return False
+
+        set_tickers_file_opened = open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb")
+        set_tickers = pickle.load(set_tickers_file_opened)
+        return self.name in set_tickers
+
+    async def CurrentPrice(self) -> Optional[str]:
+        """Текущая цена по этому тикеру"""
+        s = f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{self.name}.xml?iss.meta=off"
+        
+        try:
+            content = await self._make_request(s)
+            root = xml.etree.ElementTree.fromstring(content)
+            
+            for data in root.findall("data"):
+                if data.get("id") == "marketdata":
+                    rows = data.find("rows")
+                    row = rows.find("row")
+                    return row.get("LAST")
+                    
+        except Exception as e:
+            print(f"Error getting current price: {e}")
+            return None
+
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str) -> List[Any]:
+        """Лист свечей для этого тикера"""
+        s = f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{self.name}/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}"
+        
+        try:
+            content = await self._make_request(s)
+            root = xml.etree.ElementTree.fromstring(content)
+            candles = root.find("data")
+            rows = candles.find("rows")
+            listcandles = []
+            
+            if candles_name in ["begin", "end"]:
+                for row in rows.findall("row"):
+                    datetime_str = row.get(candles_name)
+                    datetime_datetime = datetime.datetime(
+                        int(datetime_str[0:4]), int(datetime_str[5:7]), int(datetime_str[8:10]),
+                        int(datetime_str[11:13]), int(datetime_str[14:16]), int(datetime_str[17:])
+                    )
+                    listcandles.append(datetime_datetime)
+            else:
+                for row in rows.findall("row"):
+                    listcandles.append(float(row.get(candles_name)))
+                    
+            return listcandles
+            
+        except Exception as e:
+            print(f"Error getting candles: {e}")
+            return []
+
+    async def setattr_candles_dataframe(self, timeframe: str = "24", start: str = "", end: str = ""):
+        """Создаёт датафрйм свечей с соответствующим timeframe, start и end"""
+        tasks = [
+            self.candles("open", timeframe, start, end),
+            self.candles("close", timeframe, start, end),
+            self.candles("high", timeframe, start, end),
+            self.candles("low", timeframe, start, end),
+            self.candles("value", timeframe, start, end),
+            self.candles("begin", timeframe, start, end)
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        
+        candles_dataframe = pd.DataFrame({
+            "open": results[0],
+            "close": results[1],
+            "high": results[2],
+            "low": results[3],
+            "value": results[4],
+            "begin": results[5]
+        })
+        
+        setattr(self, "candles_dataframe", candles_dataframe)
+
+    async def graphic(self, timeframe: str = "24", start: str = "", end: str = ""):
+        """Возвращает открытый свечной график цены от времени"""
+        await self.setattr_candles_dataframe(timeframe, start, end)
+        
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+        
+        width_map = {
+            "1": 1/24/60,
+            "10": 1/24/6,
+            "60": 1/24,
+            "24": 1,
+            "7": 7,
+            "31": 30,
+            "4": 90
+        }
+        width_big = width_map.get(timeframe, 0)
+        width_small = width_big / 10
+        setattr(self, "width_big", width_big)
+        
+        number_of_additional_graphics = sum(
+            1 for tech in self.tech_dict 
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]
+        )
+        
+        if number_of_additional_graphics != 0:
+            height_rations_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics
+            fig, axs = plt.subplots(
+                nrows=1 + number_of_additional_graphics, 
+                ncols=1, 
+                sharex=True, 
+                height_ratios=height_rations_list
+            )
+            plt.suptitle(self.name, fontsize=15)
+            axs[0].grid(True)
+            
+            axs[0].bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            axs[0].bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            axs[0].bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            
+            axs[0].bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            axs[0].bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            axs[0].bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    if not self.tech_dict[tech]["need_graph_space"]:
+                        tech_func(axs[0])
+                    else:
+                        for i in range(number_of_additional_graphics):
+                            axs[i + 1].grid(True)
+                            tech_func(axs[i + 1])
+        else:
+            fig = plt.figure()
+            plt.title(self.name, fontsize=15)
+            ax = fig.add_subplot()
+            ax.grid(True)
+            
+            ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            
+            ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(ax)
+
+        fig.savefig(r"D:\Python files\!MoexApiBot\graphic.png")
+        opened_graphic = open(r"D:\Python files\!MoexApiBot\graphic.png", "rb")
+        return opened_graphic
+
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                sma_list = []
+                sma_list.append(sum(self.candles_dataframe.close[0: period])/period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period])/period)
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list)
+
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period])/period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1)*ema_list[i - period] + 2 * self.candles_dataframe.close[i])/(period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+
+    def value(self, ax):
+        ax.bar(x=self.up.begin, height=self.up.value, width=self.width_big, color="green")
+        ax.bar(x=self.down.begin, height=self.down.value, width=self.width_big, color="red")
+        ax.set_title("Value", fontsize=7)
+
+async def main():
+    """Пример использования асинхронного класса"""
+    async with ticker("SBER") as beb:
+        # Проверка имени тикера
+        is_valid = await beb.correct_name()
+        print(f"Ticker valid: {is_valid}")
+        
+        # Получение текущей цены
+        price = await beb.CurrentPrice()
+        print(f"Current price: {price}")
+        
+        # Построение графика
+        beb.tech_dict["sma"]["use"] = True
+        beb.tech_dict["sma"]["periods"] = [20, 50]
+        graphic = await beb.graphic("24", "2024-01-01", "2024-01-10")
+        plt.show()
+
+if __name__ == "__main__":
+    asyncio.run(main())

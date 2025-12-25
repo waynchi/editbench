@@ -1,0 +1,97 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico(posts_generator):
+    """Crea un diccionario jerárquico por posts y replies"""
+    diccionario_jerarquico = {}
+    
+    for post in posts_generator:
+        post_key = f"{post['author']}/{post['permlink']}"
+        diccionario_jerarquico[post_key] = {
+            'post_info': {
+                'author': post['author'],
+                'permlink': post['permlink'],
+                'children_count': post['children']
+            },
+            'replies': {}
+        }
+        
+        if post['children'] > n_respuestas_minimas:
+            comment = Comment(authorperm=f"{post['author']}/{post['permlink']}")
+            post_replies = comment.get_replies()
+            
+            for reply in post_replies:
+                reply_key = f"{reply['author']}/{reply['permlink']}"
+                diccionario_jerarquico[post_key]['replies'][reply_key] = {
+                    'author': reply['author'],
+                    'permlink': reply['permlink'],
+                    'body': reply['body'],
+                    'procesa_texto': procesar(reply['body']),
+                    'is_own': is_own_author(reply['author']),
+                    'is_banned': is_banned(reply['author'])
+                }
+    
+    return diccionario_jerarquico
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Crear diccionario jerárquico
+diccionario = crear_diccionario_jerarquico(posts_generator)
+
+# Reinicializar el generador para el procesamiento original
+posts_generator = d.get_discussions("created", q, limit=6000)
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies :list = comment.get_replies()
+        
+        cnt = 0
+        for replies in post_replies:
+        
+            
+            author = replies['author']
+            text = replies['body']
+            if is_own_author(author):
+                # Reevaluar el comentario
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt+= 1
+    if cnt > 3:
+        print("Iterador: ",X)
+        print(replies['author'],'/',replies['permlink']) 

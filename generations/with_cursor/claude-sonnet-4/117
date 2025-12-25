@@ -1,0 +1,75 @@
+def can_be_sum_of_four_squares(n):
+    """
+    Check if a number can be expressed as the sum of four non-zero squares.
+    According to Jacobi's four-square theorem, every positive integer can be
+    expressed as the sum of four squares (including zero squares), but we need
+    to check for non-zero squares specifically.
+    """
+    if n <= 0:
+        return False
+    
+    # Try all combinations of four non-zero squares
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        a_sq = a * a
+        if a_sq > n:
+            break
+        for b in range(1, max_val):
+            b_sq = b * b
+            if a_sq + b_sq > n:
+                break
+            for c in range(1, max_val):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq > n:
+                    break
+                for d in range(1, max_val):
+                    d_sq = d * d
+                    if a_sq + b_sq + c_sq + d_sq == n:
+                        return True, (a, b, c, d)
+                    elif a_sq + b_sq + c_sq + d_sq > n:
+                        break
+    
+    return False, None
+
+def find_four_square_representations(limit):
+    """
+    Find all numbers up to 'limit' that can be expressed as sum of four non-zero squares
+    and return their representations.
+    """
+    results = []
+    
+    for num in range(1, limit + 1):
+        can_express, representation = can_be_sum_of_four_squares(num)
+        if can_express:
+            results.append((num, representation))
+    
+    return results
+
+def main():
+    # Test the function with numbers up to 50
+    limit = 50
+    print(f"Numbers from 1 to {limit} that can be expressed as sum of four non-zero squares:")
+    print("-" * 70)
+    
+    representations = find_four_square_representations(limit)
+    
+    for num, (a, b, c, d) in representations:
+        print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+    
+    print(f"\nTotal count: {len(representations)} out of {limit} numbers")
+    
+    # Show some specific examples
+    print("\nTesting specific numbers:")
+    test_numbers = [10, 20, 30, 100]
+    
+    for num in test_numbers:
+        can_express, representation = can_be_sum_of_four_squares(num)
+        if can_express:
+            a, b, c, d = representation
+            print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+        else:
+            print(f"{num} cannot be expressed as sum of four non-zero squares")
+
+if __name__ == "__main__":
+    main()

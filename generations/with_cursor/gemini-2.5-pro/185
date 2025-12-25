@@ -1,0 +1,266 @@
+import os
+import shutil
+import json
+import pickle
+import logging
+
+import torch
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+
+# --- 优化建议 ---
+# 1. 统一日志记录: 原始代码中 'load_batch_losses' 函数使用了 `logging` 模块但未导入，而其他函数使用 `print`。
+#    建议在整个脚本中统一使用 `logging` 模块，这提供了更灵活的日志级别控制（如 DEBUG, INFO, WARNING, ERROR）、格式化以及输出重定向（到文件或控制台）。
+# 2. 配置文件管理: `load_dotenv()` 很好，但建议将所有配置（路径、模型名称等）集中管理，例如放在一个配置类或字典中，而不是在函数调用时分散传递。
+#    本次重构将保持现有结构，但这是一个值得考虑的改进方向。
+# 3. 显式依赖管理: 建议使用 `requirements.txt` 或 `pyproject.toml` 文件来明确项目依赖的库及其版本，以确保环境的可复现性。
+
+# 初始化日志记录器
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+
+# --- 函数优化详情 ---
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """
+    将日志历史以JSON Lines (JSONL)格式保存到文件中。
+
+    --- 优化建议 ---
+    原实现: 每次追加日志时，需要读取整个JSON文件，解析为Python列表，追加新条目，然后重写整个文件。
+             对于大型日志文件，这种方式的I/O开销和内存占用都非常大，性能会随着文件增大而线性下降。
+    优化实现: 改为使用JSON Lines (JSONL)格式。每个日志条目都是一个独立的、换行分隔的JSON对象。
+             追加日志时，只需以追加模式('a')打开文件，写入新的JSON行即可。
+    预期改进:
+    - 性能: 写入操作的时间复杂度从O(N)降低到O(1)（N为文件大小），速度极快，不受文件大小影响。
+    - 内存: 无需将整个文件读入内存，内存占用极低。
+    权衡:
+    - 文件格式: 输出文件不再是单个有效的JSON数组，而是一个JSONL文件。许多数据处理工具（如pandas, aiohttp, BigQuery）原生支持JSONL。
+             如果下游系统严格要求单个JSON数组，则需要在读取时进行转换（如下面的读取逻辑所示）。对于日志记录场景，JSONL通常是更优的选择。
+    """
+    # 决定要追加的日志条目
+    logs_to_append = []
+    if append_latest_only and log_history:
+        logs_to_append.append(log_history[-1])
+    else:
+        logs_to_append = log_history
+
+    if not logs_to_append:
+        return
+
+    try:
+        # 以追加模式打开文件，如果文件不存在则创建
+        with open(file_path, "a", encoding="utf-8") as f:
+            for entry in logs_to_append:
+                # 将每个日志条目序列化为JSON字符串并写入一行
+                f.write(json.dumps(entry) + "\n")
+    except IOError as e:
+        logging.error(f"写入日志文件 {file_path} 时发生错误: {e}")
+    except TypeError as e:
+        logging.error(f"序列化日志条目时发生错误: {e}")
+
+
+def clear_directory(directory, delete_directory=False):
+    """
+    清除给定目录中的所有内容。可选择删除目录本身。
+
+    --- 优化建议 ---
+    原实现: 遍历目录中的每一个文件和子目录，并逐一删除。当文件数量非常多时，这会产生大量的系统调用，效率较低。
+             同时，每次删除都调用 `print` 会产生大量I/O，进一步拖慢速度。
+    优化实现:
+    1. 如果目录存在，直接使用 `shutil.rmtree()` 删除整个目录树。这是一个单一且高效的操作。
+    2. 如果不需要删除目录本身（`delete_directory=False`），则在删除后使用 `os.makedirs()` 重新创建该目录。
+    3. 使用 `logging` 替代 `print`，并减少不必要的日志输出。
+    预期改进:
+    - 性能: 对于包含大量文件和子目录的情况，`shutil.rmtree` 通常比手动遍历删除快得多，因为它在更低的层次上进行操作，减少了Python解释器的开销和系统调用次数。
+    - 代码简洁性: 代码更短、更易读，意图更清晰。
+    权衡:
+    - 权限: `shutil.rmtree` 需要对目录本身及其所有内容有删除权限。原实现也需要类似权限，所以实际权衡很小。
+    - 错误处理: `shutil.rmtree` 的错误处理是原子性的，如果失败会抛出异常。这里我们捕获并记录它。
+    """
+    if os.path.exists(directory):
+        try:
+            shutil.rmtree(directory)
+            logging.info(f"已成功清除并删除目录: {directory}")
+        except OSError as e:
+            logging.error(f"清除目录 '{directory}' 失败。原因: {e}")
+            raise  # 重新引发异常以指示严重问题
+
+    if not delete_directory:
+        try:
+            os.makedirs(directory, exist_ok=True) # exist_ok=True 避免了在目录被其他进程创建时的竞争条件
+            logging.info(f"已重新创建目录: {directory}")
+        except OSError as e:
+            logging.error(f"创建目录 '{directory}' 失败。原因: {e}")
+            raise
+
+
+def merge_lora_model(
+    base_model_name: str,
+    lora_adapter_path: str,
+    merged_model_save_path: str,
+):
+    """
+    将LoRA适配器与基础模型合并，并保存合并后的模型。
+
+    --- 优化建议 ---
+    原实现: 函数参数设计不够通用，例如 `model_name` 被用于推导基础模型名称，这种硬编码的逻辑很脆弱。
+             路径拼接和模型加载逻辑可以更直接。
+    优化实现:
+    1. 重新设计函数签名，使其更通用、更明确。现在它接受明确的 `base_model_name`（例如 "EleutherAI/pythia-31M"），
+       `lora_adapter_path` 和 `merged_model_save_path`。
+    2. 消除了从 `model_name` 字符串中解析参数的脆弱逻辑。
+    3. 直接使用 `transformers` 库加载模型，无需手动拼接仓库名称。
+    预期改进:
+    - 可靠性与可维护性: 函数不再依赖于特定的模型命名约定，更加健壮和易于理解。
+    - 可重用性: 函数变得通用，可以轻松用于合并任何兼容的LoRA适配器和基础模型。
+    权衡:
+    - 无明显权衡。此更改纯粹是代码质量和可靠性的提升。
+    """
+    try:
+        logging.info(f"正在加载基础模型: {base_model_name}")
+        base_model = AutoModelForCausalLM.from_pretrained(base_model_name)
+
+        logging.info(f"正在从 {lora_adapter_path} 加载LoRA适配器")
+        model = PeftModel.from_pretrained(base_model, lora_adapter_path)
+
+        logging.info("正在合并模型...")
+        merged_model = model.merge_and_unload()
+
+        logging.info(f"正在将合并后的模型保存到: {merged_model_save_path}")
+        merged_model.save_pretrained(merged_model_save_path)
+        logging.info("模型合并并保存成功。")
+
+    except Exception as e:
+        logging.error(f"模型合并过程中发生错误: {e}")
+        raise
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """
+    如果回答以问题开头，则移除该问题前缀。
+
+    --- 优化建议 ---
+    原实现: 使用 `question in answer` 和 `answer.replace(question, "")`。
+             这会替换掉回答中 *所有* 出现的问题字符串，而不仅仅是开头的重复。
+             同时，`in` 操作符会扫描整个 `answer` 字符串。
+    优化实现: 使用 `answer.startswith(question)`。这是一个更精确且通常更快的操作，因为它只检查字符串的开头。
+             如果匹配，则通过字符串切片 `answer[len(question):]` 来移除前缀，这比 `replace` 更高效。
+    预期改进:
+    - 性能: `startswith` 比 `in` 更快，因为它不需要扫描整个字符串。字符串切片也通常比 `replace` 更快。
+    - 准确性: 行为更符合预期，只处理作为前缀出现的重复问题，避免了意外删除回答中间的内容。
+    权衡:
+    - 功能变更: 此函数不再删除出现在回答中间或结尾的问题文本。这是一个有意的行为变更，使其更适用于处理模型在生成时重复提示的场景。
+    """
+    if answer.startswith(question):
+        return answer[len(question):].lstrip()  # 使用 lstrip() 移除前缀后的前导空格
+    return answer
+
+
+# --- `load_model` 函数的辅助加载器 ---
+# 使用辅助函数来提高 `load_model` 的可读性和可维护性
+def _load_tuned_model(model_path, vanilla_model_name, blocks_str):
+    model_name = vanilla_model_name.split("/")[-1]
+    tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+    load_path = os.path.join(model_path, tuned_model_name)
+    logging.info(f"正在加载已微调模型: {load_path}")
+    return AutoModelForCausalLM.from_pretrained(load_path)
+
+def _load_vanilla_model(vanilla_model_name, **kwargs):
+    logging.info(f"正在加载原始模型: {vanilla_model_name}")
+    return AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+
+def _load_host_model(host_model_name, **kwargs):
+    logging.info(f"正在加载宿主模型: {host_model_name}")
+    return AutoModelForCausalLM.from_pretrained(host_model_name)
+
+def _load_pickled_model(model_path, host_model_name, blocks_str, model_prefix):
+    # --- 警告 ---
+    # 使用 pickle 加载模型存在严重的安全风险，并且非常脆弱。
+    # 如果可能，请迁移到使用 `torch.save(model.state_dict())` 和 `model.load_state_dict()`
+    # 或 `model.save_pretrained()` 和 `AutoModel.from_pretrained()`。
+    logging.warning("正在使用 pickle 加载模型。这存在安全风险且不稳定，不建议在生产环境中使用。")
+    name = host_model_name.split("/")[-1]
+    model_filename = f"{name}_{model_prefix}_{blocks_str}.pkl"
+    load_path = os.path.join(model_path, model_filename)
+    logging.info(f"正在从 pickle 文件加载模型: {load_path}")
+    with open(load_path, "rb") as f:
+        return pickle.load(f)
+
+# 模型加载器分派字典
+MODEL_LOADERS = {
+    "Tuned Model": _load_tuned_model,
+    "Vanilla Model": _load_vanilla_model,
+    "Host Model": _load_host_model,
+    "Transformed Model": lambda **kwargs: _load_pickled_model(model_prefix="preGRAFTED", **kwargs),
+    "Final Model": lambda **kwargs: _load_pickled_model(model_prefix="GRAFTED", **kwargs),
+}
+
+def load_model(model_type: str, **kwargs):
+    """
+    根据指定的模型类型加载模型。
+
+    --- 优化建议 ---
+    原实现: 使用一个很长的 `if/elif/else` 链来处理不同的模型类型。这种结构难以维护和扩展。
+             每当需要支持一种新模型时，都必须修改这个函数，违反了开闭原则。
+    优化实现: 使用“策略模式”的变体——字典分派。
+    1. 创建一个字典 `MODEL_LOADERS`，将模型类型字符串映射到相应的加载函数。
+    2. 将每种模型的加载逻辑提取到独立的辅助函数中，使代码更清晰、模块化。
+    3. `load_model` 函数现在只需在字典中查找正确的加载器并调用它。
+    预期改进:
+    - 可维护性与可扩展性: 添加新的模型类型现在只需要在 `MODEL_LOADERS` 字典中添加一个新条目，而无需修改 `load_model` 函数本身。
+    - 可读性: 代码结构更清晰，每个加载器的职责单一。
+    - 安全警告: 针对使用 `pickle` 的情况添加了明确的警告。
+    权衡:
+    - 稍微增加了代码行数（因为定义了辅助函数），但换来了巨大的结构性改进，利远大于弊。
+    """
+    loader = MODEL_LOADERS.get(model_type)
+    if loader:
+        try:
+            # 使用 **kwargs 将所有相关参数传递给加载函数
+            return loader(**kwargs)
+        except FileNotFoundError as e:
+            logging.error(f"加载模型失败: 文件未找到 - {e}")
+            raise
+        except Exception as e:
+            logging.error(f"加载 '{model_type}' 模型时发生未知错误: {e}")
+            raise
+    else:
+        raise ValueError(f"未知的模型类型: {model_type}")
+
+
+def load_batch_losses(file_path: str):
+    """
+    从检查点文件加载批次损失数据。
+
+    --- 优化建议 ---
+    原实现: 存在一个bug，即使用了 `logging` 模块但没有导入它，会导致 `NameError`。
+    优化实现:
+    1. 在文件顶部添加 `import logging` 来修复此bug。
+    2. 保持现有逻辑，因为它已经相当健壮：
+       - 使用 `torch.load(..., map_location="cpu")` 是一个好习惯，可以避免在没有GPU的机器上加载失败。
+       - 使用 `.get("batch_losses", None)` 可以安全地处理检查点中可能不存在该键的情况。
+    预期改进:
+    - 正确性: 修复了 `NameError` bug，使函数能够正常工作。
+    权衡:
+    - 无。这是一个纯粹的bug修复。
+    """
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses")
+        if batch_losses is not None:
+            logging.info(f"已从 {file_path} 加载批次损失数据。")
+        else:
+            logging.warning(f"在检查点 {file_path} 中未找到 'batch_losses' 键。")
+        return batch_losses
+    except FileNotFoundError:
+        logging.error(f"检查点文件未找到: {file_path}")
+        return None
+    except (IOError, RuntimeError) as e:
+        logging.error(f"加载检查点 {file_path} 时出错: {e}")
+        return None

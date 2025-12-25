@@ -1,0 +1,27 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Предполагается, что brand_A, brand_B, brand_C и all_data уже определены
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Создаём дамми-переменные для переменной 'Brand' (используем метод Python вместо стиля R)
+# Отбрасываем одну категорию для предотвращения проблемы мультиколлинеарности
+dummies = pd.get_dummies(df['Brand'], drop_first=True)
+
+# Формируем матрицу признаков с константой
+X = sm.add_constant(dummies)
+y = df['Cost']
+
+# Строим модель обычных наименьших квадратов (OLS)
+model = sm.OLS(y, X).fit()
+
+# Выполнение ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Вывод таблицы ANOVA
+print(anova_table)

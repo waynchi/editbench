@@ -1,0 +1,204 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+function useDashboardData(user) {
+  const initialState = {
+    customerData: {
+      summary: null,
+      loading: false,
+      customers: [],
+    },
+    healthData: [],
+    websiteStatus: { checking: false },
+    stripeApiKey: "",
+    dateRange: {
+      startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+      endDate: new Date(),
+    },
+    error: null,
+  };
+
+  const [state, setState] = useState(initialState);
+
+  // Optimized calculation by grouping customer stats once
+  const calculateHealthData = useCallback(() => {
+    const { customerData, dateRange } = state;
+    if (!customerData.summary?.customers?.length) return [];
+
+    // Pre-group customer statuses by month-year
+    const grouped = customerData.summary.customers.reduce((acc, customer) => {
+      const createdDate = new Date(customer.created);
+      const month = createdDate.toLocaleString("default", { month: "short" });
+      const year = createdDate.getFullYear();
+      const key = `${month} ${year}`;
+      if (!acc[key]) {
+        acc[key] = { healthy: 0, warning: 0, critical: 0 };
+      }
+      if (customer.status === "active") {
+        acc[key].healthy++;
+      } else if (customer.status === "churned") {
+        acc[key].warning++;
+      } else if (customer.status === "delinquent") {
+        acc[key].critical++;
+      }
+      return acc;
+    }, {});
+
+    // Build health data for each month within the date range
+    const healthData = [];
+    const current = new Date(dateRange.startDate);
+    while (current <= dateRange.endDate) {
+      const month = current.toLocaleString("default", { month: "short" });
+      const year = current.getFullYear();
+      const key = `${month} ${year}`;
+      healthData.push({
+        monthYear: key,
+        healthy: grouped[key]?.healthy || 0,
+        warning: grouped[key]?.warning || 0,
+        critical: grouped[key]?.critical || 0,
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+    return healthData;
+  }, [state.customerData.summary, state.dateRange]);
+
+  // Optimize loadSettings by checking all needed conditions upfront
+  const loadSettings = useCallback(async () => {
+    if (!user?.id || state.stripeApiKey || state.customerData.summary) return;
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const settings = await response.json();
+      setState(prev => ({ ...prev, stripeApiKey: settings[0]?.stripe_api_key || "" }));
+    } catch (error) {
+      setState(prev => ({ ...prev, error: "Failed to load user settings" }));
+    }
+  }, [user?.id, state.stripeApiKey, state.customerData.summary]);
+
+  // Optimize loadData by consolidating state changes and error handling
+  const loadData = useCallback(async () => {
+    if (!user?.id || !state.stripeApiKey) return;
+
+    setState(prev => ({
+      ...prev,
+      customerData: { ...prev.customerData, loading: true },
+      error: null,
+    }));
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!response.ok) throw new Error("Failed to fetch customer summary");
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      setState(prev => {
+        const updated = {
+          ...prev,
+          customerData: {
+            summary,
+            loading: false,
+            customers: summary.customers,
+          },
+        };
+        return { ...updated, healthData: calculateHealthData() };
+      });
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        customerData: { ...prev.customerData, loading: false },
+        error: error.message,
+      }));
+    }
+  }, [user?.id, state.stripeApiKey, calculateHealthData]);
+
+  // Memoize actions and update healthData if dateRange changes through setDateRange
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      if (
+        !state.customerData.summary?.customers?.length ||
+        !state.customerData.customers.length
+      )
+        return;
+
+      setState(prev => ({ ...prev, websiteStatus: { checking: true }, error: null }));
+      try {
+        const updatedCustomers = await Promise.all(
+          state.customerData.customers.map(async (customer) => {
+            const response = await fetch("/api/website-churn-detector", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: customer.website }),
+            });
+            const health = await response.json();
+            return {
+              ...customer,
+              health,
+              status: health.status === "active" ? "active" : "churned",
+            };
+          })
+        );
+
+        const summary = {
+          ...state.customerData.summary,
+          customers: updatedCustomers,
+          active: updatedCustomers.filter(c => c.status === "active").length,
+          churned: updatedCustomers.filter(c => c.status === "churned").length,
+        };
+
+        setState(prev => ({
+          ...prev,
+          customerData: { ...prev.customerData, summary, customers: updatedCustomers },
+          healthData: calculateHealthData(),
+          websiteStatus: { checking: false },
+        }));
+      } catch (err) {
+        setState(prev => ({
+          ...prev,
+          websiteStatus: { checking: false },
+          error: "Failed to check websites. Please try again.",
+        }));
+      }
+    },
+
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        setState(prev => ({ ...prev, error: "Start date cannot be after end date" }));
+        return;
+      }
+      setState(prev => ({ ...prev, dateRange: range, error: null, healthData: calculateHealthData() }));
+    },
+
+    clearError: () => {
+      setState(prev => ({ ...prev, error: null }));
+    },
+  }), [state.customerData.summary, state.customerData.customers, state.dateRange, calculateHealthData]);
+
+  // Consolidated useEffect hooks
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings, user?.id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  return {
+    data: state,
+    actions,
+    isLoading: state.customerData.loading || state.websiteStatus.checking,
+  };
+}
+
+export default useDashboardData;

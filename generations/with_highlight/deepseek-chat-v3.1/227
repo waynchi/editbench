@@ -1,0 +1,77 @@
+import xml.etree.ElementTree # 用于处理 API 的 xml 响应
+import matplotlib.pyplot as plt # 用于绘制图表
+import pandas as pd # 用于创建数据框并将所有蜡烛分为两种类型：收盘和开盘
+import datetime # 用于 x 轴的日期
+import pickle # 用于在文件中存储变量
+import json # 用于处理数据库
+import aiofiles # 异步文件操作
+import aiohttp # 异步 http 请求
+from typing import List
+from matplotlib.axes import Axes # 为了方便显示
+import requests  # 添加同步请求库
+
+
+# 设置标准的技术分析字典。我们将使用它来分析路由器中图形构建的回调请求（因为在那里不方便获取 tick_inp）
+standart_tech_dict = {"value" : {"use" : False, "has_periods" : False, "need_graph_space" : True}, 
+                          "sma" : {"use" : False, "has_periods" : True, "periods" : [], "need_graph_space" : False},
+                          "ema" : {"use" : False, "has_periods" : True, "periods" : [],"need_graph_space" : False}
+                        }
+
+# 技术分析工具和空白天（无交易）没有问题，因为在数据框中无交易的天数不是零，而是根本不存在。因此，它们不会影响指标的值。
+# 类 Ticker，方法图表和当前价格
+class ticker():
+    """通过 MoexApi 获取股票代码及其相关信息"""
+    def __init__(self, name: str):
+        """self.name - 代码名称
+self.tech_dict - 技术分析字典"""
+        self.name = name 
+        """Имя тикера, то есть сам по себе тикер"""
+        # 在这里可以更改所有用户的默认设置。可能需要通过此实现自定义技术分析工具。
+        self.tech_dict = standart_tech_dict
+        """Словарь реализованных опций теханализа. Имеет вид \n
+        {"sma": {"use": True, "periods": [20, 50], "need_graph_space": False}, "rsi": {"use": True, "periods": [10], "need_graph_space": True}} \n
+        Где use отвечает за использование, period - список периодов, по которым будут считаться значения, need_graph_space за то, требует ли осциллятор доп места на графике \n
+        Изначально все use имеют значение False, а списки периодов пусты \n \n
+        При реализации нового инструмента теханализа достаточно дописать его в self.tech_dict \n
+        При этом функцию, соответствующую этому инструменту важно назвать также, как и сам инструмент в словаре. А её аргументы - self и ax (редактируемый/заполняемый график) \n
+        Доп графики инструментов теханализа, которые их требуют, будут отображаться в таком же порядке, в котором инструменты располагаются в словаре. Также в этом порядке будут высвечиваться кнопки в боте и уже выбранные инструменты теханализа"""
+    async def correct_name(self):
+        """检查股票代码名称是否存在于股票代码集合中。集合每天更新不超过一次。"""
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_opened_file:
+            info = json.loads(await info_opened_file.read())
+        if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f"): # 检查条件，确保重写股票代码列表的日期至少是1天前
+            # 如果相差超过1天，则重写列表（集合）中的代码：
+            set_tickers = set() # 创建一个空集合，用于存储股票代码
+            s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            response = requests.get(s)  # 同步从 moex 的 api 获取数据
+            root = xml.etree.ElementTree.fromstring(response.text)
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID")) # 将代码添加到我们的集合中
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb") as set_tickers_file_opened: # 打开文件以二进制方式写入集合中的股票代码
+                await set_tickers_file_opened.write(pickle.dumps(set_tickers)) # 将创建的集合写入文件。如果有的话，每次都会被覆盖（已验证）
+            # 更改最后更新时间
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_opened_file:
+                await info_opened_file.write(json.dumps(info, indent = 3, ensure_ascii = False)) # 写入新文件
+        # 现在只需检查列表中是否有该股票代码
+        async with aiofiles.open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb") as set_tickers_file_opened: # 打开包含多个股票代码的文件以从中获取它
+            set_tickers = pickle.loads(await set_tickers_file_opened.read()) # 从打开的文件中将一组 тикеров 的值加载到变量中。如果意外地记录了多个集合（不应该发生这种情况），则只会打开其中的第一个。
+        if self.name in set_tickers: # 只需检查该股票代码是否在股票代码集合中
+            return True
+        else:
+            return False
+    async def CurrentPrice(self):
+        """该代码的目的是获取此股票代码的当前价格。"""
+        s = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        response = requests.get(s)  # 同步从 moex 的 api 获取数据
+        root = xml.etree.ElementTree.fromstring(response.text)
+        for data in root.findall("data"): # 在 root 中找到所有 data 容器并遍历它们
+            if data.get("id") == "marketdata": # 在遍历的 data 中查看属性 id 并希望它是 marketdata
+                rows = data.find("rows") # 在 rows 中找到第一个带有标签 row 的容器
+                row = rows.find("row") # 在 rows 中有多个 row
+                return(row.get("LAST")) # return 会中断循环，所以这里不需要检查信息是否找到
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """此代码段用于获取特定股票的蜡烛图数据

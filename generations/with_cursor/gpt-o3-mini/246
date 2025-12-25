@@ -1,0 +1,38 @@
+import random
+
+def roll_dice(num_rolls):
+    """Бросает шестигранный кубик указанное количество раз и возвращает процентные соотношения результатов.
+
+Аргументы:
+    num_rolls: Количество бросков кубика.
+
+Возвращает:
+    Словарь, где ключи - числа от 1 до 6 (представляющие грани кубика), а значения - процент выпавших результатов.
+    Возвращает пустой словарь, если num_rolls не является положительным целым числом.
+
+Вызывает:
+    TypeError: если num_rolls не является целым числом.
+    ValueError: если num_rolls не является положительным."""
+    if not isinstance(num_rolls, int):
+        raise TypeError("Number of rolls must be an integer.")
+    if num_rolls <= 0:
+        raise ValueError("Number of rolls must be positive.")
+    
+    frequencies = {i: 0 for i in range(1, 7)}
+    for _ in range(num_rolls):
+        roll = random.randint(1, 6)
+        frequencies[roll] += 1
+
+    # Перевести абсолютные значения в проценты
+    percentages = {face: (count / num_rolls) * 100 for face, count in frequencies.items()}
+    return percentages
+
+if __name__ == "__main__":
+    num_rolls = 10000
+    try:
+        results = roll_dice(num_rolls)
+        print(f"Процентное распределение результатов после {num_rolls} бросков:")
+        for face, percentage in results.items():
+            print(f"Грань {face}: {percentage:.2f}%")
+    except (TypeError, ValueError) as e:
+        print(f"Error: {e}")

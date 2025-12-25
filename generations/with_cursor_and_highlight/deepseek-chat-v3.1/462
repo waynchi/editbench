@@ -1,0 +1,39 @@
+import random
+
+def main():
+    # Cargar el diccionario de palabras en inglés
+    try:
+        with open('/usr/share/dict/words', 'r') as file:
+            english_words = [word.strip().lower() for word in file.readlines()]
+    except FileNotFoundError:
+        print("Error: No se pudo encontrar el diccionario de palabras.")
+        return
+    
+    # Solicitar al usuario el número de caracteres
+    try:
+        n = int(input("Ingrese el número de caracteres para las palabras: "))
+        if n <= 0:
+            print("Por favor, ingrese un número positivo.")
+            return
+    except ValueError:
+        print("Por favor, ingrese un número válido.")
+        return
+    
+    # Filtrar palabras con exactamente n caracteres
+    palabras_filtradas = [word for word in english_words if len(word) == n]
+    
+    if not palabras_filtradas:
+        print(f"No se encontraron palabras con {n} caracteres.")
+        return
+    
+    # Seleccionar 10 palabras aleatorias (o menos si no hay suficientes)
+    cantidad = min(10, len(palabras_filtradas))
+    palabras_seleccionadas = random.sample(palabras_filtradas, cantidad)
+    
+    # Imprimir las palabras seleccionadas
+    print(f"\n{palabras_seleccionadas} palabras con {n} caracteres:")
+    for i, palabra in enumerate(palabras_seleccionadas, 1):
+        print(f"{i}. {palabra}")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,85 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+# 新增：用于存储层次字典
+hierarchical_dict = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies_count = post['children']
+    X += 1
+
+    # 仅处理评论数超过最小数量的帖子
+    if post_replies_count > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        replies_list = comment.get_replies()
+        
+        valid_replies = []
+        for reply in replies_list:
+            reply_author = reply['author']
+            reply_body = reply['body']
+            
+            # 如果回复来自自己的作者，则停止处理该帖子的回复
+            if is_own_author(reply_author):
+                break
+            # 如果回复来自被禁止的作者，则停止处理该帖子的回复
+            if is_banned(reply_author):
+                break
+            # 如果内容满足处理条件，则将回复添加到有效回复列表中
+            if procesar(reply_body):
+                valid_replies.append({
+                    "author": reply_author,
+                    "permlink": reply['permlink'],
+                    "body": reply_body
+                })
+        
+        # 如果有效回复数大于3，则打印相关信息并构建层次字典
+        if len(valid_replies) > 3:
+            print("Iterador:", X)
+            if valid_replies:
+                last_reply = valid_replies[-1]
+                print(last_reply['author'] + '/' + last_reply['permlink'])
+            hierarchical_dict[f"{post_author}/{post_permlink}"] = {
+                "post_author": post_author,
+                "post_permlink": post_permlink,
+                "replies": valid_replies
+            }
+
+# 打印最终生成的层次字典
+print("Hierarchical dictionary:")
+print(hierarchical_dict)

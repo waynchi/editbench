@@ -1,0 +1,170 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import skew
+
+def medcouple(data):
+    data = np.sort(data)
+    n = len(data)
+    median = np.median(data)
+
+    # Split data into left and right of the median
+    left = data[data <= median]
+    right = data[data >= median]
+
+    # Kernel function h(xi, xj)
+    def h(xi, xj):
+        if xi != xj:
+            return ((xj - median) - (median - xi)) / (xj - xi)
+        return 0
+
+    # Special kernel for cases with repeated medians
+    def special_h(i, j, k):
+        if i + j - 1 < k:
+            return -1
+        elif i + j - 1 == k:
+            return 0
+        elif i + j - 1 > k:
+            return 1
+
+    # Generate all possible h(xi, xj)
+    h_values = []
+    k = len(data[data == median])  # Count of repeated median values
+
+    # Use numpy broadcasting for efficiency
+    if k > 1:
+        # Create meshgrid for indices and values
+        left_indices = np.arange(len(left))
+        right_indices = np.arange(len(right))
+        
+        # Use outer operations to compute all combinations efficiently
+        left_vals = left[:, np.newaxis]  # Shape: (len(left), 1)
+        right_vals = right[np.newaxis, :]  # Shape: (1, len(right))
+        
+        # Compute h values using vectorized operations
+        numerator = (right_vals - median) - (median - left_vals)
+        denominator = right_vals - left_vals
+        
+        # Avoid division by zero
+        mask = denominator != 0
+        h_matrix = np.full_like(numerator, 0.0, dtype=float)
+        h_matrix[mask] = numerator[mask] / denominator[mask]
+        
+        # Handle cases where xi == xj == median
+        median_mask = (left_vals == median) & (right_vals == median)
+        h_matrix[median_mask] = 0  # Default case
+        
+        # For the special case of repeated medians, we need index-based logic
+        # This is a simplified workaround to handle repeated medians correctly
+        # In practice, when data has many repeated values, this becomes complex
+        # So let's use an alternative approach that works better:
+        
+        # Just flatten and compute properly
+        flat_left = left.flatten()
+        flat_right = right.flatten()
+        
+        # Build the h matrix properly using nested loops since broadcasting 
+        # approach for special case was problematic
+        h_values_list = []
+        for i, xi in enumerate(flat_left):
+            for j, xj in enumerate(flat_right):
+                if xi == median and xj == median:
+                    h_values_list.append(special_h(i, j, k))
+                else:
+                    h_values_list.append(h(xi, xj))
+    else:
+        # Simple case without repeated medians
+        left_vals = left[:, np.newaxis]  
+        right_vals = right[np.newaxis, :]  
+        numerator = (right_vals - median) - (median - left_vals)
+        denominator = right_vals - left_vals
+        mask = denominator != 0
+        h_matrix = np.zeros_like(numerator, dtype=float)
+        h_matrix[mask] = numerator[mask] / denominator[mask]
+        h_values_list = h_matrix.flatten().tolist()
+
+    # Return median of all h values
+    return np.median(h_values_list)
+
+def adjusted_boxplot_bounds(data):
+    """
+    Вычисляет границы adjusted boxplot с учетом skewness-adjusted fences.
+    """
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    _medcouple = medcouple(data)
+
+    if _medcouple > 0:
+        lower_fence = q1 - 1.5 * np.exp(-4 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(3 * _medcouple) * iqr
+    else:
+        lower_fence = q1 - 1.5 * np.exp(-3 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(4 * _medcouple) * iqr
+
+    return lower_fence, upper_fence
+
+def normalize_column(data):
+    """
+    Нормализация с использованием adjusted boxplot.
+    """
+    lower_fence, upper_fence = adjusted_boxplot_bounds(data)
+    print(f"Lower fence: {lower_fence}, Upper fence: {upper_fence}")
+    # Avoid division by zero
+    if upper_fence <= lower_fence:
+        return np.zeros_like(data)
+    return (data - lower_fence) / (upper_fence - lower_fence)
+
+# Генерация данных
+np.random.seed(42)
+data_normal = np.random.normal(loc=50, scale=10, size=10000)
+data_skewed = np.random.exponential(scale=20, size=10000)
+data_skewed = np.concatenate([data_skewed[5:], [200, 250, 300, -100, -50]])
+data_with_outliers = np.concatenate([data_normal, [150, 160, 170]])
+
+# Нормализация
+df = pd.DataFrame({
+    "Normal": data_normal,
+    "Skewed": data_skewed,
+})
+
+normalized_df = df.apply(normalize_column)
+
+plt.figure(figsize=(16, 4), dpi=250)
+
+bins = np.linspace(-5, 200, 206)
+bin_width = bins[1] - bins[0]  # Ширина одного бина
+
+for col in df.columns:
+    # plt.hist(df[col], bins=50, alpha=0.5, label=f'{col} - Original')
+    # Вычисляем гистограммы без построения
+    hist, _ = np.histogram(df[col], bins=bins)
+
+    # Позиции столбиков для каждой гистограммы
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    # Смещение для каждого набора данных
+    offset = bin_width / 4
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', alpha=0.2, label=f'{col}')
+    plt.legend()
+    plt.title(f"Histogram Before Normalization")
+plt.xlim(-10, 200)
+plt.show()
+
+bins = np.linspace(-2, 2, 101)
+bin_width = bins[1] - bins[0]  # Ширина одного бина
+
+
+plt.figure(figsize=(16, 4), dpi=250)
+for col in normalized_df.columns:
+    # plt.hist(normalized_df[col], bins=50, alpha=0.5, label=f'{col} - Normalized')
+    hist, _ = np.histogram(normalized_df[col], bins=bins)
+
+    # Позиции столбиков для каждой гистограммы
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    # Смещение для каждого набора данных
+    offset = bin_width / 2
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', label=f'{col}', alpha=0.2)
+    plt.legend()
+    plt.title(f"Histogram After Normalization")
+plt.show()

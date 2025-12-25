@@ -1,0 +1,95 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+
+def is_own_author(autor: str):
+    return autor == 'subidu'
+
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: Comment):
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def crear_diccionario_jerarquico(posts_generator):
+    """Crea un diccionario jerárquico con posts y sus respuestas"""
+    hierarchical_dict = {}
+    
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_key = f"{post_author}/{post_permlink}"
+        
+        # Crear entrada principal para el post
+        hierarchical_dict[post_key] = {
+            'post_data': dict(post),
+            'replies': {}
+        }
+        
+        # Obtener y procesar respuestas si hay suficientes
+        if post['children'] > n_respuestas_minimas:
+            comment = Comment(authorperm=post_key)
+            post_replies = comment.get_replies()
+            
+            for reply in post_replies:
+                reply_author = reply['author']
+                reply_permlink = reply['permlink']
+                reply_key = f"{reply_author}/{reply_permlink}"
+                
+                # Añadir respuesta al diccionario jerárquico
+                hierarchical_dict[post_key]['replies'][reply_key] = {
+                    'reply_data': dict(reply),
+                    'processed': procesar(reply['body']),
+                    'own_author': is_own_author(reply_author),
+                    'banned': is_banned(reply_author)
+                }
+    
+    return hierarchical_dict
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Crear el diccionario jerárquico
+hierarchical_dict = crear_diccionario_jerarquico(posts_generator)
+
+# Procesar el diccionario jerárquico
+for post_key, post_info in hierarchical_dict.items():
+    X += 1
+    cnt = 0
+    
+    for reply_key, reply_info in post_info['replies'].items():
+        if reply_info['own_author']:
+            break
+        if reply_info['banned']:
+            break
+        if reply_info['processed']:
+            cnt += 1
+    
+    if cnt > 3:
+        print("Iterador: ", X)
+        print(f"Post: {post_key}")
+        print(f"Respuestas procesadas: {cnt}")
+        print("---")

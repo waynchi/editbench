@@ -1,0 +1,30 @@
+def binary_search(sorted_list, item):
+    """
+    Выполняет бинарный поиск в отсортированном списке.
+    Возвращает индекс элемента, если он найден, иначе -1.
+    """
+    low = 0
+    high = len(sorted_list) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        guess = sorted_list[mid]
+        if guess == item:
+            return mid
+        elif guess > item:
+            high = mid - 1
+        else:
+            low = mid + 1
+
+    return -1
+
+if __name__ == '__main__':
+    # Пример использования функции binary_search.
+    sorted_list = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]
+    target = 7
+    index = binary_search(sorted_list, target)
+
+    if index != -1:
+        print(f"Элемент {target} найден на позиции {index}.")
+    else:
+        print(f"Элемент {target} не найден в списке.")

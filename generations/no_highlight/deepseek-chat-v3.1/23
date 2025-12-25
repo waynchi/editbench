@@ -1,0 +1,54 @@
+import nltk
+from nltk.corpus import words
+
+def get_words_by_length(word_list, length):
+    """Filter words by specified length"""
+    return [word for word in word_list if len(word) == length]
+
+def main():
+    # Download the words corpus if not already available
+    try:
+        word_list = words.words()
+    except LookupError:
+        print("Downloading word corpus...")
+        nltk.download('words')
+        word_list = words.words()
+    
+    print("English Dictionary Word Finder")
+    print("Enter the number of characters to find words (or 'quit' to exit)")
+    
+    while True:
+        user_input = input("\nEnter word length: ").strip().lower()
+        
+        if user_input == 'quit':
+            print("Goodbye!")
+            break
+        
+        try:
+            # Convert input to integer
+            word_length = int(user_input)
+            
+            if word_length <= 0:
+                print("Please enter a positive number.")
+                continue
+            
+            # Get words with specified length
+            matching_words = get_words_by_length(word_list, word_length)
+            
+            if not matching_words:
+                print(f"No words found with {word_length} characters.")
+                continue
+            
+            # Display up to 10 words
+            print(f"\nFound {len(matching_words)} words with {word_length} characters:")
+            for i, word in enumerate(matching_words[:10], 1):
+                print(f"{i}. {word}")
+            
+            if len(matching_words) > 10:
+                print(f"... and {len(matching_words) - 10} more words")
+                
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+
+if __name__ == "__main__":
+    main()

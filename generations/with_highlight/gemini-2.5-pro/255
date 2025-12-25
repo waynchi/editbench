@@ -1,0 +1,65 @@
+import numpy as np
+
+# --- Improved Code ---
+
+# Use a single, clear definition for the input file path.
+# The second assignment in the original code overwrote the first.
+# To switch files, comment one line and uncomment the other.
+INPUT_FILE_PATH = './example_in.txt'
+# INPUT_FILE_PATH = './input.txt'
+
+
+def main():
+    """
+    Reads a file with two columns of integers, and calculates the sum of the
+    absolute differences between the elements of the two columns after they
+    are both sorted. This is a more efficient implementation of the original logic.
+    """
+    try:
+        # Improvement 1: Use np.loadtxt for robust and efficient data loading.
+        # It handles various whitespace separators and converts to the specified
+        # data type directly. This replaces the parse_input_file function,
+        # the manual string splitting, and the type conversion.
+        data = np.loadtxt(INPUT_FILE_PATH, dtype=int)
+    except FileNotFoundError:
+        print(f"Error: The file '{INPUT_FILE_PATH}' was not found.")
+        return
+    except ValueError:
+        # This error occurs if the file contains non-integer data or is malformed.
+        print(f"Error: The file '{INPUT_FILE_PATH}' contains non-integer data or is improperly formatted.")
+        return
+
+    # Handle the edge case of an empty file, which loadtxt reads as a 0-dim array.
+    if data.size == 0:
+        print(0)  # The sum of differences for empty lists is 0.
+        return
+
+    # Improvement 2: Defensive check for input shape.
+    # Use np.atleast_2d to correctly handle files with only a single row of data.
+    data = np.atleast_2d(data)
+    if data.shape[1] != 2:
+        print(f"Error: The file '{INPUT_FILE_PATH}' must contain exactly two columns of numbers.")
+        return
+
+    # Improvement 3: Replace the inefficient O(N^2) loop with a fast O(N log N) sort.
+    # The original logic of repeatedly finding the minimum of each list is
+    # mathematically equivalent to sorting each list first and then pairing
+    # the elements at corresponding indices.
+
+    # Get the two columns and sort them.
+    col1 = np.sort(data[:, 0])
+    col2 = np.sort(data[:, 1])
+
+    # Improvement 4: Use vectorized NumPy operations for high performance.
+    # This single line calculates the sum of absolute differences, replacing the
+    # entire while loop, the all_dists list, and the final sum().
+    total_distance = np.sum(np.abs(col1 - col2))
+
+    print(total_distance)
+
+
+# The original parse_input_file function is no longer needed because
+# np.loadtxt is a more robust and direct replacement.
+
+if __name__ == "__main__":
+    main()

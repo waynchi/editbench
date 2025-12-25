@@ -1,0 +1,183 @@
+import sys
+
+class Graph:
+    def __init__(self):
+        self.adjacency_list = {}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adjacency_list:
+            self.adjacency_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            # Avoid duplicate edges
+            if vertex2 not in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].append(vertex2)
+            if vertex1 not in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].append(vertex1)
+
+    def remove_vertex(self, vertex):
+        if vertex in self.adjacency_list:
+            # Remove this vertex from all neighbors' lists
+            for neighbor in self.adjacency_list[vertex]:
+                if vertex in self.adjacency_list[neighbor]:
+                    self.adjacency_list[neighbor].remove(vertex)
+            del self.adjacency_list[vertex]
+
+    def remove_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            if vertex2 in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].remove(vertex2)
+            if vertex1 in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].remove(vertex1)
+
+    def dfs(self, start_vertex, visited=None):
+        """
+        Perform a depth-first search (DFS) starting from the given vertex.
+        """
+        if visited is None:
+            visited = set()
+        visited.add(start_vertex)
+        print(start_vertex, end=' ')
+        for neighbor in self.adjacency_list.get(start_vertex, []):
+            if neighbor not in visited:
+                self.dfs(neighbor, visited)
+
+    def bfs(self, start_vertex):
+        """
+        Perform a breadth-first search (BFS) starting from the given vertex.
+        """
+        visited = set()
+        queue = [start_vertex]
+        visited.add(start_vertex)
+        while queue:
+            vertex = queue.pop(0)
+            print(vertex, end=' ')
+            for neighbor in self.adjacency_list.get(vertex, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+    def __str__(self):
+        return str(self.adjacency_list)
+
+
+# Unit tests for the Graph class
+import unittest
+import io
+from contextlib import redirect_stdout
+
+class TestGraph(unittest.TestCase):
+
+    def setUp(self):
+        self.graph = Graph()
+
+    def test_add_vertex(self):
+        self.graph.add_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'A': []})
+        self.graph.add_vertex('B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # Adding a duplicate vertex should not modify the graph
+        self.graph.add_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+    def test_add_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+        # Adding an edge where one vertex does not exist should not modify the graph
+        self.graph.add_edge('A', 'C')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+        self.graph.add_edge('D', 'E')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+
+    def test_remove_vertex(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.graph.remove_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'B': []})
+        # Removing a non-existent vertex should not modify the graph
+        self.graph.remove_vertex('C')
+        self.assertEqual(self.graph.adjacency_list, {'B': []})
+
+    def test_remove_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.graph.remove_edge('A', 'B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # Removing a non-existent edge should have no effect
+        self.graph.remove_edge('A', 'C')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+    def test_dfs(self):
+        # Create a simple connected graph
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B', 'C')
+
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.dfs('A')
+        output = f.getvalue().strip()
+        # Since DFS order depends on the order of neighbors,
+        # check that all nodes are visited and the first visited is 'A'
+        tokens = output.split()
+        self.assertEqual(set(tokens), {'A', 'B', 'C'})
+        self.assertEqual(tokens[0], 'A')
+
+    def test_bfs(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B', 'C')
+
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.bfs('A')
+        output = f.getvalue().strip()
+        # For BFS from A, the expected order is A then B and C (order of B and C may vary)
+        tokens = output.split()
+        self.assertEqual(tokens[0], 'A')
+        self.assertEqual(set(tokens), {'A', 'B', 'C'})
+        # When vertex 'B' is encountered before 'C' based on insertion order, the output should be "A B C"
+        # But both "A B C" and "A C B" are acceptable BFS orderings in this simple graph.
+
+
+if __name__ == '__main__':
+    # If the first command-line argument is "test", run unittests;
+    # otherwise, run a demonstration of the Graph functionality.
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        # Remove "test" from sys.argv so that unittest doesn't get confused.
+        sys.argv.pop(1)
+        unittest.main()
+    else:
+        # Demonstration code
+        graph = Graph()
+
+        # Adding vertices
+        graph.add_vertex('A')
+        graph.add_vertex('B')
+        graph.add_vertex('C')
+        graph.add_vertex('D')
+
+        # Adding edges
+        graph.add_edge('A', 'B')
+        graph.add_edge('A', 'C')
+        graph.add_edge('B', 'D')
+
+        print("Graph adjacency list:")
+        print(graph)
+
+        print("\nDFS starting from vertex 'A':")
+        graph.dfs('A')
+        print("\n\nBFS starting from vertex 'A':")
+        graph.bfs('A')
+        print()

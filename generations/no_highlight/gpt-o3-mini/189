@@ -1,0 +1,59 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, input_shape):
+        """
+        初始化一个简单的卷积网络。
+        参数：
+          input_shape: 输入图像的形状，例如 (3, 32, 32)
+        """
+        super().__init__()
+
+        # 第一层卷积：3通道输入，32个卷积核，卷积核大小3，后面跟ReLU和2x2的最大池化
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        # 第二层卷积：32通道输入，64个卷积核，卷积核大小3，后面跟ReLU和2x2的最大池化
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        # 展平层
+        self.flatten = nn.Flatten()
+
+        # 计算卷积层输出后的扁平化尺寸
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, *input_shape)
+            dummy_out = self.conv1(dummy_input)
+            dummy_out = self.conv2(dummy_out)
+            flat_size = dummy_out.numel()
+
+        # 全连接层，没有使用Dropout和BatchNorm函数
+        self.fc1 = nn.Sequential(
+            nn.Linear(flat_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == '__main__':
+    # 使用示例：假设输入图像形状为 (3, 32, 32)
+    model = SimpleConvNet1(input_shape=(3, 32, 32))
+    print(model)
+
+    # 测试模型：创建一个随机输入，形状为 (1, 3, 32, 32)
+    input_tensor = torch.randn(1, 3, 32, 32)
+    output = model(input_tensor)
+    print("输出形状:", output.shape)

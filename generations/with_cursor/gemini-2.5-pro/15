@@ -1,0 +1,107 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import CommandStart
+from aiogram.types import FSInputFile
+
+# TOKEN should be replaced with your actual bot token
+token = "TOKEN"
+
+# It's recommended to use a more secure way to store your token, e.g., environment variables
+bot = Bot(token=token)
+dp = Dispatcher()
+
+# Hardcoded chat ID and interval
+id = 111111111
+time_time = 5
+
+# Global flag to control the periodic sending task
+b = True
+
+@dp.message(CommandStart())
+async def start(message: types.Message):
+    """
+    Handler for the /start command. Sends a question with inline buttons.
+    """
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="stop"),
+         types.InlineKeyboardButton(text="Нет", callback_data="continue")]
+    ])
+    await bot.send_message(chat_id=id, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query(F.data == "stop")
+async def stop_callback(call: types.CallbackQuery):
+    """
+    Handler for the "Да" button callback.
+    """
+    global b
+    # b = False  # This line was commented in the original code
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+    await call.answer()  # It's good practice to answer callback queries
+
+@dp.callback_query(F.data == "continue")
+async def continue_callback(call: types.CallbackQuery):
+    """
+    Handler for the "Нет" button callback.
+    """
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+    await call.answer()
+
+@dp.message(F.text)
+async def handle_all_messages(message: types.Message):
+    """
+    Handler for any text message that is not a command.
+    """
+    # Using FSInputFile is the modern way to send local files in aiogram 3
+    # Make sure the file path is correct
+    try:
+        video = FSInputFile(r"D:\Python files\!MoexApiBot\censored.gif")
+        await bot.send_video(chat_id=id, video=video, caption="Го <censor> ёр селф")
+    except FileNotFoundError:
+        print("Error: 'censored.gif' not found at the specified path.")
+        await message.answer("Sorry, a media file was not found on the server.")
+
+
+async def send_periodic_messages():
+    """
+    A background task that sends messages and videos periodically.
+    """
+    while b:
+        await bot.send_message(chat_id=id, text="Лох лох")
+        try:
+            # Make sure the file path is correct
+            video = FSInputFile(r"D:\Python files\!MoexApiBot\Shocked13.mp4")
+            await bot.send_video(chat_id=id, video=video, caption="Ты проиграл")
+        except FileNotFoundError:
+            print("Error: 'Shocked13.mp4' not found at the specified path.")
+        await asyncio.sleep(time_time)
+
+async def main():
+    """
+    Main function to start the bot.
+    """
+    print('Бот запущен!')
+    # Create a background task for sending periodic messages
+    asyncio.create_task(send_periodic_messages())
+    # Start polling for updates, skipping any pending updates
+    await dp.start_polling(bot, skip_updates=True)
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Бот остановлен.")
+
+
+#for i in range(100):
+    #vid = open(r"D:\Python files\!MoexApiBot\d530f99f38bf98bbeb213cb32b53012b.mp4", "rb")
+    #bot.send_message(chat_id=444444444, text = f"Ты проиграл {i} раз")
+    #bot.send_message(chat_id=444444444, text = f"Вас взломали {i} раз")
+    #bot.send_message(chat_id=444444444, text = f"Отправьте {100*i} рублей на счет +55555555555)
+    #bot.send_video(chat_id=444444444, video=vid, caption="Ты проиграл")
+    #vid.close()
+    #time.sleep(1)
+#555555555 NAME_4
+#444444444 Добр
+#333333333 NAME_3
+#222222222 NAME_2
+#111111111 NAME_1

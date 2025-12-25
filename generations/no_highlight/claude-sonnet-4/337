@@ -1,0 +1,44 @@
+def binary_search(arr, target):
+    """
+    Implementacja wyszukiwania binarnego
+    
+    Args:
+        arr: posortowana lista elementów
+        target: element do znalezienia
+    
+    Returns:
+        indeks elementu jeśli znaleziony, -1 jeśli nie znaleziony
+    """
+    left = 0
+    right = len(arr) - 1
+    
+    while left <= right:
+        mid = (left + right) // 2
+        
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    
+    return -1
+
+# Przykład użycia
+if __name__ == "__main__":
+    # Posortowana lista
+    numbers = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+    
+    # Szukamy liczby 7
+    result = binary_search(numbers, 7)
+    if result != -1:
+        print(f"Element 7 znaleziony na indeksie: {result}")
+    else:
+        print("Element nie został znaleziony")
+    
+    # Szukamy liczby 4 (której nie ma w liście)
+    result = binary_search(numbers, 4)
+    if result != -1:
+        print(f"Element 4 znaleziony na indeksie: {result}")
+    else:
+        print("Element 4 nie został znaleziony")

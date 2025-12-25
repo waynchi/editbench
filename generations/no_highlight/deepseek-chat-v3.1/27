@@ -1,0 +1,31 @@
+from langchain_ollama.chat_models import ChatOllama
+from langchain.schema import HumanMessage, SystemMessage
+import json
+
+# Load the JSON data
+with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+    shap_values_json = json.load(file).get("shap_values")
+
+# Load the system prompt
+with open("system.prompt", "r") as file:
+    sys_prompt = file.read().strip()
+
+# Create the user prompt
+prompt = f"""
+{shap_values_json}
+"""
+
+# Initialize the ChatOllama model
+chat_model = ChatOllama(model="llama3.2")
+
+# Create the messages
+messages = [
+    SystemMessage(content=sys_prompt),
+    HumanMessage(content=prompt)
+]
+
+# Get the response
+response = chat_model.invoke(messages)
+
+# Print the response content
+print(response.content)

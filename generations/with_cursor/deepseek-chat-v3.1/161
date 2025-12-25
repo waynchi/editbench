@@ -1,0 +1,33 @@
+def sum_of_four_squares(n):
+    """
+    Check if a number can be expressed as the sum of four non-zero perfect squares.
+    Returns True if possible, False otherwise.
+    """
+    # Check for numbers less than 4 (minimum sum of four non-zero squares is 1+1+1+1=4)
+    if n < 4:
+        return False
+    
+    # Try all possible combinations of four non-zero squares
+    max_square = int(n**0.5) + 1
+    for a in range(1, max_square):
+        for b in range(1, max_square):
+            for c in range(1, max_square):
+                for d in range(1, max_square):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+    return False
+
+# Example usage and test cases
+if __name__ == "__main__":
+    # Test with some known values
+    test_numbers = [4, 5, 10, 13, 20, 25, 30, 50]
+    
+    for num in test_numbers:
+        result = sum_of_four_squares(num)
+        print(f"{num}: {'Yes' if result else 'No'}")
+        
+    # Find numbers up to 50 that can be expressed as sum of four non-zero squares
+    print("\nNumbers up to 50 that can be expressed as sum of four non-zero squares:")
+    for i in range(4, 51):
+        if sum_of_four_squares(i):
+            print(i, end=" ")

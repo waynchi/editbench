@@ -1,0 +1,76 @@
+const cameraService = require('./camera.service');
+const db = require('../db'); // 假设你已经配置好数据库连接模块
+
+const createCamera = async (req, res) => {
+  try {
+    // 创建新的camera记录
+    const camera = await cameraService.createCamera(req.body);
+
+    // 使用原始查询，通过cameras.area_id 与 areas.id 连接两个表，
+    // 获取cameras中的所有字段以及areas中的area_name
+    const query = `
+      SELECT cameras.*, areas.area_name 
+      FROM cameras 
+      JOIN areas ON cameras.area_id = areas.id
+    `;
+    // 注意：db.query 的调用方式依赖于你所使用的数据库连接库，这里假设返回的是 Promise
+    const results = await db.query(query);
+
+    res.status(201).json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getAllCameras = async (req, res) => {
+  try {
+    const cameras = await cameraService.getAllCameras();
+    res.status(200).json(cameras);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getCameraById = async (req, res) => {
+  try {
+    const camera = await cameraService.getCameraById(req.params.id);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateCamera = async (req, res) => {
+  try {
+    const camera = await cameraService.updateCamera(req.params.id, req.body);
+    if (!camera) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(200).json(camera);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const deleteCamera = async (req, res) => {
+  try {
+    const success = await cameraService.deleteCamera(req.params.id);
+    if (!success) {
+      return res.status(404).json({ message: 'Camera not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = {
+  createCamera,
+  getAllCameras,
+  getCameraById,
+  updateCamera,
+  deleteCamera,
+};

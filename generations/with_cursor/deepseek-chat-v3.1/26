@@ -1,0 +1,91 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Реализация метода сопряженных градиентов для решения системы линейных уравнений Ax = b.
+    
+    Parameters:
+    -----------
+    A : array-like, sparse matrix
+        Матрица коэффициентов системы (должна быть симметричной и положительно определенной)
+    b : array-like
+        Вектор правой части системы
+    x0 : array-like, optional
+        Начальное приближение. Если не задано, используется нулевой вектор
+    tol : float, optional
+        Допуск для критерия остановки (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций. Если не задано, используется размерность системы
+    
+    Returns:
+    --------
+    x : numpy.ndarray
+        Приближенное решение системы
+    converged : bool
+        Флаг сходимости
+    num_iter : int
+        Количество выполненных итераций
+    residuals : list
+        История невязок по итерациям
+    """
+    
+    b = np.asarray(b)
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = np.asarray(x0)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    # Инициализация
+    r = b - A @ x  # начальная невязка
+    p = r.copy()   # начальное направление поиска
+    rs_old = r @ r
+    
+    residuals = [np.sqrt(rs_old)]
+    
+    for i in range(max_iter):
+        # Вычисление матрично-векторного произведения
+        Ap = A @ p
+        
+        # Вычисление шага
+        alpha = rs_old / (p @ Ap)
+        
+        # Обновление решения и невязки
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        # Проверка сходимости
+        rs_new = r @ r
+        residuals.append(np.sqrt(rs_new))
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, i + 1, residuals
+        
+        # Обновление направления поиска
+        beta = rs_new / rs_old
+        p = r + beta * p
+        rs_old = rs_new
+    
+    return x, False, max_iter, residuals
+
+# Пример использования
+if __name__ == "__main__":
+    # Создаем тестовую симметричную положительно определенную матрицу
+    n = 5
+    A = np.random.rand(n, n)
+    A = A.T @ A + np.eye(n)  # Делаем матрицу положительно определенной
+    x_true = np.ones(n)
+    b = A @ x_true
+    
+    # Решаем систему методом сопряженных градиентов
+    x_sol, converged, num_iter, residuals = conjugate_gradient(A, b)
+    
+    print(f"Решение сошлось: {converged}")
+    print(f"Количество итераций: {num_iter}")
+    print(f"Точное решение: {x_true}")
+    print(f"Полученное решение: {x_sol}")
+    print(f"Норма невязки: {np.linalg.norm(A @ x_sol - b)}")

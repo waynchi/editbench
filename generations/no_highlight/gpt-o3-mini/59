@@ -1,0 +1,51 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, flattened_size):
+        super(SimpleConvNet1, self).__init__()
+        # Первая сверточная группа: свертка + активация + max pooling
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        # Вторая сверточная группа: свертка + активация + max pooling
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        # Флэттеним выход сверточных слоев для последующей полной связи
+        self.flatten = nn.Flatten()
+        # Полносвязная сеть без использования Dropout и BatchNorm
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == "__main__":
+    # Пример создания модели и проверки её работы.
+    # Допустим, у нас есть изображения размером 32x32 с 3 каналами.
+    # Расчет flattened_size:
+    # После первого слоя: 32x32 -> свертка (kernel=3, padding=0) => 30x30, затем max pooling (kernel=2) => 15x15
+    # После второго слоя: 15x15 -> свертка => 13x13, затем max pooling => 6x6 (так как 13//2=6)
+    # Итоговый размер: 64 каналов * 6 * 6 = 2304
+    flattened_size = 64 * 6 * 6
+
+    # Создаем экземпляр модели
+    model = SimpleConvNet1(flattened_size)
+
+    # Создаем тестовый батч изображений (например, 1 изображение)
+    dummy_input = torch.randn(1, 3, 32, 32)
+    output = model(dummy_input)
+
+    print("Output shape:", output.shape)

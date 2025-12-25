@@ -1,0 +1,12 @@
+import os
+from pymilvus import connections
+
+# 记录当前路径为cwd
+cwd = os.getcwd()
+
+# 使用pymilvus创建数据库链接
+# 这里假设Milvus服务运行在 localhost:19530
+connections.connect(alias="default", host="localhost", port="19530")
+
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128

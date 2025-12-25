@@ -1,0 +1,93 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+def czyPoprawny(obrazek): # обрезок содержит список строк и можно использовать побитовый оператор
+                            # obraz[i][j]
+    for wiersz in obrazek[:-1]: # не учитываем из последней строки, там находятся биты четности
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna+=obrazek[j][i]
+        if kolumna[:-1].count('1')% 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]: # не учитываем из последней строки, там находятся биты четности
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne+=1
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna+=obrazek[j][i]
+        if kolumna[:-1].count('1')% 2 != int(kolumna[-1]):
+           bityKolBleden+=1
+    global maxbitybledne
+    if maxbitybledne<(bityKolBleden+bityWierBledne):
+        maxbitybledne = bityKolBleden+bityWierBledne
+    bityBledne.append(bityKolBleden+bityWierBledne)
+
+    if bityWierBledne >1 :
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    # Find the row and column with parity errors
+    wiersz_bledny = -1
+    kolumna_bledna = -1
+    
+    # Check rows
+    for i in range(20):  # Check first 20 rows (data rows)
+        wiersz = obrazek[i]
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            wiersz_bledny = i
+    
+    # Check columns
+    for j in range(20):  # Check first 20 columns (data columns)
+        kolumna = ""
+        for i in range(21):  # All 21 rows
+            kolumna += obrazek[i][j]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            kolumna_bledna = j
+    
+    # Create a copy of the image to modify
+    naprawiony = [list(wiersz) for wiersz in obrazek]
+    
+    # If we found both a faulty row and column, flip the bit at their intersection
+    if wiersz_bledny != -1 and kolumna_bledna != -1:
+        # Flip the bit at (wiersz_bledny, kolumna_bledna)
+        current_bit = naprawiony[wiersz_bledny][kolumna_bledna]
+        naprawiony[wiersz_bledny][kolumna_bledna] = '1' if current_bit == '0' else '0'
+    
+    # Convert back to strings
+    naprawiony = [''.join(wiersz) for wiersz in naprawiony]
+    
+    return naprawiony
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip() # удаляем пробелы, например, enter
+   # wiersz = wiersz[:-1]  # только данные изображения без бита четности, теперь читаем всю строку данных
+    obrazek.append(wiersz)
+    if len(obrazek) == 21: # у нас 21 строка, то есть весь рисунок вместе со строками битов четности
+        if czyPoprawny(obrazek):
+            poprawne+=1
+        elif czyNaprawialny(obrazek):
+            naprawialne+=1
+            naprawiony = napraw(obrazek)
+
+
+    if len(obrazek) == 22:  # после 22 строки очищаем изображение, чтобы читать строки следующего изображения
+        obrazek = list()
+
+print(poprawne,naprawialne,200-poprawne-naprawialne)
+print(maxbitybledne,max(bityBledne))

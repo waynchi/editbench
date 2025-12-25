@@ -1,0 +1,21 @@
+def is_prime(n):
+    """Проверяет, является ли число n простым."""
+    if n <= 1:
+        return False
+    if n == 2:
+        return True
+    if n % 2 == 0:
+        return False
+    i = 3
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 2
+    return True
+
+if __name__ == "__main__":
+    # Тестируем функцию is_prime с разными значениями
+    numbers_to_test = [0, 1, 2, 3, 4, 13, 16, 17, 18, 19, 23, 24]
+    for num in numbers_to_test:
+        result = "простое" if is_prime(num) else "непростое"
+        print(f"{num} является {result} числом.")

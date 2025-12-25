@@ -1,0 +1,37 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input_str: str, start_pos: int) -> bool:
+        """Sprawdza, czy znak w podanej pozycji jest cyfrą wykorzystując wbudowaną metodę isdigit."""
+        if start_pos < len(input_str):
+            return input_str[start_pos].isdigit()
+        return False
+
+    @staticmethod
+    def is_int(input_str: str, start_pos: int) -> int:
+        """
+        Zwraca końcową pozycję tokenu, jeśli dane wejściowe zaczynają się od prawidłowego tokenu całkowitego.
+        W przeciwnym razie zgłasza AssertionError.
+        """
+        max_pos = len(input_str)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos and input_str[current_pos].isdigit():
+            digit_found = True
+            current_pos += 1
+
+        assert digit_found, "Not an integer"
+        return current_pos
+
+if __name__=="__main__":
+    print(IntegerToken.is_int("1234", 0))
+    try:
+        print(IntegerToken.is_int("a123", 0))
+    except AssertionError as error:
+        print(error)

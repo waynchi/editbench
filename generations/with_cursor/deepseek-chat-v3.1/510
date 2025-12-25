@@ -1,0 +1,132 @@
+import pandas as pd
+import os
+import random
+import torch
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import precision_score, recall_score
+from torch.nn import functional as F
+from PIL import Image, ImageDraw, ImageFont
+import matplotlib.pyplot as plt
+import seaborn as sns
+from colpali_engine.interpretability import (
+    get_similarity_maps_from_embeddings,
+    plot_all_similarity_maps,
+)
+
+
+# Ruta al conjunto de datos Flickr8k extraído
+FLICKR8K_IMAGES_PATH = "flickr8k/Images"
+FLICKR8K_CAPTIONS_PATH = "flickr8k/captions.txt"
+
+# Función para cargar pares de imagen-texto de Flickr8k
+
+
+def load_flickr8k_data(images_path, captions_path, fraction=0.1):
+    # Leer archivo de subtítulos
+    with open(captions_path, "r") as f:
+        captions_data = f.readlines()[1:]  # Omitir encabezado
+
+    # Analizar subtítulos
+    image_text_pairs = {}
+    for line in captions_data:
+        image_name, caption = line.strip().split(",", 1)
+        if image_name not in image_text_pairs:
+            image_text_pairs[image_name] = []
+        image_text_pairs[image_name].append(caption)
+
+    # Cargar solo una fracción del conjunto de datos
+    selected_images = random.sample(
+        list(image_text_pairs.keys()), int(len(image_text_pairs) * fraction)
+    )
+    image_text_pairs = {k: image_text_pairs[k] for k in selected_images}
+
+    # Crear pares de imágenes y subtítulos
+    pairs = []
+    for image_name, captions in image_text_pairs.items():
+        image_path = os.path.join(images_path, image_name)
+        if os.path.exists(image_path):
+            pairs.append((Image.open(image_path), random.choice(captions)))
+    return pairs
+
+
+# Función para crear pares no relacionados
+
+
+def create_unrelated_pairs(image_text_pairs):
+    """Crea pares no relacionados de imágenes y textos al mezclar aleatoriamente los textos.
+
+Args:
+    image_text_pairs (list): Una lista de tuplas que contiene imágenes y sus textos correspondientes.
+
+Returns:
+    list: Una lista de tuplas que contiene imágenes y textos no relacionados."""
+    images, texts = zip(*image_text_pairs)
+    unrelated_texts = random.sample(texts, len(texts))
+    return list(zip(images, unrelated_texts))
+
+
+def create_visual_pairs(image_text_pairs):
+    """Crea pares de imágenes originales y aumentadas a partir de pares de imagen-texto.
+
+Esta función toma una lista de pares de imagen-texto y crea nuevos pares que consisten en las imágenes originales y sus versiones aumentadas. La augmentación utilizada en esta implementación es un volteo horizontal.
+
+Argumentos:
+    image_text_pairs (list): Una lista de tuplas que contienen pares (imagen, texto),
+        donde las imágenes son objetos PIL Image y los textos son cadenas de caracteres.
+
+Devuelve:
+    list: Una lista de tuplas que contienen pares (imagen_original, imagen_aumentada),
+        donde ambos elementos son objetos PIL Image."""
+    from torchvision.transforms import ToTensor
+
+    images, _ = zip(*image_text_pairs)
+    # Ejemplo de aumento: volteo horizontal
+    augmented_images = [ToTensor()(image).flip(-1) for image in images]
+    return list(zip(images, augmented_images))
+
+
+def get_embeddings(images, texts, model_id="google/siglip-base-patch16-224"):
+    """Dadas listas de imágenes y textos, devuelve embeddings normalizados para ambos."""
+    # Asegúrate de que texts sea una lista de cadenas
+    if not all(isinstance(t, str) for t in texts):
+        raise ValueError("All text inputs must be strings.")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = AutoModel.from_pretrained(
+        model_id, ignore_mismatched_sizes=True).to(device)
+    processor = AutoProcessor.from_pretrained(model_id)
+
+    # Preprocesar imágenes y textos
+    image_inputs = processor(images=images, return_tensors="pt").to(device)
+    text_inputs = processor(text=texts, return_tensors="pt", padding="max_length").to(
+        device
+    )
+
+    with torch.no_grad():
+        image_embeds = model.get_image_features(**image_inputs)
+        text_embeds = model.get_text_features(**text_inputs)
+
+    # Normalizar incrustaciones
+    image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
+    text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+
+    return image_embeds, text_embeds
+
+
+def cosine_similarity_analysis(embeddings1, embeddings2, title):
+    """Calcula la similitud coseno para pares coincidentes y no relacionados y compara distribuciones."""
+    similarities = cosine_similarity(
+        embeddings1.cpu().numpy(), embeddings2.cpu().numpy()
+    )
+
+    # Pares coincidentes: Diagonal de la matriz de similitud
+    matching_similarities = np.diag(similarities)
+
+    # Pares no relacionados: Similitudes fuera de la diagonal
+    unrelated_similarities = similarities[~np.eye(
+        similarities.shape[0], dtype=bool)]
+
+    print(f"### {title} ###")
+    print(f"Mean Matching Similarity: {np.mean(matching_similarities):.4f}")
+    print(f"Mean Unrelated Similar

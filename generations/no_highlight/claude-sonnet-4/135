@@ -1,0 +1,30 @@
+def is_prime(n):
+    """
+    检查一个数是否为质数
+    
+    Args:
+        n (int): 要检查的数字
+    
+    Returns:
+        bool: 如果是质数返回True，否则返回False
+    """
+    # 小于2的数不是质数
+    if n < 2:
+        return False
+    
+    # 2是质数
+    if n == 2:
+        return True
+    
+    # 偶数(除了2)不是质数
+    if n % 2 == 0:
+        return False
+    
+    # 检查从3到sqrt(n)的所有奇数
+    i = 3
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 2
+    
+    return True

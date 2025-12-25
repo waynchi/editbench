@@ -1,0 +1,21 @@
+import time
+import undetected_chromedriver as uc
+
+options = uc.ChromeOptions()
+
+# The path is now relative to the script's execution directory.
+# This assumes a folder structure where the 'chromedriver-win64' directory
+# is in the same folder as the script.
+# For example:
+# /your_project/
+#  |- your_script.py
+#  |- chromedriver-win64/
+#     |- chromedriver.exe
+options.binary_location = "chromedriver-win64/chromedriver.exe"
+
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)

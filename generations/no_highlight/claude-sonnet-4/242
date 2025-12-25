@@ -1,0 +1,46 @@
+def binary_search(arr, target):
+    """
+    Выполняет бинарный поиск элемента в отсортированном массиве
+    
+    Args:
+        arr: отсортированный список
+        target: искомый элемент
+    
+    Returns:
+        int: индекс элемента если найден, иначе -1
+    """
+    left = 0
+    right = len(arr) - 1
+    
+    while left <= right:
+        mid = (left + right) // 2
+        
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    
+    return -1
+
+# Пример использования
+if __name__ == "__main__":
+    # Тестовый массив (должен быть отсортирован)
+    test_array = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+    
+    # Поиск существующего элемента
+    result = binary_search(test_array, 7)
+    print(f"Поиск числа 7: индекс {result}")
+    
+    # Поиск несуществующего элемента
+    result = binary_search(test_array, 8)
+    print(f"Поиск числа 8: индекс {result}")
+    
+    # Поиск первого элемента
+    result = binary_search(test_array, 1)
+    print(f"Поиск числа 1: индекс {result}")
+    
+    # Поиск последнего элемента
+    result = binary_search(test_array, 19)
+    print(f"Поиск числа 19: индекс {result}")

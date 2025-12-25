@@ -1,0 +1,147 @@
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_definitions, clustering_method='kmeans'):
+    """Performs data clustering independently for specified sets of columns.
+
+    Args:
+        features_transformed (pandas.DataFrame): Transformed DataFrame with parameters.
+        cluster_definitions (dict): A dictionary defining the clustering tasks.
+            Example:
+            {
+                'cluster_group_1': {
+                    'columns': ['col_a', 'col_b'],
+                    'n_clusters': 3
+                },
+                'cluster_group_2': {
+                    'columns': ['col_c'],
+                    'n_clusters': 2
+                }
+            }
+        clustering_method (str): Clustering method ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame with added columns for each set of cluster labels.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    # Make a copy to avoid modifying the original DataFrame passed to the function
+    result_df = features_transformed.copy()
+
+    for cluster_name, definition in cluster_definitions.items():
+        print(f"\n--- Выполнение кластеризации для группы '{cluster_name}' ---")
+        
+        columns_to_cluster = definition.get('columns')
+        n_clusters = definition.get('n_clusters', 2)  # Default to 2 clusters if not specified
+
+        if not columns_to_cluster:
+            print(f"Пропущено: для группы '{cluster_name}' не указаны столбцы.")
+            continue
+            
+        # Check if all specified columns exist in the DataFrame
+        missing_cols = [col for col in columns_to_cluster if col not in result_df.columns]
+        if missing_cols:
+            print(f"Ошибка: Столбцы {missing_cols} не найдены в DataFrame. Кластеризация для '{cluster_name}' пропущена.")
+            continue
+
+        features_for_clustering = result_df[columns_to_cluster]
+
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(features_for_clustering)
+            
+            # Evaluation of clustering quality (e.g., using the silhouette coefficient)
+            # Check if more than one cluster was actually formed
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров: {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта, так как все точки попали в один кластер.")
+
+        else:
+            print(f"Неподдерживаемый метод кластеризации: '{clustering_method}'.")
+            # Continue to the next cluster definition instead of returning None
+            continue
+
+        result_df[cluster_name] = cluster_labels
+        print(f"Кластеризация выполнена. Метки кластеров добавлены в столбец '{cluster_name}'.")
+
+    return result_df
+
+# For demonstration purposes, let's create a sample 'features_transformed' DataFrame.
+# In a real scenario, this DataFrame would be the result of a previous data transformation step.
+try:
+    from sklearn.datasets import make_blobs
+    X1, _ = make_blobs(n_samples=300, centers=3, n_features=2, random_state=42, cluster_std=1.2)
+    X2, _ = make_blobs(n_samples=300, centers=2, n_features=2, random_state=0, cluster_std=1.8)
+    features_transformed = pd.DataFrame({
+        'feature_A': X1[:, 0],
+        'feature_B': X1[:, 1],
+        'metric_X': X2[:, 0],
+        'metric_Y': X2[:, 1],
+        'single_metric': np.random.uniform(-5, 5, 300)
+    })
+    print("Создан демонстрационный DataFrame 'features_transformed'.")
+except ImportError:
+    features_transformed = None
+    print("Библиотека scikit-learn не установлена. Невозможно создать демонстрационные данные.")
+
+
+# Clustering execution (after step 5 and before step 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Define the sets of columns for independent clustering.
+    # Each key is the name of the new cluster column.
+    # 'columns' specifies the features to use for clustering.
+    # 'n_clusters' is the number of clusters for that specific group.
+    cluster_definitions = {
+        'feature_group_clusters': {
+            'columns': ['feature_A', 'feature_B'],
+            'n_clusters': 3
+        },
+        'metric_group_clusters': {
+            'columns': ['metric_X', 'metric_Y'],
+            'n_clusters': 2
+        },
+        'single_metric_cluster': {
+            'columns': ['single_metric'],
+            'n_clusters': 4
+        }
+    }
+
+    # Perform clustering for all defined groups
+    clustered_df = cluster_data(features_transformed, cluster_definitions)
+    
+    # Visualization of clusters for each group
+    if clustered_df is not None:
+        print("\n--- Визуализация результатов кластеризации ---")
+        for cluster_name, definition in cluster_definitions.items():
+            # Check if this cluster was successfully created in the DataFrame
+            if cluster_name not in clustered_df.columns:
+                continue
+
+            columns_used = definition['columns']
+            
+            # We can create a 2D scatter plot if exactly 2 features were used for clustering
+            if len(columns_used) == 2:
+                plt.figure(figsize=(8, 6))
+                scatter = plt.scatter(
+                    clustered_df[columns_used[0]], 
+                    clustered_df[columns_used[1]], 
+                    c=clustered_df[cluster_name], 
+                    cmap='viridis'
+                )
+                plt.xlabel(columns_used[0])
+                plt.ylabel(columns_used[1])
+                plt.title(f'Результаты кластеризации для группы "{cluster_name}"')
+                plt.colorbar(scatter, label='Номер кластера')
+                plt.grid(True)
+                plt.show()
+            else:
+                print(f"Невозможно построить 2D-график для группы '{cluster_name}', так как она основана на {len(columns_used)} признаках.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

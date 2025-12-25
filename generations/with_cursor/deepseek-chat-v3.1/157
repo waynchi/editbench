@@ -1,0 +1,103 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Solve the linear system Ax = b using the Conjugate Gradient method.
+    
+    Parameters:
+    -----------
+    A : array-like, 2D
+        Symmetric positive definite matrix
+    b : array-like, 1D
+        Right-hand side vector
+    x0 : array-like, 1D, optional
+        Initial guess (default: zero vector)
+    tol : float, optional
+        Tolerance for convergence (default: 1e-6)
+    max_iter : int, optional
+        Maximum number of iterations (default: len(b))
+    
+    Returns:
+    --------
+    x : numpy.ndarray
+        Solution vector
+    converged : bool
+        Whether the method converged
+    num_iter : int
+        Number of iterations performed
+    residuals : list
+        History of residual norms
+    """
+    
+    # Convert inputs to numpy arrays
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float).flatten()
+    
+    n = len(b)
+    
+    # Set default parameters
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float).flatten()
+    
+    # Initialize variables
+    r = b - A @ x  # Residual
+    p = r.copy()   # Search direction
+    rs_old = r @ r
+    
+    residuals = [np.sqrt(rs_old)]
+    
+    # Main iteration loop
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = r @ r
+        
+        residuals.append(np.sqrt(rs_new))
+        
+        # Check convergence
+        if np.sqrt(rs_new) < tol:
+            return x, True, i + 1, residuals
+        
+        # Update search direction
+        beta = rs_new / rs_old
+        p = r + beta * p
+        rs_old = rs_new
+    
+    return x, False, max_iter, residuals
+
+# Example usage and test
+if __name__ == "__main__":
+    # Create a symmetric positive definite matrix
+    n = 100
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n)  # Make it SPD
+    
+    # Create exact solution and right-hand side
+    x_exact = np.random.randn(n)
+    b = A @ x_exact
+    
+    # Solve using conjugate gradient
+    x, converged, num_iter, residuals = conjugate_gradient(A, b)
+    
+    print(f"Converged: {converged}")
+    print(f"Number of iterations: {num_iter}")
+    print(f"Final residual norm: {residuals[-1]:.2e}")
+    print(f"Error norm: {np.linalg.norm(x - x_exact):.2e}")
+    
+    # Plot convergence history
+    import matplotlib.pyplot as plt
+    
+    plt.figure(figsize=(10, 6))
+    plt.semilogy(range(len(residuals)), residuals)
+    plt.xlabel('Iteration')
+    plt.ylabel('Residual Norm')
+    plt.title('Conjugate Gradient Convergence')
+    plt.grid(True, alpha=0.3)
+    plt.show()

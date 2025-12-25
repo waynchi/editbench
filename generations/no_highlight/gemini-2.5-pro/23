@@ -1,0 +1,141 @@
+import random
+import os
+import urllib.request
+
+# --- Configuration ---
+# URL to a public domain English word list.
+# This one contains over 479,000 English words.
+WORD_LIST_URL = "https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"
+# The local filename to save the word list.
+WORD_LIST_FILENAME = "english_words.txt"
+# Number of words to display in the output.
+NUM_WORDS_TO_PRINT = 10
+
+
+def download_word_list_if_needed(url: str, filename: str) -> bool:
+    """
+    Checks if the word list file exists. If not, it downloads it from the specified URL.
+
+    Args:
+        url: The URL to download the word list from.
+        filename: The local path to save the file.
+
+    Returns:
+        True if the file exists or was successfully downloaded, False otherwise.
+    """
+    if os.path.exists(filename):
+        print(f"'{filename}' already exists. Skipping download.")
+        return True
+    
+    print(f"Word list '{filename}' not found. Downloading from server...")
+    try:
+        with urllib.request.urlopen(url) as response, open(filename, 'wb') as out_file:
+            if response.status == 200:
+                data = response.read()  # Read the entire content
+                out_file.write(data)
+                print("Download complete.")
+                return True
+            else:
+                print(f"Error: Server returned status code {response.status}")
+                return False
+    except urllib.error.URLError as e:
+        print(f"Error downloading file: {e.reason}")
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred during download: {e}")
+        return False
+
+
+def load_dictionary(filename: str) -> list[str]:
+    """
+    Loads words from the given file into a list.
+
+    Args:
+        filename: The path to the word list file.
+
+    Returns:
+        A list of words, cleaned of whitespace. Returns an empty list if file not found.
+    """
+    words = []
+    try:
+        with open(filename, 'r') as f:
+            for line in f:
+                # Strip newline characters and other whitespace from each word
+                words.append(line.strip())
+        print(f"Successfully loaded {len(words)} words from the dictionary.")
+    except FileNotFoundError:
+        print(f"Error: Dictionary file '{filename}' not found.")
+    return words
+
+
+def find_words_of_length(all_words: list[str], length: int) -> list[str]:
+    """
+    Filters the list of all words to find those with a specific length.
+
+    Args:
+        all_words: The complete list of words from the dictionary.
+        length: The desired character length.
+
+    Returns:
+        A list of words that match the specified length.
+    """
+    # Use a list comprehension for an efficient and readable way to filter words
+    return [word for word in all_words if len(word) == length]
+
+
+def main():
+    """
+    Main function to run the dictionary lookup program.
+    """
+    # Step 1: Ensure the dictionary file is available
+    if not download_word_list_if_needed(WORD_LIST_URL, WORD_LIST_FILENAME):
+        print("Could not obtain word list. Exiting program.")
+        return
+
+    # Step 2: Load the words from the file into memory
+    dictionary = load_dictionary(WORD_LIST_FILENAME)
+    if not dictionary:
+        print("Dictionary is empty or could not be loaded. Exiting program.")
+        return
+
+    # Step 3: Start the interactive loop with the user
+    while True:
+        user_input = input(f"\nEnter the number of characters for the words (or 'q' to quit): ").strip().lower()
+
+        if user_input in ['q', 'quit', 'exit']:
+            print("Goodbye!")
+            break
+
+        try:
+            # Convert user input to an integer
+            char_count = int(user_input)
+            
+            if char_count <= 0:
+                print("Please enter a positive number.")
+                continue
+
+            # Find all words matching the desired length
+            matching_words = find_words_of_length(dictionary, char_count)
+
+            # Display the results
+            if not matching_words:
+                print(f"No English words with {char_count} characters were found in the dictionary.")
+            else:
+                num_found = len(matching_words)
+                num_to_sample = min(num_found, NUM_WORDS_TO_PRINT)
+                
+                # Randomly sample from the found words to provide a different list each time
+                random_sample = random.sample(matching_words, k=num_to_sample)
+                
+                print(f"\nFound {num_found} words. Here are {num_to_sample} of them:")
+                for word in sorted(random_sample): # Sort the sample for clean presentation
+                    print(f"- {word}")
+
+        except ValueError:
+            print("Invalid input. Please enter a number or 'q' to quit.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,17 @@
+import pandas as pd
+
+def create_column(df):
+    # Create a new column 'Frequency' with default values (e.g., None)
+    df['Frequency'] = None
+    # For each row where the 'EventId' contains 'E16', assign 117 to the 'Frequency' column
+    df.loc[df['EventId'].astype(str).str.contains('E16', na=False), 'Frequency'] = 117
+    return df
+
+if __name__ == "__main__":
+    # 示例数据
+    data = {
+        'EventId': ['E16', 'A12', 'B34', 'E16X', 'C56']
+    }
+    df = pd.DataFrame(data)
+    df = create_column(df)
+    print(df)

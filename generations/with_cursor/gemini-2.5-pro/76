@@ -1,0 +1,45 @@
+import { messages } from "./messages.js";
+
+// Use the shorthand for $(document).ready()
+$(function() {
+    // Cache jQuery selections for better performance and readability
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+    const $loadMessages = $('#loading-messages');
+    const $generateTaxButton = $('#generateTaxButton');
+
+    // Retrieve values from localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Use the retrieved data as needed
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $generateTaxButton.on('click', () => {
+        // Fade out the main content, then start the loading process in the callback
+        $main.fadeOut(500, () => {
+            $loading.css('display', 'flex'); // Use .css() for flex, or .fadeIn() for a fade effect
+
+            let cumulativeTime = 0;
+
+            // Iterate through messages to display them sequentially.
+            // This assumes `message.time` is the duration to display each message.
+            $.each(messages, (index, message) => {
+                setTimeout(() => {
+                    $loadMessages.text(message.text);
+                }, cumulativeTime);
+                cumulativeTime += message.time;
+            });
+
+            // After all messages have been displayed, show the payment section
+            setTimeout(() => {
+                $loading.hide();
+                $payment.show();
+                $info.show();
+            }, cumulativeTime + 500); // Add a small buffer after the last message
+        });
+    });
+});

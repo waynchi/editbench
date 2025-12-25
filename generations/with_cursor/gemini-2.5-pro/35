@@ -1,0 +1,128 @@
+import streamlit as st
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain_community.retrievers import BM25Retriever
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from os import getenv
+from dotenv import load_dotenv
+import PyPDF2
+import nltk
+from nltk.tokenize import word_tokenize
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Download NLTK data if not already present
+try:
+    nltk.data.find('tokenizers/punkt')
+except nltk.downloader.DownloadError:
+    nltk.download('punkt')
+
+st.title("♥ CardioRAG")
+
+# --- PDF Loading and Retriever Initialization ---
+# This part runs only once and is cached in the session state.
+if "retriever" not in st.session_state:
+    st.text("Loading PDF for the first time...")
+    prog_bar = st.progress(0, text="Reading pages from Moss & Adams...")
+    try:
+        with open("Moss and Adams 10e Vol 1 & 2.pdf", 'rb') as pdf_file:
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            chunks = []
+            # Define page range to process
+            start_page, end_page = 60, 600
+            total_pages = end_page - start_page
+            for i, page_num in enumerate(range(start_page, end_page)):
+                prog_bar.progress((i + 1) / total_pages, text=f"Reading page {page_num+1}...")
+                chunks.append(pdf_reader.pages[page_num].extract_text())
+        
+        # Create and store the BM25 retriever
+        st.session_state["retriever"] = BM25Retriever.from_texts(
+            chunks, 
+            metadatas=[{"page_num": p} for p in range(start_page, end_page)], 
+            preprocess_func=word_tokenize
+        )
+        prog_bar.empty() # Clear the progress bar
+    except FileNotFoundError:
+        st.error("The PDF file 'Moss and Adams 10e Vol 1 & 2.pdf' was not found. Please make sure it's in the same directory.")
+        st.stop()
+st.text("PDF loaded and ready.")
+
+# --- Chat History Initialization ---
+if "messages" not in st.session_state:
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Hi, I'm a chatbot who has read the Moss & Adams Cardiology textbook. How can I help you?"}
+    ]
+
+# --- Password Protection ---
+if "password" not in st.session_state:
+    with st.form("pw_input", clear_on_submit=True):
+        password = st.text_input("Enter password", type="password")
+        if st.form_submit_button("Submit"):
+            if password == getenv("PASSWORD"):
+                st.session_state["password"] = password
+                st.rerun()  # Rerun to hide the form and show the chat
+            else:
+                st.error("Incorrect password")
+    st.stop() # Stop execution if password is not yet entered
+
+# --- Display Chat History ---
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# --- Chat Input and RAG/LLM Logic ---
+if user_input := st.chat_input("What is the incidence of congenital heart disease?"):
+    # Add user message to history and display it
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    # --- RAG and LLM Chain Setup ---
+    
+    # Function to format retrieved documents into a string
+    def format_docs(docs):
+        DIVIDER = "\n" + "-"*20 + "\n"
+        return DIVIDER.join([f"Source (Page {d.metadata['page_num']}):\n{d.page_content}" for d in docs])
+
+    # Set up the LLM with streaming enabled
+    llm = ChatOpenAI(
+        api_key=getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+        model_name="meta-llama/llama-3.1-8b-instruct", # Updated model name
+        streaming=True
+    )
+    
+    # Get the retriever from session state
+    retriever = st.session_state["retriever"]
+
+    # Define the prompt template
+    template = """You are a helpful AI assistant who has read the Moss & Adams Cardiology textbook.
+Use the following context from the textbook to answer the question. If you don't know the answer based on the context, just say you don't know.
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:"""
+    prompt = PromptTemplate.from_template(template)
+
+    # Create the RAG chain using LangChain Expression Language (LCEL)
+    rag_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # --- Stream the Response ---
+    with st.chat_message("assistant"):
+        # Use st.write_stream to display the streaming response
+        # It automatically handles the chunks and displays them in real-time
+        # It also returns the full response once the stream is complete
+        full_response = st.write_stream(rag_chain.stream(user_input))
+    
+    # Add the complete assistant response to the chat history
+    st.session_state.messages.append({"role": "assistant", "content": full_response})

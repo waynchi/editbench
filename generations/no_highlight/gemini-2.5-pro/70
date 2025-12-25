@@ -1,0 +1,50 @@
+import pandas as pd
+# We assume 'main13.py' provides two trained models, knn and mlp.
+# For the code to be runnable for testing, you would need these available.
+# Example dummy models:
+# class DummyModel:
+#     def predict(self, df):
+#         import numpy as np
+#         return np.random.randint(0, 2, size=len(df))
+# knn = DummyModel()
+# mlp = DummyModel()
+from main13 import knn, mlp
+
+
+# Initialize the results DataFrame *before* the loops.
+# Use dtype=object to allow cells to hold complex objects like dictionaries.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        # Create a sample DataFrame for prediction. It has 3 rows,
+        # one for each "Embarked" location, to test the model's response.
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Perform one-hot encoding on the "Embarked" column.
+        # Using dtype=int is a cleaner way to get 0/1 values directly.
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked", dtype=int)
+
+        # The models will return predictions for each of the 3 rows in my_df.
+        knn_preds = knn.predict(my_df)
+        mlp_preds = mlp.predict(my_df)
+
+        # Store the predictions in a dictionary. The predictions correspond
+        # to the "Embarked" order ["S", "Q", "C"].
+        predictions_dict = {"knn": knn_preds, "mlp": mlp_preds}
+
+        # Assign the entire dictionary object to the specific cell in np_df.
+        # Using .at is robust for assigning a single value (even a complex object)
+        # to a cell specified by its labels.
+        np_df.at[fare, pclass] = predictions_dict
+
+print(np_df)

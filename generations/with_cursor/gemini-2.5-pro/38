@@ -1,0 +1,62 @@
+import os
+import shutil
+import numpy as np
+
+# Папка со всеми фотографиями / папка с фотографиями для тренировки
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Считываем названия директорий, которые и являются видом затмения
+ECLIPSE_LIST = {i:name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+
+# Папка с фотографиями для валидации
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Папка с фотографиями для теста
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+
+# Доля изображений в валидации
+VAL_FRAC = 0.3
+
+
+# Разобьем `train` выборку на `train` и `val`:
+RANDOM_STATE = 42
+np.random.seed(RANDOM_STATE)
+
+print("Начинаем разделение выборки 'train' на 'train' и 'val'...")
+
+# Проходим по каждому классу (виду затмения)
+for eclipse in ECLIPSE_LIST.values():
+    # Путь к исходной директории класса
+    train_eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    # Путь к целевой директории класса
+    val_eclipse_path = os.path.join(VAL_DIR, eclipse)
+    
+    # Создаем папку для класса в директории валидации
+    os.makedirs(val_eclipse_path, exist_ok=True)
+
+    # Получаем отсортированный список файлов для детерминированности
+    images_filenames = sorted(os.listdir(train_eclipse_path))
+    
+    # Если в папке уже нет файлов (например, при повторном запуске), пропускаем ее
+    if not images_filenames:
+        print(f'В директории {train_eclipse_path} нет изображений для разделения.')
+        continue
+        
+    # Определяем количество изображений для валидации
+    num_images = len(images_filenames)
+    num_val = int(num_images * VAL_FRAC)
+    
+    # Выбираем случайные изображения для валидационной выборки без повторений
+    val_images = np.random.choice(images_filenames, size=num_val, replace=False)
+
+    print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+    
+    # Перемещаем файлы валидационной выборки
+    for image_filename in val_images:
+        source = os.path.join(train_eclipse_path, image_filename)
+        destination = os.path.join(val_eclipse_path, image_filename)
+        shutil.move(source, destination)
+
+print("...Разделение завершено.")

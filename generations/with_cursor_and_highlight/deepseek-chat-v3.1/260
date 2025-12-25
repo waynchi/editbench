@@ -1,0 +1,53 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=None):
+    """
+    Реализация метода сопряжённых градиентов для решения системы линейных уравнений Ax = b.
+    
+    Parameters:
+    A : 2D array
+        Матрица коэффициентов системы (должна быть симметричной и положительно определённой)
+    b : 1D array
+        Вектор правой части системы
+    x0 : 1D array, optional
+        Начальное приближение решения. Если не задано, используется нулевой вектор.
+    tol : float, optional
+        Допуск для критерия остановки (по умолчанию 1e-5)
+    max_iter : int, optional
+        Максимальное количество итераций. Если не задано, используется размер системы.
+    
+    Returns:
+    x : 1D array
+        Приближённое решение системы
+    converged : bool
+        Флаг сходимости метода
+    k : int
+        Количество выполненных итераций
+    """
+    
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    if max_iter is None:
+        max_iter = n
+    
+    r = b - A @ x  # начальная невязка
+    p = r.copy()   # начальное направление поиска
+    rs_old = r @ r
+    
+    for k in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = r @ r
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, k + 1
+        
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x, False, max_iter

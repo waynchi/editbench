@@ -1,0 +1,123 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+def cluster_data(features_transformed, clustering_groups, n_clusters=2, clustering_method='kmeans'):
+    """Performs data clustering for specified groups of columns.
+
+    Args:
+        features_transformed (pandas.DataFrame): Transformed DataFrame with parameters.
+        clustering_groups (dict): A dictionary where keys are new column names for clusters
+                                  and values are lists/tuples of column names to use for clustering.
+                                  Example: {'cluster_group_1': ['col1', 'col2'], 'cluster_group_2': ['col3']}
+        n_clusters (int): Number of clusters. This will be applied to each group.
+        clustering_method (str): Clustering method ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame with added columns for cluster labels for each group.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    if not isinstance(clustering_groups, dict):
+        print("Параметр 'clustering_groups' должен быть словарем.")
+        return features_transformed
+
+    result_df = features_transformed.copy()
+
+    for cluster_feature_name, columns_to_cluster in clustering_groups.items():
+        print(f"\n--- Выполнение кластеризации для группы '{cluster_feature_name}' ---")
+
+        # Check if all specified columns exist in the DataFrame
+        missing_cols = [col for col in columns_to_cluster if col not in result_df.columns]
+        if missing_cols:
+            print(f"Ошибка: Следующие столбцы не найдены в DataFrame: {missing_cols}. Пропуск группы.")
+            continue
+
+        features_for_clustering = result_df[list(columns_to_cluster)]
+
+        if features_for_clustering.empty or features_for_clustering.shape[0] <= n_clusters:
+            print("Недостаточно данных для кластеризации в указанных столбцах.")
+            continue
+
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(features_for_clustering)
+            
+            # Evaluation of clustering quality (e.g., using the silhouette coefficient)
+            unique_labels = np.unique(cluster_labels)
+            # Silhouette score is only defined if number of labels is 2 <= n_labels <= n_samples - 1
+            if len(unique_labels) > 1 and len(unique_labels) < len(features_for_clustering):
+                silhouette_avg = silhouette_score(features_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров: {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта. Найдено уникальных кластеров: {len(unique_labels)}.")
+
+            result_df[cluster_feature_name] = cluster_labels
+            print(f"Кластеризация выполнена. Метки кластеров добавлены в столбец '{cluster_feature_name}'.")
+
+        else:
+            print(f"Неподдерживаемый метод кластеризации: '{clustering_method}'.")
+            continue
+
+    return result_df
+
+# Example usage: Assume 'features_transformed' is a pandas DataFrame that exists from a previous step.
+# For demonstration purposes, let's create a sample DataFrame.
+# In a real scenario, this part would be replaced by your actual data loading and transformation steps.
+# --- Start of Sample Data Creation ---
+from sklearn.preprocessing import StandardScaler
+
+sample_data = {
+    'age': np.random.randint(20, 60, 100),
+    'income': np.random.randint(30000, 150000, 100),
+    'spending_score': np.random.randint(1, 100, 100),
+    'experience_years': np.random.randint(1, 40, 100)
+}
+features_transformed = pd.DataFrame(sample_data)
+# Pretend we transformed them (e.g., scaling)
+scaler = StandardScaler()
+features_transformed = pd.DataFrame(scaler.fit_transform(features_transformed), columns=features_transformed.columns)
+# --- End of Sample Data Creation ---
+
+
+# Clustering execution (after step 5 and before step 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Define groups for clustering.
+    # Key: name of the new cluster column.
+    # Value: list of columns to use for clustering.
+    # Example: Cluster based on 'income' and 'spending_score', and separately on 'age' and 'experience_years'.
+    clustering_groups = {
+        'income_spending_cluster': ('income', 'spending_score'),
+        'age_experience_cluster': ('age', 'experience_years')
+    }
+    
+    n_clusters = 4  # Number of clusters to find in each group
+    
+    # Perform clustering for the defined groups
+    features_transformed_with_clusters = cluster_data(features_transformed, clustering_groups, n_clusters)
+    
+    # Visualization of clusters
+    if features_transformed_with_clusters is not None:
+        for cluster_name, columns_used in clustering_groups.items():
+            # Check if cluster was successfully created and if it can be plotted (requires 2D data)
+            if cluster_name in features_transformed_with_clusters.columns and len(columns_used) == 2:
+                plt.figure(figsize=(8, 6))
+                scatter = plt.scatter(
+                    features_transformed_with_clusters[columns_used[0]], 
+                    features_transformed_with_clusters[columns_used[1]], 
+                    c=features_transformed_with_clusters[cluster_name], 
+                    cmap='viridis'
+                )
+                plt.xlabel(columns_used[0])
+                plt.ylabel(columns_used[1])
+                plt.title(f'Результаты кластеризации для группы "{cluster_name}"')
+                plt.colorbar(scatter, label='Номер кластера')
+                plt.show()
+            elif cluster_name in features_transformed_with_clusters.columns:
+                print(f"Визуализация для группы '{cluster_name}' не создана (требуется ровно 2 признака для 2D-графика).")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

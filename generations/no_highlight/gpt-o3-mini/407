@@ -1,0 +1,43 @@
+import { messages } from "./messages.js";
+
+$(document).ready(() => {
+    // Define DOM elements
+    const $loadingContainer = $('.container-loading');
+    const $paymentSection = $('.payment-section');
+    const $userInfoSection = $('.user-info');
+    const $mainSection = $('.main');
+    const $loadingMessages = $('#loading-messages');
+    const $generateTaxButton = $('#generateTaxButton');
+
+    // Retrieve user data from localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+    
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $generateTaxButton.on('click', () => {
+        // Hide main section and show loading indicator after a delay
+        $mainSection.fadeOut(500);
+        setTimeout(() => {
+            $loadingContainer.css('display', 'flex');
+            
+            let cumulativeDelay = 0;
+            // Schedule each loading message based on its time property
+            messages.forEach(message => {
+                cumulativeDelay += message.time;
+                setTimeout(() => {
+                    $loadingMessages.text(message.text);
+                }, cumulativeDelay);
+            });
+            
+            // After all messages are shown plus a slight extra delay, switch to payment/info view
+            setTimeout(() => {
+                $loadingContainer.css('display', 'none');
+                $paymentSection.css('display', 'block');
+                $userInfoSection.css('display', 'block');
+            }, cumulativeDelay + 500);
+            
+        }, 200);
+    });
+});

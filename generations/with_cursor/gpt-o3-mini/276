@@ -1,0 +1,24 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Предполагается, что данные для каждой марки уже определены:
+# brand_A, brand_B, brand_C и all_data (все значения Cost)
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Подготовка зависимости y и матрицы признаков X с использованием Python-стиля
+y = df['Cost']
+# Создаем дамми-переменные для переменной 'Brand'. "A" будет базовой категорией.
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)  # добавляем константный член
+
+# Построение модели OLS
+model = sm.OLS(y, X).fit()
+
+# Проведение ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+print(anova_table)

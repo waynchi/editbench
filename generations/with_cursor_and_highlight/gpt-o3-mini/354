@@ -1,0 +1,27 @@
+def search_words():
+    try:
+        n = int(input("Podaj liczbę znaków: "))
+    except ValueError:
+        print("Podano nieprawidłową liczbę.")
+        return
+
+    try:
+        with open("/usr/share/dict/words", "r") as f:
+            dictionary = f.read().splitlines()
+    except FileNotFoundError:
+        print("Plik słownika nie został znaleziony.")
+        return
+
+    matching_words = [word for word in dictionary if len(word) == n]
+
+    if not matching_words:
+        print(f"Nie znaleziono słów o {n} znakach.")
+        return
+
+    # Wyświetl 10 słów (lub mniej, jeśli jest ich mniej niż 10)
+    for word in matching_words[:10]:
+        print(word)
+
+
+if __name__ == '__main__':
+    search_words()

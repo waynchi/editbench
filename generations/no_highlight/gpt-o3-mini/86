@@ -1,0 +1,123 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    try:
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        logging.basicConfig(
+            level=logging.INFO,
+            format=log_format,
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('app.log', encoding='utf-8')
+            ]
+        )
+    except Exception as e:
+        print(f"Failed to set up logging: {e}")
+        raise
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            return os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # Running as script
+            return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+    except Exception as e:
+        logging.error(f"Error obtaining resource path: {e}")
+        raise
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present, False otherwise.
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+        
+        missing_files = []
+        for file in required_files:
+            try:
+                if not os.path.exists(os.path.join(resource_dir, file)):
+                    missing_files.append(file)
+            except Exception as e:
+                logging.error(f"Error checking file {file}: {e}")
+                missing_files.append(file)
+        
+        if missing_files:
+            logging.error(f"Missing resource files: {', '.join(missing_files)}")
+            return False
+        
+        return True
+    except Exception as e:
+        logging.error(f"Error during resource check: {e}")
+        return False
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Set up logging
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Check resources
+        if not check_resources():
+            logging.error("Required resource files are missing. Application cannot start.")
+            sys.exit(1)
+
+        # Initialize main window with drag and drop support
+        try:
+            root = tkinterdnd2.TkinterDnD.Tk()
+        except Exception as e:
+            logging.error(f"Error initializing the TkinterDnD window: {e}")
+            raise
+
+        # Import the GUI module here to avoid circular imports and catch potential errors.
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as e:
+            logging.error(f"Error importing AudioTranscriberApp: {e}")
+            raise
+
+        try:
+            # Create the application instance
+            app = AudioTranscriberApp(root)
+        except Exception as e:
+            logging.error(f"Error initializing AudioTranscriberApp: {e}")
+            raise
+
+        try:
+            # Start the main event loop
+            root.mainloop()
+        except Exception as e:
+            logging.error(f"Error in mainloop: {e}")
+            raise
+        
+    except Exception as e:
+        logging.error(f"Application error: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

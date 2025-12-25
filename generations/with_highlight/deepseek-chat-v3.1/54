@@ -1,0 +1,6 @@
+# 记录当前路径为cwd
+# 创建向量数据库连接
+cwd = os.getcwd()
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+client = MilvusClient(uri=f"file://{cwd}/milvus_db")

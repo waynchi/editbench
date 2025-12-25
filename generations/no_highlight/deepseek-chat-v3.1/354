@@ -1,0 +1,67 @@
+import requests
+
+def get_words_with_length(length):
+    """
+    Fetches English words with specified length from a dictionary API.
+    Returns a list of words.
+    """
+    try:
+        # Using Datamuse API which provides word lists
+        url = f"https://api.datamuse.com/words?sp={'?' * length}&max=100"
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        words = [item['word'] for item in response.json()]
+        return words
+    except Exception as e:
+        print(f"Error fetching words: {e}")
+        return []
+
+def main():
+    print("English Dictionary Word Finder")
+    print("==============================")
+    
+    while True:
+        try:
+            # Get word length from user
+            length_input = input("\nEnter word length (or 'quit' to exit): ").strip()
+            
+            if length_input.lower() == 'quit':
+                print("Goodbye!")
+                break
+            
+            length = int(length_input)
+            
+            if length <= 0:
+                print("Please enter a positive number.")
+                continue
+                
+            if length > 20:
+                print("Word length is too long. Please enter a number up to 20.")
+                continue
+            
+            # Fetch words with specified length
+            words = get_words_with_length(length)
+            
+            if not words:
+                print(f"No words found with {length} characters.")
+                continue
+            
+            # Display up to 10 words
+            print(f"\nWords with {length} characters (showing up to 10):")
+            print("-" * 40)
+            
+            for i, word in enumerate(words[:10], 1):
+                print(f"{i}. {word}")
+                
+            if len(words) > 10:
+                print(f"\n... and {len(words) - 10} more words available")
+                
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\n\nProgram interrupted by user. Goodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

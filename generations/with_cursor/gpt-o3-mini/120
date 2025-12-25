@@ -1,0 +1,56 @@
+import requests
+from pyspark.sql import SparkSession
+
+# Create a Spark session
+spark = SparkSession.builder.appName("API_Parquet_Analysis").getOrCreate()
+
+# API endpoint (replace with your actual API URL)
+api_url = "https://api.example.com/data"
+
+# Fetch data from the API
+try:
+    response = requests.get(api_url)
+    response.raise_for_status()  # raise an error for bad status codes
+    data = response.json()       # assuming the API returns JSON and it's a list of dictionaries
+except Exception as e:
+    print(f"Error fetching data from API: {e}")
+    spark.stop()
+    raise
+
+# Analyze the raw API data
+print("Sample of raw data from API:")
+if isinstance(data, list):
+    # Print first 5 records (if the data is a list)
+    for record in data[:5]:
+        print(record)
+else:
+    print(data)
+
+# Create a DataFrame from the API data
+df = spark.createDataFrame(data)
+
+# Analyze the DataFrame: show schema and sample data
+print("DataFrame Schema:")
+df.printSchema()
+print("DataFrame Sample:")
+df.show()
+
+# Set up the connection to ADL2 using Microsoft ID identity.
+# In a Synapse notebook, credentials are handled by the managed identity,
+# so you don't need to specify them explicitly.
+
+# Specify the path to the container and folder in ADL2
+container_name = "<your_container_name>"  # Replace with your container name
+folder_path = "<your_folder_path>"          # Replace with the target folder path within the container
+adl2_path = f"abfss://{container_name}@<your_storage_account_name>.dfs.core.windows.net/{folder_path}"
+
+# Write the DataFrame in Parquet format to ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Optional: Read back the parquet file to verify the write operation
+df_leido = spark.read.parquet(adl2_path)
+print("Data read from ADL2 (Parquet file):")
+df_leido.show()
+
+# Stop the Spark session
+spark.stop()

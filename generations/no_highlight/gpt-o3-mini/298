@@ -1,0 +1,227 @@
+import torch
+import numpy as np
+import time
+from torch.utils.data import DataLoader
+from transformers import TrainerCallback
+from transformers.data.data_collator import default_data_collator
+
+
+def check_answer_factual(output_str, expected_answer):
+    """
+    Проверяет, совпадает ли вывод модели с ожидаемым ответом.
+
+    Аргументы:
+        output_str: Строка, полученная от модели.
+        expected_answer: Ожидаемая строка ответа.
+
+    Возвращает:
+        bool: True, если ответ правильный, False в противном случае.
+    """
+    # Более оптимизированная проверка с приведением к нижнему регистру
+    return expected_answer.lower() in output_str.lower()
+
+
+def check_answer_format(output_str, hard=False):
+    """
+    Проверяет, соответствует ли вывод модели ожидаемому формату.
+
+    Аргументы:
+        output_str: Строка, полученная от модели.
+        hard: Если True, применяется более строгая проверка формата.
+
+    Возвращает:
+        bool: True, если формат правильный, False в противном случае.
+    """
+    stripped = output_str.strip()
+    if hard:
+        # Строгая проверка: например, вывод не должен быть пустым
+        return bool(stripped)
+    else:
+        # Мягкая проверка: вывод должен содержать хоть что-то
+        return len(stripped) > 0
+
+
+def combined_collate_fn(batch):
+    """
+    Собственный коллатор, объединяющий токенизированные данные и ожидаемый ответ.
+    Каждый элемент batch должен представлять собой словарь с ключами, возвращёнными токенайзером,
+    а также ключ "expected_answer".
+    """
+    # Отделяем ключи, предназначенные для модели (например, input_ids, attention_mask)
+    model_inputs = [{k: sample[k] for k in sample if k != "expected_answer"} for sample in batch]
+    collated = default_data_collator(model_inputs)
+    # Собираем ожидаемые ответы в список
+    collated["expected_answers"] = [sample["expected_answer"] for sample in batch]
+    return collated
+
+
+class FactualAccuracyCallbackBETTER(TrainerCallback):
+    """
+    Обратный вызов для оценки и логирования фактической точности модели во время обучения.
+    Сейчас датасет для оценки формируется так, чтобы объединить текст вопроса и ответ в единое целое,
+    что позволяет оптимизировать пакетную обработку при вычислении результатов.
+    """
+
+    def __init__(self, model, tokenizer, dataset, batch_size=3, verbose=False, output_format=False):
+        """
+        Аргументы:
+            model: Модель.
+            tokenizer: Токенайзер.
+            dataset: HuggingFace Dataset, содержащий ключи "question" и "answer".
+            batch_size: Размер батча для оценки.
+            verbose: Если True, печатаются подробности выполнения.
+            output_format: Если True, дополнительно проверяется формат ответа.
+        """
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.verbose = verbose
+        self.output_format = output_format
+
+        # Объединяем токенизацию вопроса и добавление ожидаемого ответа в один шаг,
+        # что позволяет единый DataLoader обрабатывать оба поля.
+        def process_example(example):
+            tokenized = tokenizer(
+                example["question"],
+                padding="max_length",
+                truncation=True,
+                max_length=512,
+            )
+            tokenized["expected_answer"] = example["answer"]
+            return tokenized
+
+        # Преобразуем весь dataset, добавляя токенизированный вопрос и ожидаемый ответ
+        tokenized_dataset = dataset.map(process_example)
+        self.n_samp = len(tokenized_dataset)
+        self.eval_dataloader = DataLoader(
+            tokenized_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=combined_collate_fn,
+        )
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """
+        Вызывается после записи последних логов. Выполняет оценку модели на объединённом DataLoader.
+        Логирует средние значения фактической точности и, при необходимости, результатов проверки формата.
+        """
+        if model is not None:
+            self.model = model
+        elif self.model is None:
+            return
+
+        # Только главный процесс выполняет оценку
+        if not state.is_local_process_zero:
+            return
+
+        start_time = time.time()
+        try:
+            with torch.no_grad():
+                results = factual_score_dataloader(
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    dataloader=self.eval_dataloader,
+                    output_format=self.output_format,
+                    verbose=self.verbose,
+                )
+                if self.output_format:
+                    fact_results, format_hard_results, format_soft_results = results
+                    factual_accuracy_avg = np.mean(fact_results)
+                    format_hard_avg = np.mean(format_hard_results)
+                    format_soft_avg = np.mean(format_soft_results)
+                else:
+                    factual_accuracy_avg = np.mean(results)
+
+                if len(state.log_history) > 0:
+                    state.log_history[-1]["factual_accuracy"] = factual_accuracy_avg
+                    if self.output_format:
+                        state.log_history[-1]["format_hard"] = format_hard_avg
+                        state.log_history[-1]["format_soft"] = format_soft_avg
+        except Exception as e:
+            print(f"Error during factual accuracy evaluation: {e}")
+        finally:
+            time_taken = time.time() - start_time
+            if self.verbose:
+                print(f"[TIME] {time_taken:.2f} seconds: Model evaluated on FactualAccuracy.")
+
+
+def factual_score_dataloader(
+    model,
+    tokenizer,
+    dataloader,
+    max_new_tokens=32,
+    output_format=False,
+    device=None,
+    verbose=False,
+):
+    """
+    Оценивает фактическую точность ответов модели, используя объединённый DataLoader.
+
+    Аргументы:
+        model: Языковая модель.
+        tokenizer: Токенайзер.
+        dataloader: DataLoader, возвращающий батчи, где каждый батч имеет ключи для модели
+                    (например, input_ids, attention_mask) и "expected_answers".
+        max_new_tokens: Максимальное число генерируемых токенов.
+        output_format: Если True, дополнительно проверяется формат ответа.
+        device: Устройство для вычислений (по умолчанию CUDA, если доступно, иначе CPU).
+        verbose: Если True, печатает подробности для каждого примера.
+
+    Возвращает:
+        Если output_format = False: список булевых результатов проверки фактической точности.
+        Если output_format = True: кортеж (fact_results, format_hard_results, format_soft_results).
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    fact_results = []
+    format_hard_results = []
+    format_soft_results = []
+
+    # Проходим по батчам; пакетная обработка объединяет входные данные и ожидаемые ответы
+    for batch in dataloader:
+        # Отделяем данные для модели от ожидаемых ответов
+        expected_answers = batch.pop("expected_answers")
+        input_batch = {k: v.to(device) for k, v in batch.items()}
+
+        with torch.no_grad():
+            outputs = model.generate(
+                **input_batch,
+                max_new_tokens=max_new_tokens,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+
+        # Получаем вопросы для отладки: нужно декодировать входные данные.
+        detokenized_inputs = tokenizer.batch_decode(input_batch["input_ids"], skip_special_tokens=True)
+        # Определяем срез для новых токенов (начало с конца исходного ввода)
+        gen_start_idx = input_batch["input_ids"].shape[-1]
+        output_sequences = outputs[:, gen_start_idx:]
+        output_strings = tokenizer.batch_decode(output_sequences, skip_special_tokens=True)
+
+        # Применяем пакетную обработку проверки ответов через list comprehensions
+        batch_fact = [check_answer_factual(out, exp) for out, exp in zip(output_strings, expected_answers)]
+        fact_results.extend(batch_fact)
+
+        if output_format:
+            batch_format_hard = [check_answer_format(out, hard=True) for out in output_strings]
+            batch_format_soft = [check_answer_format(out, hard=False) for out in output_strings]
+            format_hard_results.extend(batch_format_hard)
+            format_soft_results.extend(batch_format_soft)
+
+            if verbose:
+                for q, out, exp in zip(detokenized_inputs, output_strings, expected_answers):
+                    print("Question:", repr(q))
+                    print("Generated:", repr(out))
+                    print("Expected:", repr(exp))
+                    print("---")
+        elif verbose:
+            for q, out, exp in zip(detokenized_inputs, output_strings, expected_answers):
+                print("Question:", repr(q))
+                print("Generated:", repr(out))
+                print("Expected:", repr(exp))
+                print("---")
+
+    if output_format:
+        return fact_results, format_hard_results, format_soft_results
+    else:
+        return fact_results

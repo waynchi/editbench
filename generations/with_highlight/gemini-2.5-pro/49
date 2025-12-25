@@ -1,0 +1,98 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Создает матрицу размера rows x cols, заполненную значением fill_value.
+    Параметры:
+    rows (int): количество строк.
+    cols (int): количество столбцов.
+    fill_value (любой тип): значение для заполнения матрицы.
+    Возвращает:
+    list: матрица в виде списка списков.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Складывает две матрицы одинакового размера.
+    Параметры:
+    matrix_a (list): первая матрица.
+    matrix_b (list): вторая матрица.
+    Возвращает:
+    list: результат сложения матриц.
+    """
+    rows_a = len(matrix_a)
+    if rows_a == 0:
+        return []
+    cols_a = len(matrix_a[0])
+
+    if rows_a != len(matrix_b) or cols_a != len(matrix_b[0]):
+        raise ValueError("Matrices must have the same dimensions for addition.")
+
+    return [[matrix_a[i][j] + matrix_b[i][j] for j in range(cols_a)] for i in range(rows_a)]
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Умножает все элементы матрицы на скаляр.
+    Параметры:
+    matrix (list): исходная матрица.
+    scalar (float): число, на которое умножаются элементы матрицы.
+    Возвращает:
+    list: результат умножения матрицы на скаляр.
+    """
+    return [[element * scalar for element in row] for row in matrix]
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Перемножает две матрицы.
+    Параметры:
+    matrix_a (list): первая матрица.
+    matrix_b (list): вторая матрица.
+    Возвращает:
+    list: результат умножения матриц.
+    """
+    if not matrix_a or not matrix_a[0] or not matrix_b or not matrix_b[0]:
+        raise ValueError("Input matrices cannot be empty.")
+
+    cols_a = len(matrix_a[0])
+    rows_b = len(matrix_b)
+
+    if cols_a != rows_b:
+        raise ValueError("Number of columns in the first matrix must equal the number of rows in the second.")
+
+    # A pythonic way to multiply matrices using list comprehensions and zip
+    return [[sum(a * b for a, b in zip(row_a, col_b)) for col_b in zip(*matrix_b)] for row_a in matrix_a]
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Транспонирует матрицу.
+    Параметры:
+    matrix (list): исходная матрица.
+    Возвращает:
+    list: транспонированная матрица.
+    """
+    if not matrix:
+        return []
+    return [list(col) for col in zip(*matrix)]
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Вычисляет определитель матрицы 3x3.
+    Параметры:
+    matrix (list): исходная матрица размером 3x3.
+    Возвращает:
+    float: определитель матрицы.
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("Matrix must be 3x3 to calculate the determinant using this function.")
+
+    a, b, c = matrix[0]
+    d, e, f = matrix[1]
+    g, h, i = matrix[2]
+
+    determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+
+    return float(determinant)

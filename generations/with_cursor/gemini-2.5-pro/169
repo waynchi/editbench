@@ -1,0 +1,65 @@
+import os
+import shutil
+import splitfolders  # 如果尚未安装，请运行: pip install split-folders
+
+# --- 假设 DATA_PATH 变量已在代码上文定义 ---
+# 例如: DATA_PATH = "./data"
+
+# ---------------------------------------------------------------------------
+# 新的实现：使用 split-folders 库将数据集分为训练集和验证集
+# 这种方法更标准、可重用，并且在多次运行时不会出错。
+# ---------------------------------------------------------------------------
+
+# 定义原始数据目录（即原始的 'train' 文件夹，其中包含所有待分割的图像）
+# 和最终的训练、验证、测试目录路径
+SOURCE_DATA_TO_SPLIT = os.path.join(DATA_PATH, "train")
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+VAL_DIR = os.path.join(DATA_PATH, "val")
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# 检查数据集是否已经分割过（通过检查 val 目录是否存在来判断）
+# 如果原始数据目录存在且验证目录不存在，则执行分割
+if os.path.isdir(SOURCE_DATA_TO_SPLIT) and not os.path.isdir(VAL_DIR):
+    print(f"检测到原始数据目录 '{SOURCE_DATA_TO_SPLIT}'，开始将其分割为训练集和验证集...")
+
+    # 定义分割比例
+    VAL_FRAC = 0.3
+    TRAIN_FRAC = 1 - VAL_FRAC
+
+    # 使用 split-folders 库执行分割
+    # 它会读取 SOURCE_DATA_TO_SPLIT 目录中的数据，并将其中的文件复制到
+    # 一个新的输出目录结构中。为了实现原地分割（即原始的 train 目录被分割后的
+    # train 和 val 目录替换），我们设置 move=True。
+    # 注意：这将修改原始的 'train' 文件夹。
+    splitfolders.ratio(
+        SOURCE_DATA_TO_SPLIT,
+        output=DATA_PATH,  # 输出到根数据目录
+        seed=42,
+        ratio=(TRAIN_FRAC, VAL_FRAC),
+        group_prefix=None,
+        move=True  # 设置为 True 以移动文件，从而修改原始目录
+    )
+    print("数据集成功分割！文件已从原始目录移动到新的 train 和 val 目录。")
+
+elif os.path.isdir(TRAIN_DIR) and os.path.isdir(VAL_DIR):
+    print("检测到 'train' 和 'val' 目录已存在，跳过分割步骤。")
+else:
+    print(f"警告: 未找到原始数据目录 '{SOURCE_DATA_TO_SPLIT}' 进行分割。")
+    print("请确保您的数据位于该目录中，并按类别分好子文件夹。")
+
+# 确保所有目标目录都存在（即使分割未执行）
+os.makedirs(TRAIN_DIR, exist_ok=True)
+os.makedirs(VAL_DIR, exist_ok=True)
+os.makedirs(TEST_DIR, exist_ok=True)
+
+# 从分割后的训练集中读取类别列表
+if os.path.isdir(TRAIN_DIR) and len(os.listdir(TRAIN_DIR)) > 0:
+    ECLIPSE_LIST = {i: name for i, name in enumerate(sorted(os.listdir(TRAIN_DIR)))}
+    print("\n--- 数据集最终结构 ---")
+    print(f"训练集目录: {TRAIN_DIR}")
+    print(f"验证集目录: {VAL_DIR}")
+    print(f"测试集目录: {TEST_DIR}")
+    print(f"检测到的类别: {list(ECLIPSE_LIST.values())}")
+else:
+    ECLIPSE_LIST = {}
+    print("\n警告: 训练目录为空或不存在，无法加载类别列表。")

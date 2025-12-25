@@ -1,0 +1,5 @@
+import pandas as pd
+
+def create_column(df):
+    df['Frequency'] = 0
+    df.loc[df['EventId'].str.contains('E16'), 'Frequency'] = 117

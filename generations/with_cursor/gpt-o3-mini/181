@@ -1,0 +1,46 @@
+class Token:
+    def __init__(self, start: int, end: int):
+        self.start = start
+        self.end = end
+
+class IntegerToken(Token):
+    def __init__(self, start: int, end: int, value: int):
+        super().__init__(start, end)
+        self.value = value
+
+    @staticmethod
+    def is_digit(text: str, position: int) -> bool:
+        """使用 str.isdigit() 检查给定位置的字符是否为数字"""
+        if position < len(text):
+            return text[position].isdigit()
+        return False
+
+    @classmethod
+    def is_int(cls, text: str, start_pos: int) -> int:
+        """
+        检查从 start_pos 开始的字符是否形成一个有效的整数标记，
+        如果是，返回整数标记的结束位置；否则抛出 ValueError。
+        """
+        max_pos = len(text)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos:
+            if not cls.is_digit(text, current_pos):
+                break
+            digit_found = True
+            current_pos += 1
+
+        if not digit_found:
+            raise ValueError("Not an integer")
+
+        return current_pos
+
+if __name__ == "__main__":
+    # 测试有效整数输入
+    print(IntegerToken.is_int("1234", 0))
+    # 测试无效整数输入
+    try:
+        print(IntegerToken.is_int("a123", 0))
+    except ValueError as e:
+        print(e)

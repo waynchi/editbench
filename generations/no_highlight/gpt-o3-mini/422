@@ -1,0 +1,27 @@
+import os
+
+project_name = "CheckerKMV"
+
+def create_license(secret_key: str) -> None:
+    """
+    Creates a license file containing the provided secret key.
+    The license file is stored in the APPDATA directory under a folder named after the project.
+    """
+    # Construct the path to the project's folder within the APPDATA directory.
+    appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+    
+    # If the directory doesn't exist, create it.
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+    
+    # Define the full path to the license file.
+    license_file = os.path.join(appdata_path, "license.dat")
+    
+    # Write the secret_key as bytes (encoded in UTF-8) into the file.
+    with open(license_file, "wb") as f:
+        f.write(secret_key.encode('utf-8'))
+
+if __name__ == "__main__":
+    # Example usage:
+    dummy_secret = "mySecretKey123456"
+    create_license(dummy_secret)

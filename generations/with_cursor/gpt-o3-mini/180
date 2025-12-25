@@ -1,0 +1,172 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    创建一个大小为rows x cols的矩阵，并用fill_value填充。
+    
+    参数：
+        rows (int): 行数。
+        cols (int): 列数。
+        fill_value (任意类型): 用于填充矩阵的值。
+    
+    返回：
+        list: 以列表形式表示的矩阵。
+        
+    示例：
+        matrix = create_matrix(2, 3, 1)
+        print(matrix)  # [[1, 1, 1], [1, 1, 1]]
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    对两个相同大小的矩阵进行逐元素加法。
+    
+    参数：
+        matrix_a (list): 第一个矩阵。
+        matrix_b (list): 第二个矩阵。
+        
+    返回：
+        list: 矩阵加法后的结果矩阵。
+        
+    示例：
+        matrix_a = [[1, 2], [3, 4]]
+        matrix_b = [[5, 6], [7, 8]]
+        result = add_matrices(matrix_a, matrix_b)
+        print(result)  # [[6, 8], [10, 12]]
+    """
+    # 假定两个矩阵具有相同的尺寸
+    rows = len(matrix_a)
+    cols = len(matrix_a[0]) if rows > 0 else 0
+    result = []
+    for i in range(rows):
+        row = []
+        for j in range(cols):
+            row.append(matrix_a[i][j] + matrix_b[i][j])
+        result.append(row)
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    将矩阵的所有元素乘以一个标量。
+    
+    参数：
+        matrix (list): 原始矩阵。
+        scalar (float): 用于乘以矩阵中每个元素的数。
+        
+    返回：
+        list: 乘标量后的矩阵。
+        
+    示例：
+        matrix = [[1, 2], [3, 4]]
+        result = scalar_multiply(matrix, 3)
+        print(result)  # [[3, 6], [9, 12]]
+    """
+    result = []
+    for row in matrix:
+        new_row = []
+        for value in row:
+            new_row.append(value * scalar)
+        result.append(new_row)
+    return result
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    执行两个矩阵的乘法运算。矩阵乘法的条件是矩阵A的列数必须等于矩阵B的行数。
+    
+    参数：
+        matrix_a (list): 第一个矩阵。
+        matrix_b (list): 第二个矩阵。
+        
+    返回：
+        list: 矩阵乘法的结果矩阵。
+        
+    示例：
+        matrix_a = [[1, 2], [3, 4]]
+        matrix_b = [[2, 0], [1, 3]]
+        result = multiply_matrices(matrix_a, matrix_b)
+        print(result)  # [[4, 6], [10, 12]]
+    """
+    # 获取矩阵A的行数和列数
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0]) if rows_a > 0 else 0
+    # 获取矩阵B的行数和列数
+    rows_b = len(matrix_b)
+    cols_b = len(matrix_b[0]) if rows_b > 0 else 0
+    
+    # 确保矩阵A的列数等于矩阵B的行数
+    if cols_a != rows_b:
+        raise ValueError("矩阵A的列数必须等于矩阵B的行数。")
+    
+    # 初始化结果矩阵为0填充
+    result = create_matrix(rows_a, cols_b, 0)
+    
+    # 执行矩阵乘法
+    for i in range(rows_a):
+        for j in range(cols_b):
+            sum_product = 0
+            for k in range(cols_a):
+                sum_product += matrix_a[i][k] * matrix_b[k][j]
+            result[i][j] = sum_product
+            
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    转置给定的矩阵，使得原矩阵的行变为列，列变为行。
+    
+    参数：
+        matrix (list): 原始矩阵。
+        
+    返回：
+        list: 转置后的矩阵。
+        
+    示例：
+        matrix = [[1, 2], [3, 4], [5, 6]]
+        result = transpose_matrix(matrix)
+        print(result)  # [[1, 3, 5], [2, 4, 6]]
+    """
+    if not matrix:
+        return []
+        
+    rows = len(matrix)
+    cols = len(matrix[0])
+    transposed = []
+    
+    for j in range(cols):
+        new_row = []
+        for i in range(rows):
+            new_row.append(matrix[i][j])
+        transposed.append(new_row)
+        
+    return transposed
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    计算3x3矩阵的行列式。
+    
+    参数：
+        matrix (list): 大小为3x3的原始矩阵。
+        
+    返回：
+        float: 矩阵的行列式值。
+        
+    示例：
+        matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        result = determinant_3x3(matrix)
+        print(result)  # 0.0
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("输入矩阵必须是3x3的。")
+    
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+    
+    det = (a11 * (a22 * a33 - a23 * a32) -
+           a12 * (a21 * a33 - a23 * a31) +
+           a13 * (a21 * a32 - a22 * a31))
+    return float(det)

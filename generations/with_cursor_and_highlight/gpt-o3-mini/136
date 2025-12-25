@@ -1,0 +1,12 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    now = datetime.now()
+    return f"当前日期和时间: {now}"
+
+if __name__ == "__main__":
+    app.run(debug=True)

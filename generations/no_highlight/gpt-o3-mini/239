@@ -1,0 +1,59 @@
+# создать модуль полусумматора с дополнительными входными сигналами на Verilog с помощью Python
+
+# код на verilog с улучшенной функциональностью:
+verilog_code = """
+module half_adder(a, b, d, e, c, sum, carry);
+    // Объявление входных и выходных портов
+    input a, b, d, e;
+    output c, sum, carry;
+    
+    // Логика для вычисления суммарного результата:
+    // c вычисляется как XOR от a и b
+    assign c = a ^ b;
+    // sum вычисляется как XOR двух групп:
+    // первая группа - результат логического умножения a и b,
+    // вторая группа - результат логического умножения d и e.
+    assign sum = (a & b) ^ (d & e);
+    // carry вычисляется как логическое или между двумя условиями:
+    // или оба a и b равны 1,
+    // или оба d и e равны 1.
+    assign carry = (a & b) | (d & e);
+endmodule
+"""
+
+# имя модуля verilog
+module_name = "half_adder"
+
+# входные и выходные порты модуля verilog
+# добавлены новые входные сигналы: d и e
+input_ports = ["a", "b", "d", "e"]
+output_ports = ["c", "sum", "carry"]
+
+# параметры модуля verilog (оставляем без изменений)
+parameters = ["WIDTH"]
+
+# значение параметров модуля verilog
+parameter_values = ["8"]
+
+# тело модуля verilog (аналогичный основной части, приведенной в verilog_code)
+module_body = """
+    input a, b, d, e;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = (a & b) ^ (d & e);
+    assign carry = (a & b) | (d & e);
+endmodule
+"""
+
+# инстанцирование модуля verilog с новыми входными сигналами
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .d(d),
+    .e(e),
+    .c(c),
+    .sum(sum),
+    .carry(carry)
+);
+"""

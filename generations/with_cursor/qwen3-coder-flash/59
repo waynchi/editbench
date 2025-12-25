@@ -1,0 +1,32 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, flattened_size):  # Принимаем flattened_size как аргумент
+        super().__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),  # Используем flattened_size здесь
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x

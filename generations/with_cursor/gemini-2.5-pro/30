@@ -1,0 +1,61 @@
+# -*- coding: utf-8 -*-
+
+def gerar_somas_de_quatro_quadrados_nao_nulos(limite_maximo):
+    """
+    Gera uma lista ordenada de números que podem ser expressos como a soma
+    de quatro quadrados de inteiros positivos (não nulos).
+
+    Um número n é incluído se n = a² + b² + c² + d², onde a, b, c, d são
+    inteiros maiores que zero.
+
+    Argumentos:
+        limite_maximo (int): O valor máximo para os números a serem gerados.
+
+    Retorna:
+        list: Uma lista de inteiros em ordem crescente que satisfazem a condição.
+    """
+    somas_encontradas = set()
+    
+    # O limite para cada um dos quatro números (a, b, c, d) não precisa
+    # ser maior que a raiz quadrada do limite máximo.
+    limite_componente = int(limite_maximo**0.5) + 1
+
+    # Para gerar as combinações de forma eficiente e sem duplicatas de permutação,
+    # garantimos a ordem 1 <= a <= b <= c <= d.
+    for a in range(1, limite_componente):
+        a_quadrado = a * a
+        for b in range(a, limite_componente):
+            b_quadrado = b * b
+            for c in range(b, limite_componente):
+                c_quadrado = c * c
+                for d in range(c, limite_componente):
+                    d_quadrado = d * d
+                    
+                    soma = a_quadrado + b_quadrado + c_quadrado + d_quadrado
+                    
+                    if soma <= limite_maximo:
+                        somas_encontradas.add(soma)
+                    else:
+                        # Como 'd' e as somas subsequentes só aumentarão,
+                        # podemos interromper o loop mais interno para otimizar.
+                        break
+    
+    # Retorna a lista de números encontrados, em ordem crescente.
+    return sorted(list(somas_encontradas))
+
+if __name__ == "__main__":
+    # Define até que número queremos procurar.
+    # O menor número possível é 1²+1²+1²+1² = 4.
+    LIMITE = 100
+
+    print(f"Números até {LIMITE} que podem ser expressos como a soma de quatro quadrados não nulos:")
+    
+    numeros = gerar_somas_de_quatro_quadrados_nao_nulos(LIMITE)
+    
+    # Imprime os números em um formato legível.
+    print(numeros)
+
+    # Exemplo de verificação:
+    # 4 = 1²+1²+1²+1² (está na lista)
+    # 5, 6 não estão na lista, pois requerem um zero (5=2²+1²+0²+0², 6=2²+1²+1²+0²)
+    # 7 = 2²+1²+1²+1² (está na lista)

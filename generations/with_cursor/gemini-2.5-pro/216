@@ -1,0 +1,74 @@
+import tkinter as tk
+import random
+import math
+
+class Square:
+    # 添加一个颜色列表，使方块颜色多样化
+    COLORS = ["blue", "red", "green", "orange", "purple", "cyan", "magenta", "yellow"]
+
+    # 修改构造函数以接收画布的尺寸
+    def __init__(self, canvas, size, x, y, canvas_width, canvas_height):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+        # 存储画布尺寸，避免在窗口初始化完成前调用winfo_width()导致尺寸错误
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
+        self.dx = random.choice([-2, 2])
+        self.dy = random.choice([-2, 2])
+        # 为方块选择一个随机颜色
+        color = random.choice(self.COLORS)
+        self.square = canvas.create_rectangle(x, y, x + size, y + size, fill=color, outline=color)
+
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.canvas.move(self.square, self.dx, self.dy)
+        
+        # 检查边界 - 使用预存的、可靠的画布尺寸
+        if (self.x <= 0 or self.x + self.size >= self.canvas_width or 
+            self.y <= 0 or self.y + self.size >= self.canvas_height):
+            # 删除当前方块
+            self.canvas.delete(self.square)
+            # 如果大小足够大，则创建两个新方块
+            if self.size > 10:
+                new_size = self.size / 2
+                # 将画布尺寸传递给新的方块
+                squares.append(Square(self.canvas, new_size, 
+                                   self.canvas_width/2 - new_size/2, 
+                                   self.canvas_height/2 - new_size/2,
+                                   self.canvas_width, self.canvas_height))
+                squares.append(Square(self.canvas, new_size, 
+                                   self.canvas_width/2 + new_size/2, 
+                                   self.canvas_height/2 + new_size/2,
+                                   self.canvas_width, self.canvas_height))
+            return False
+        return True
+
+def update():
+    global squares
+    # 移动所有方块并移除那些碰到边界的方块
+    squares = [square for square in squares if square.move()]
+    root.after(20, update)  # 每20毫秒更新一次
+
+# 创建主窗口
+root = tk.Tk()
+root.title("Splitting Squares")
+
+# 将画布尺寸定义为常量，以提高代码清晰度和可靠性
+CANVAS_WIDTH = 600
+CANVAS_HEIGHT = 600
+
+# 创建画布
+canvas = tk.Canvas(root, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg="white")
+canvas.pack(expand=True, fill="both")
+
+# 创建初始方块 - 将画布尺寸传递给构造函数
+squares = [Square(canvas, 100, 250, 250, CANVAS_WIDTH, CANVAS_HEIGHT)]
+
+# 开始动画
+update()
+
+# 开始主循环
+root.mainloop()

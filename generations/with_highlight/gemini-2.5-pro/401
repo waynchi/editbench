@@ -1,0 +1,27 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# The results DataFrame is initialized once, before the loops begin.
+# The dtype is set to 'object' to allow storing dictionaries in the cells.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+        # Simplified one-hot encoding to integer (0/1) values.
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked", dtype=int)
+
+        # Assign the dictionary of predictions to the correct cell in the results DataFrame.
+        # This now works because np_df is correctly defined and has a dtype of 'object'.
+        np_df.loc[fare, pclass] = {"knn": knn.predict(my_df), "mlp": mlp.predict(my_df)}
+
+print(np_df)

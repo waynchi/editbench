@@ -1,0 +1,42 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """Взаимодействие с локальной LLM с использованием Ollama API.
+
+    :param prompt: Входной запрос для LLM.
+    :param base_url: Базовый URL Ollama API.
+    :return: Ответ от LLM."""
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # Замените на имя вашей модели
+        "prompt": prompt,
+        "stream": False  # Отключаем потоковый режим для получения полного ответа
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        # Ollama возвращает JSON объект с полем 'response'
+        result = response.json()
+        return result.get('response', '')
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка запроса: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Ошибка декодирования JSON: {e}")
+        return None
+
+# Пример использования
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")
+    else:
+        print("Не удалось получить ответ от LLM")

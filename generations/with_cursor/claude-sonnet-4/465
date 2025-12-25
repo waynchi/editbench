@@ -1,0 +1,100 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Resuelve el sistema lineal Ax = b usando el método de gradientes conjugados.
+    
+    Parámetros:
+    A : array_like
+        Matriz simétrica y definida positiva de tamaño n x n
+    b : array_like
+        Vector del lado derecho de tamaño n
+    x0 : array_like, opcional
+        Estimación inicial. Si es None, se usa el vector cero
+    tol : float, opcional
+        Tolerancia para la convergencia (default: 1e-6)
+    max_iter : int, opcional
+        Número máximo de iteraciones (default: 1000)
+    
+    Retorna:
+    x : ndarray
+        Solución del sistema lineal
+    residual_norm : float
+        Norma del residual final
+    iterations : int
+        Número de iteraciones realizadas
+    """
+    
+    # Convertir a arrays de numpy
+    A = np.array(A, dtype=float)
+    b = np.array(b, dtype=float)
+    n = len(b)
+    
+    # Inicialización
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+    
+    # Calcular residual inicial
+    r = b - A @ x
+    p = r.copy()
+    rsold = r @ r
+    
+    for i in range(max_iter):
+        # Calcular Ap
+        Ap = A @ p
+        
+        # Calcular alpha
+        alpha = rsold / (p @ Ap)
+        
+        # Actualizar x
+        x = x + alpha * p
+        
+        # Actualizar residual
+        r = r - alpha * Ap
+        
+        # Verificar convergencia
+        rsnew = r @ r
+        residual_norm = np.sqrt(rsnew)
+        
+        if residual_norm < tol:
+            return x, residual_norm, i + 1
+        
+        # Calcular beta
+        beta = rsnew / rsold
+        
+        # Actualizar dirección de búsqueda
+        p = r + beta * p
+        
+        # Actualizar rsold
+        rsold = rsnew
+    
+    return x, np.sqrt(rsold), max_iter
+
+def ejemplo_uso():
+    """
+    Ejemplo de uso del método de gradientes conjugados
+    """
+    # Definir matriz A (debe ser simétrica y definida positiva)
+    A = np.array([[4, 1, 0],
+                  [1, 3, 1],
+                  [0, 1, 2]], dtype=float)
+    
+    # Vector b
+    b = np.array([1, 2, 3], dtype=float)
+    
+    # Resolver usando gradientes conjugados
+    x, residual, iterations = conjugate_gradient(A, b)
+    
+    print(f"Solución: {x}")
+    print(f"Residual final: {residual:.2e}")
+    print(f"Iteraciones: {iterations}")
+    
+    # Verificar la solución
+    print(f"Verificación A*x: {A @ x}")
+    print(f"Vector b: {b}")
+    print(f"Error: {np.linalg.norm(A @ x - b):.2e}")
+
+if __name__ == "__main__":
+    ejemplo_uso()

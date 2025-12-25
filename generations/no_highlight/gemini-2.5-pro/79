@@ -1,0 +1,90 @@
+function createTurnState(allyStates, foeStates) {
+  // Find current turn based on which group still has units that can act.
+  // This logic is now integrated into the turn transition functions.
+
+  let turnNumber = 1;
+  let currentTurn = "player"; // The game starts with the player's turn.
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  /**
+   * Transitions the game to the next phase. This is typically called when
+   * a player ends their turn or the CPU has finished all its actions.
+   */
+  function nextTurn() {
+    // --- Player's turn is ending ---
+    if (currentTurn === "player") {
+      // Mark all player units as having completed their actions for the round.
+      allyStates.forEach(unit => unit.hasActed = true);
+      
+      // Determine if the foe group has any units that can still act.
+      const canFoesAct = foeStates.some(unit => !unit.hasActed);
+
+      if (canFoesAct) {
+        // If foes can act, it becomes the CPU's turn.
+        currentTurn = "cpu";
+        cpuTurn();
+      } else {
+        // If no foes can act, the entire round is over.
+        endRoundAndStartNew();
+      }
+    } 
+    // --- CPU's turn is ending ---
+    else {
+      // The CPU has finished its phase, so the round is complete.
+      endRoundAndStartNew();
+    }
+  }
+
+  /**
+   * Encapsulates the AI logic for the CPU's turn.
+   */
+  function cpuTurn() {
+    // Example CPU behavior: iterate through all units and perform an action if possible.
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // --- Placeholder for actual AI logic ---
+        // e.g., cpuUnit.findTargetAndAttack(allyStates);
+        
+        // Mark the unit as having acted for this round.
+        cpuUnit.hasActed = true;
+      }
+    }
+
+    // After all CPU units have taken their actions, end the CPU's turn phase.
+    nextTurn();
+  }  
+  
+  /**
+   * Ends the current round, increments the turn number, and resets all units
+   * for the start of a new round.
+   */
+  function endRoundAndStartNew() {
+    turnNumber++;
+
+    // Reset action availability for all units.
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+    
+    // The new round begins with the player's turn.
+    currentTurn = "player";
+  }
+
+  // Initial setup to ensure all units are ready for the first turn.
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = false);
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

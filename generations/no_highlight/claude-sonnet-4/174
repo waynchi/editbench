@@ -1,0 +1,53 @@
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+# Assuming brand_A, brand_B, brand_C, and all_data are defined elsewhere
+# Create the data structure
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Group data by brand
+groups = [group['Cost'].values for name, group in df.groupby('Brand')]
+
+# Perform one-way ANOVA using scipy
+f_statistic, p_value = stats.f_oneway(*groups)
+
+# Calculate additional statistics
+n_total = len(df)
+n_groups = df['Brand'].nunique()
+df_between = n_groups - 1
+df_within = n_total - n_groups
+
+# Calculate sum of squares
+grand_mean = df['Cost'].mean()
+ss_total = np.sum((df['Cost'] - grand_mean) ** 2)
+
+group_means = df.groupby('Brand')['Cost'].mean()
+group_sizes = df.groupby('Brand')['Cost'].size()
+ss_between = np.sum(group_sizes * (group_means - grand_mean) ** 2)
+ss_within = ss_total - ss_between
+
+# Calculate mean squares
+ms_between = ss_between / df_between
+ms_within = ss_within / df_within
+
+# Create ANOVA results
+anova_results = {
+    'Source': ['Brand', 'Residual', 'Total'],
+    'SS': [ss_between, ss_within, ss_total],
+    'df': [df_between, df_within, df_between + df_within],
+    'MS': [ms_between, ms_within, np.nan],
+    'F': [f_statistic, np.nan, np.nan],
+    'p-value': [p_value, np.nan, np.nan]
+}
+
+anova_table = pd.DataFrame(anova_results)
+anova_table = anova_table.set_index('Source')
+
+# Print ANOVA table
+print(anova_table)

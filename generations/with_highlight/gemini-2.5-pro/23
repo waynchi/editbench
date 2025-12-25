@@ -1,0 +1,62 @@
+import random
+import sys
+
+# --- Configuration ---
+# The program requires a file named 'words.txt' in the same directory.
+# This file should contain a list of English words, one word per line.
+#
+# On many Linux or macOS systems, you can create a suitable file by
+# copying the system dictionary. Open your terminal and run:
+# cp /usr/share/dict/words words.txt
+#
+# Alternatively, you can download a word list from the internet.
+WORD_LIST_FILE = 'words.txt'
+
+def find_words_by_length():
+    """
+    Loads an English dictionary from a file, asks the user for a word length,
+    and prints 10 random words of that length.
+    """
+    # 1. Load the dictionary from the specified file
+    try:
+        with open(WORD_LIST_FILE, 'r') as f:
+            # Clean each word by removing leading/trailing whitespace and converting
+            # to lowercase. Ignore any empty lines in the file.
+            word_list = [line.strip().lower() for line in f if line.strip()]
+        if not word_list:
+            print(f"Error: The file '{WORD_LIST_FILE}' is empty.")
+            sys.exit(1)
+    except FileNotFoundError:
+        print(f"Error: The dictionary file '{WORD_LIST_FILE}' was not found.")
+        print("Please ensure the file exists in the same directory as this script.")
+        sys.exit(1) # Exit the script with an error code
+
+    # 2. Get user input for the desired word length
+    try:
+        num_chars = int(input("Enter the number of characters for the words you want to find: "))
+        if num_chars <= 0:
+            print("Error: Please enter a positive number.")
+            sys.exit()
+    except ValueError:
+        print("Error: Invalid input. Please enter a whole number.")
+        sys.exit()
+
+    # 3. Filter the main list to find all words with the exact length
+    matching_words = [word for word in word_list if len(word) == num_chars]
+
+    # 4. Process and print the results
+    if not matching_words:
+        print(f"\nSorry, no words with {num_chars} characters were found in the dictionary.")
+    else:
+        # 5. Determine how many words to display (at most 10)
+        num_to_display = min(10, len(matching_words))
+
+        # 6. Randomly select a sample of unique words from the matching list
+        selected_words = random.sample(matching_words, num_to_display)
+
+        print(f"\nFound {len(matching_words)} words with {num_chars} characters. Here are {num_to_display} random examples:")
+        for word in selected_words:
+            print(word)
+
+# Run the main function of the program
+find_words_by_length()

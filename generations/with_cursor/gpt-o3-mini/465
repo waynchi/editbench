@@ -1,0 +1,68 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-8, max_iter=1000):
+    """
+    Resuelve el sistema de ecuaciones lineales Ax = b utilizando el método de gradientes conjugados.
+    
+    Parámetros:
+        A (numpy.ndarray): Matriz simétrica y definida positiva.
+        b (numpy.ndarray): Vector del lado derecho.
+        x0 (numpy.ndarray o None): Valor inicial para la solución. Si es None, se inicia con ceros.
+        tol (float): Tolerancia para el criterio de parada (norma del residuo).
+        max_iter (int): Número máximo de iteraciones.
+        
+    Retorna:
+        x (numpy.ndarray): La solución aproximada.
+        k (int): Número de iteraciones realizadas.
+        residuos (list): Lista con la norma del residuo en cada iteración.
+    """
+    n = b.shape[0]
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    r = b - A.dot(x)  # Residuo inicial
+    d = r.copy()      # Dirección inicial
+    residual_norm = np.linalg.norm(r)
+    residuos = [residual_norm]
+    
+    k = 0
+    while residual_norm > tol and k < max_iter:
+        Ad = A.dot(d)
+        alpha = np.dot(r, r) / np.dot(d, Ad)
+        x = x + alpha * d
+        r_new = r - alpha * Ad
+        
+        residual_norm = np.linalg.norm(r_new)
+        residuos.append(residual_norm)
+        
+        # Verificar el criterio de parada
+        if residual_norm < tol:
+            break
+        
+        beta = np.dot(r_new, r_new) / np.dot(r, r)
+        d = r_new + beta * d
+        
+        r = r_new
+        k += 1
+        
+    return x, k, residuos
+
+# Ejemplo de uso:
+if __name__ == "__main__":
+    # Se define un sistema de ecuaciones Ax = b con A definida positiva.
+    n = 5
+    np.random.seed(0)
+    # Generar una matriz aleatoria y luego construir una matriz simétrica definida positiva
+    M = np.random.rand(n, n)
+    A = np.dot(M, M.transpose()) + n * np.eye(n)  # Suma de n * I para asegurar la definida positividad
+    
+    b = np.random.rand(n)
+    
+    # Resolver el sistema
+    x_sol, num_iter, residuos = conjugate_gradient(A, b, tol=1e-6)
+    
+    print("Solución x:", x_sol)
+    print("Número de iteraciones:", num_iter)
+    print("Normas de los residuos:", residuos)

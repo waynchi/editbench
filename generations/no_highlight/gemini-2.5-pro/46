@@ -1,0 +1,28 @@
+import time
+import undetected_chromedriver as uc
+
+# The original code was incorrectly setting 'options.binary_location' to the path
+# of the chromedriver executable. This option is for the Chrome browser's
+# executable file (e.g., chrome.exe), not the driver.
+#
+# The 'undetected-chromedriver' library is designed to automatically find the
+# installed Chrome browser and download/manage a matching chromedriver for you.
+# Providing no options is the correct approach in most cases and allows the
+# library to function as intended, which resolves the 'SessionNotCreatedException'
+# seen in the traceback.
+#
+# The duplicated code blocks have also been removed and consolidated.
+
+print("Initializing Chrome driver...")
+
+# Let undetected_chromedriver handle finding the browser and driver automatically.
+# 'use_subprocess=True' is often useful for better process management and cleanup.
+with uc.Chrome(use_subprocess=True) as driver:
+    print("Driver initialized. Navigating to https://lmarena.ai/")
+    driver.get("https://lmarena.ai/")
+    print("Navigation successful. The page will remain open for 10 seconds.")
+
+    # Wait for 10 seconds to observe the result
+    time.sleep(10)
+
+print("Script finished.")

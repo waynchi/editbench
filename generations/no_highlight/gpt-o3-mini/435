@@ -1,0 +1,167 @@
+import io
+import unittest
+from contextlib import redirect_stdout
+
+class Graph:
+    def __init__(self):
+        self.adjacency_list = {}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adjacency_list:
+            self.adjacency_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2):
+        # Dodajemy krawędź tylko, jeśli oba wierzchołki istnieją
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            # Unikamy duplikacji krawędzi
+            if vertex2 not in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].append(vertex2)
+            if vertex1 not in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].append(vertex1)
+
+    def remove_vertex(self, vertex):
+        if vertex in self.adjacency_list:
+            # Usuwamy wszystkie krawędzie powiązane z wierzchołkiem
+            for neighbor in self.adjacency_list[vertex][:]:
+                if vertex in self.adjacency_list[neighbor]:
+                    self.adjacency_list[neighbor].remove(vertex)
+            del self.adjacency_list[vertex]
+
+    def remove_edge(self, vertex1, vertex2):
+        if vertex1 in self.adjacency_list and vertex2 in self.adjacency_list:
+            if vertex2 in self.adjacency_list[vertex1]:
+                self.adjacency_list[vertex1].remove(vertex2)
+            if vertex1 in self.adjacency_list[vertex2]:
+                self.adjacency_list[vertex2].remove(vertex1)
+
+    def dfs(self, start_vertex, visited=None):
+        """
+        Przeszukiwanie grafu wgłąb (DFS) od podanego wierzchołka.
+        """
+        if visited is None:
+            visited = set()
+        visited.add(start_vertex)
+        print(start_vertex, end=' ')
+        for neighbor in self.adjacency_list[start_vertex]:
+            if neighbor not in visited:
+                self.dfs(neighbor, visited)
+
+    def bfs(self, start_vertex):
+        """
+        Przeszukiwanie grafu wszerz (BFS) od podanego wierzchołka.
+        """
+        visited = set()
+        queue = [start_vertex]
+        visited.add(start_vertex)
+        while queue:
+            vertex = queue.pop(0)
+            print(vertex, end=' ')
+            for neighbor in self.adjacency_list[vertex]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+    def __str__(self):
+        return str(self.adjacency_list)
+
+
+class TestGraph(unittest.TestCase):
+    def setUp(self):
+        self.graph = Graph()
+
+    def test_add_vertex(self):
+        self.graph.add_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'A': []})
+        self.graph.add_vertex('B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # Dodanie zduplikowanego wierzchołka nie powinno modyfikować grafu
+        self.graph.add_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+    def test_add_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+        # Dodanie krawędzi, gdzie jeden z wierzchołków nie istnieje, nie powinno zmienić grafu
+        self.graph.add_edge('A', 'C')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+        self.graph.add_edge('D', 'E')
+        self.assertEqual(self.graph.adjacency_list, {'A': ['B'], 'B': ['A']})
+
+    def test_remove_vertex(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.graph.remove_vertex('A')
+        self.assertEqual(self.graph.adjacency_list, {'B': []})
+        # Usunięcie nieistniejącego wierzchołka nie powinno modyfikować grafu
+        self.graph.remove_vertex('C')
+        self.assertEqual(self.graph.adjacency_list, {'B': []})
+
+    def test_remove_edge(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_edge('A', 'B')
+        self.graph.remove_edge('A', 'B')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+        # Usunięcie nieistniejącej krawędzi nie powinno zmienić grafu
+        self.graph.remove_edge('A', 'C')
+        self.assertEqual(self.graph.adjacency_list, {'A': [], 'B': []})
+
+    def test_dfs(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B', 'C')
+        # Przechwycenie wyjścia funkcji dfs
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.dfs('A')
+        output = f.getvalue().strip()
+        # Sprawdzenie czy DFS odwiedza wszystkie wierzchołki
+        self.assertTrue("A" in output and "B" in output and "C" in output)
+
+    def test_bfs(self):
+        self.graph.add_vertex('A')
+        self.graph.add_vertex('B')
+        self.graph.add_vertex('C')
+        self.graph.add_edge('A', 'B')
+        self.graph.add_edge('A', 'C')
+        self.graph.add_edge('B', 'C')
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self.graph.bfs('A')
+        output = f.getvalue().strip()
+        # Zakładamy, że kolejność BFS to "A B C"
+        self.assertEqual(output, "A B C")
+
+
+if __name__ == '__main__':
+    # Uruchomienie testów jednostkowych
+    unittest.main(exit=False)
+
+    # Demonstracja działania grafu
+    graph = Graph()
+
+    # Dodaj wierzchołki
+    graph.add_vertex('A')
+    graph.add_vertex('B')
+    graph.add_vertex('C')
+    graph.add_vertex('D')
+
+    # Dodaj krawędzie
+    graph.add_edge('A', 'B')
+    graph.add_edge('A', 'C')
+    graph.add_edge('B', 'D')
+
+    print("\nGraph adjacency list:")
+    print(graph)
+
+    print("\nDFS starting from vertex 'A':")
+    graph.dfs('A')
+    print("\n\nBFS starting from vertex 'A':")
+    graph.bfs('A')
+    print()

@@ -1,0 +1,30 @@
+import math
+
+def is_prime(n):
+    """
+    Sprawdza, czy liczba n jest liczbą pierwszą.
+    
+    Args:
+        n (int): Liczba, którą należy sprawdzić.
+        
+    Returns:
+        bool: True, jeśli liczba n jest pierwsza, False w przeciwnym razie.
+    """
+    if n < 2:
+        return False
+    if n == 2:
+        return True
+    if n % 2 == 0:
+        return False
+    # Sprawdzamy dzielniki tylko do pierwiastka kwadratowego z n
+    sqrt_n = int(math.sqrt(n)) + 1
+    for i in range(3, sqrt_n, 2):
+        if n % i == 0:
+            return False
+    return True
+
+if __name__ == "__main__":
+    # Przykładowe testy funkcji is_prime
+    test_numbers = [0, 1, 2, 3, 4, 17, 19, 20, 23, 24, 29, 31]
+    for number in test_numbers:
+        print(f"{number} is prime: {is_prime(number)}")

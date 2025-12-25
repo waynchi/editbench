@@ -1,0 +1,77 @@
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    """
+    Простая сверточная нейронная сеть.
+    Этот исправленный вариант не требует ручного вычисления `flattened_size` при инициализации.
+    Размер входа в полносвязный слой вычислен исходя из стандартного размера входного
+    изображения 32x32, как в датасете CIFAR.
+
+    Расчет размера для `nn.Linear`:
+    1. Вход: (N, 3, 32, 32)
+    2. conv1:
+       - Conv2d(3, 32, 3): (32-3)/1+1 = 30 -> (N, 32, 30, 30)
+       - MaxPool2d(2): 30/2 = 15          -> (N, 32, 15, 15)
+    3. conv2:
+       - Conv2d(32, 64, 3): (15-3)/1+1 = 13 -> (N, 64, 13, 13)
+       - MaxPool2d(2): 13 // 2 = 6         -> (N, 64, 6, 6)
+    4. flatten: 64 * 6 * 6 = 2304
+    """
+    def __init__(self):
+        super().__init__()
+
+        # Первый сверточный блок
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+
+        # Второй сверточный блок
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+
+        # Слой для преобразования тензора в вектор
+        self.flatten = nn.Flatten()
+
+        # Полносвязный блок
+        self.fc1 = nn.Sequential(
+            # Размер 2304 рассчитан для входа 32x32
+            nn.Linear(in_features=64 * 6 * 6, out_features=512),
+            nn.ReLU(),
+            nn.Linear(in_features=512, out_features=3) # 3 класса для примера
+        )
+
+    def forward(self, x):
+        """Прямой проход через сеть."""
+        # Применяем сверточные слои
+        x = self.conv1(x)
+        x = self.conv2(x)
+
+        # Преобразуем в вектор
+        x = self.flatten(x)
+
+        # Применяем полносвязные слои
+        x = self.fc1(x)
+
+        return x
+
+# Пример использования:
+# import torch
+#
+# # Создаем экземпляр модели
+# model = SimpleConvNet1()
+# print(model)
+#
+# # Создаем случайный тензор, имитирующий батч из 4 изображений 32x32 с 3 каналами
+# input_tensor = torch.randn(4, 3, 32, 32)
+#
+# # Выполняем прямой проход
+# output = model(input_tensor)
+#
+# # Проверяем размерность выхода (должна быть [4, 3] для 4 изображений и 3 классов)
+# print("Input shape:", input_tensor.shape)
+# print("Output shape:", output.shape)

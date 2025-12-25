@@ -1,0 +1,82 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, explode
+import json
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("AnalisisDatosAPI").getOrCreate()
+
+# 示例：模拟来自API的数据（实际应用中这里会是真实的API调用）
+# 假设API返回JSON格式的数据
+def obtener_datos_desde_api():
+    # 这里应该是实际的API调用代码
+    # 例如：requests.get("tu_endpoint_de_api").json()
+    
+    # 模拟数据 - 替换为你的真实API响应
+    datos_api = [
+        {"id": 1, "nombre": "Juan", "edad": 30, "departamento": "Ventas"},
+        {"id": 2, "nombre": "Ana", "edad": 25, "departamento": "Marketing"},
+        {"id": 3, "nombre": "Pedro", "edad": 40, "departamento": "TI"},
+        {"id": 4, "nombre": "Maria", "edad": 35, "departamento": "Ventas"},
+        {"id": 5, "nombre": "Carlos", "edad": 28, "departamento": "Marketing"}
+    ]
+    return datos_api
+
+# 从API获取数据
+datos_api = obtener_datos_desde_api()
+
+# 将数据转换为DataFrame
+df = spark.createDataFrame(datos_api)
+
+# 首先分析数据
+print("=== ANÁLISIS DE DATOS ===")
+
+# 1. Mostrar esquema
+print("1. Esquema de datos:")
+df.printSchema()
+
+# 2. Mostrar primeras filas
+print("\n2. Primeras filas de datos:")
+df.show()
+
+# 3. Estadísticas descriptivas
+print("\n3. Estadísticas descriptivas:")
+df.describe().show()
+
+# 4. Análisis de valores únicos
+print("\n4. Valores únicos por columna:")
+for col_name in df.columns:
+    print(f"{col_name}: {df.select(col_name).distinct().count()} valores únicos")
+
+# 5. Análisis por departamento
+print("\n5. Resumen por departamento:")
+df.groupBy("departamento").agg(
+    col("departamento"),
+    col("edad").avg().alias("edad_promedio"),
+    col("id").count().alias("total_personas")
+).show()
+
+# 6. Detección de valores nulos o faltantes
+print("\n6. Detección de valores nulos:")
+for col_name in df.columns:
+    nulos = df.filter(col(col_name).isNull()).count()
+    print(f"{col_name}: {nulos} valores nulos")
+
+# 7. Distribución de edades
+print("\n7. Distribución de edades:")
+df.select("edad").describe().show()
+
+# Configurar la escritura a ADL2 después del análisis
+container_name = "<your_container_name>"
+folder_path = "<your_folder_path>"
+adl2_path = f"abfss://{container_name}@<your_storage_account_name>.dfs.core.windows.net/{folder_path}"
+
+# Escribir DataFrame analizado a Parquet
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Leer y verificar los datos escritos
+df_leido = spark.read.parquet(adl2_path)
+print("\n=== VERIFICACIÓN DE ESCRITURA ===")
+df_leido.show()
+
+# Detener la sesión de Spark
+spark.stop()

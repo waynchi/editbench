@@ -1,0 +1,65 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+  let currentTurn = "player";
+
+  // 初始化所有单位的状态：默认尚未行动
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = false);
+
+  // 根据哪个小组仍有可以行动的单位来确定当前回合
+  function determineTurn() {
+    // 如果玩家仍有未行动单位，则当前回合为 "player"
+    if (allyStates.some(unit => !unit.hasActed)) return "player";
+    // 如果敌方仍有未行动单位，则当前回合为 "cpu"
+    if (foeStates.some(unit => !unit.hasActed)) return "cpu";
+
+    // 如果两个小组都没有剩余行动单位，则开启一个新的全局回合
+    turnNumber++;
+    // 重置所有单位的行动状态
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+    // 新回合默认由玩家开启
+    return "player";
+  }
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // 负责更新当前回合，并在需要时触发CPU回合逻辑
+  function nextTurn() {
+    // 检查当前回合组中的单位，确保它们的行动状态已被标记。
+    // 这里不直接切换，而是依据双方剩余可行动单位来决定下一个回合是谁.
+    currentTurn = determineTurn();
+
+    if (currentTurn === "cpu") {
+      cpuTurn(); // 自动触发 CPU 逻辑
+    }
+  }
+
+  function cpuTurn() {
+    // 示例 CPU 行为逻辑：遍历所有敌方单位并执行它们的动作（如果还没有行动）
+    foeStates.forEach(cpuUnit => {
+      if (!cpuUnit.hasActed) {
+        // 这里实现具体的CPU动作（例如移动、攻击等）
+        // ...将你的AI逻辑代码放在这里...
+        cpuUnit.hasActed = true; // 标记该单位已经行动过
+      }
+    });
+
+    // CPU回合结束后，尝试切换到下一回合（可能是玩家，或者开启新的一回合）
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

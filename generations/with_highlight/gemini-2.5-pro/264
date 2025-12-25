@@ -1,0 +1,67 @@
+import math
+
+def find_sums_of_four_nonzero_squares(limit):
+    """
+    Находит все числа до заданного предела, которые можно представить
+    в виде суммы четырех ненулевых квадратов.
+    (n = a^2 + b^2 + c^2 + d^2, где a, b, c, d >= 1)
+    
+    Args:
+        limit (int): Верхний предел для поиска чисел.
+
+    Returns:
+        list[int]: Отсортированный список найденных чисел.
+    """
+    sums = set()
+    # Максимальное значение для любого из целых чисел не может превышать sqrt(limit).
+    max_val = int(math.sqrt(limit)) + 1
+
+    # Чтобы избежать дубликатов из-за перестановок (например, 1²+2² и 2²+1²),
+    # мы используем условие a <= b <= c <= d.
+    # Это также позволяет сделать некоторые оптимизации.
+    for a in range(1, max_val):
+        a2 = a * a
+        # Оптимизация: если 4*a^2 > предела, то никакая комбинация не подойдет,
+        # так как a - наименьшее из чисел.
+        if a2 * 4 > limit:
+            break
+        for b in range(a, max_val):
+            b2 = b * b
+            # Оптимизация: a^2 + b^2 + c^2 + d^2 >= a^2 + 3*b^2
+            if a2 + b2 * 3 > limit:
+                break
+            for c in range(b, max_val):
+                c2 = c * c
+                # Оптимизация: a^2 + b^2 + c^2 + d^2 >= a^2 + b^2 + 2*c^2
+                if a2 + b2 + c2 * 2 > limit:
+                    break
+                for d in range(c, max_val):
+                    d2 = d * d
+                    current_sum = a2 + b2 + c2 + d2
+                    
+                    if current_sum <= limit:
+                        sums.add(current_sum)
+                    else:
+                        # Поскольку d монотонно возрастает, все последующие суммы
+                        # также будут превышать предел.
+                        break
+    
+    return sorted(list(sums))
+
+# Основная часть программы для демонстрации
+if __name__ == "__main__":
+    UPPER_LIMIT = 100
+
+    print(f"Числа до {UPPER_LIMIT}, которые могут быть выражены как сумма четырех ненулевых квадратов:\n")
+    
+    result = find_sums_of_four_nonzero_squares(UPPER_LIMIT)
+    
+    print(*result, sep=", ")
+
+    # Также можно вывести числа, которые не представимы в таком виде.
+    all_numbers_up_to_limit = set(range(1, UPPER_LIMIT + 1))
+    representable_numbers = set(result)
+    non_representable = sorted(list(all_numbers_up_to_limit - representable_numbers))
+    
+    print("\n\nЧисла, которые не удалось так представить:")
+    print(*non_representable, sep=", ")

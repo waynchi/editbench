@@ -1,0 +1,102 @@
+import aiohttp
+import aiofiles
+import xml.etree.ElementTree as ET
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+import asyncio
+
+# clase moneda
+class valute():
+    """Moneda y todo lo relacionado con ella, a través del Banco Central de la Federación de Rusia
+
+    Se requieren bibliotecas:
+    
+        aiohttp
+        aiofiles
+        xml.etree.ElementTree
+        matplotlib.pyplot as plt
+        pandas as pd
+        datetime
+        pickle
+        json
+    """
+    
+    def __init__(self, name):
+        self.name = name
+
+    async def correct_name(self):
+        """Verificación del nombre de la moneda en el conjunto de monedas. El conjunto se actualiza no más de una vez al día"""
+        info_path = r"D:\MoexAPI_bot_aiogram3\data_files\Info.json"
+        set_valutes_path = r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin"
+        
+        # Abrir y leer el archivo Info.json de forma asíncrona
+        async with aiofiles.open(info_path, "r", encoding="utf-8") as info_file:
+            info_content = await info_file.read()
+        info = json.loads(info_content)
+        
+        # Revisar la fecha de última actualización para las divisas
+        last_check = datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            # Si la última actualización es de más de un día, actualizamos el conjunto de monedas
+            set_valutes = set()
+            url = "http://www.cbr.ru/scripts/XML_daily.asp"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    xml_content = await response.text()
+                    root = ET.fromstring(xml_content)
+                    for Valute in root.findall("Valute"):
+                        CharCode = Valute.find("CharCode")
+                        if CharCode is not None and CharCode.text:
+                            set_valutes.add(CharCode.text)
+            
+            # Serializamos el conjunto y lo almacenamos en set_valutes.bin
+            data = pickle.dumps(set_valutes)
+            async with aiofiles.open(set_valutes_path, "wb") as set_file:
+                await set_file.write(data)
+            
+            # Actualizamos la hora en info y guardamos el archivo Info.json
+            info["last_day_check"]["valute"] = str(datetime.datetime.now())
+            async with aiofiles.open(info_path, "w", encoding="utf-8") as info_file:
+                content = json.dumps(info, indent=3, ensure_ascii=False)
+                await info_file.write(content)
+        
+        # Leer el conjunto de monedas desde el archivo asíncrono y verificar si la moneda requerida se encuentra en él.
+        async with aiofiles.open(set_valutes_path, "rb") as set_file:
+            data = await set_file.read()
+            set_valutes = pickle.loads(data)
+        
+        return self.name in set_valutes
+
+    async def CurrentExchangeRate(self):
+        '''Tipo de cambio actual de la moneda al rublo'''
+        url = "http://www.cbr.ru/scripts/XML_daily.asp"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                xml_content = await response.text()
+                root = ET.fromstring(xml_content)
+                for Valute in root.findall("Valute"):
+                    CharCode = Valute.find("CharCode")
+                    if CharCode is not None and CharCode.text == self.name:
+                        # Se asume que se quiere el valor de la tasa, que se obtiene de VunitRate.
+                        vunit = Valute.find("VunitRate")
+                        if vunit is not None:
+                            return vunit.text
+        return None
+
+# Ejemplo de cómo usar la clase de forma asíncrona
+async def main():
+    moneda = valute("USD")
+    if await moneda.correct_name():
+        rate = await moneda.CurrentExchangeRate()
+        if rate is not None:
+            print(f"El tipo de cambio actual para {moneda.name} es: {rate}")
+        else:
+            print("No se pudo obtener el tipo de cambio.")
+    else:
+        print("La moneda no existe en el listado del Banco Central de Rusia.")
+
+if __name__ == "__main__":
+    asyncio.run(main())

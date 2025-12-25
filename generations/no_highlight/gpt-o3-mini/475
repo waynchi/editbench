@@ -1,0 +1,50 @@
+import os
+import shutil
+import numpy as np
+
+# Definimos la ruta base donde se encuentran los datos
+DATA_PATH = "ruta/a/tu/carpeta/datos"  # Modifica esta línea según tu estructura de directorios
+
+# Carpeta con todas las fotos para entrenamiento
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Carpeta con fotos para validación (se creará a partir de un subconjunto del training)
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Carpeta con fotos para prueba (se puede configurar, aunque en este ejemplo solo dividimos train en train y val)
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Proporción de imágenes que se trasladarán a validación
+VAL_FRAC = 0.3
+
+# Obtenemos la lista de directorios dentro de train, cada uno corresponde a un tipo de eclipse
+eclipse_categories = os.listdir(TRAIN_DIR)
+
+# Inicializamos un generador de números aleatorios con semilla para obtener resultados reproducibles
+rng = np.random.default_rng(seed=42)
+
+# Recorremos cada categoría de eclipse para separar algunas imágenes de validación
+for eclipse in eclipse_categories:
+    # Ruta de la categoría en el conjunto de entrenamiento
+    eclipse_train_dir = os.path.join(TRAIN_DIR, eclipse)
+    # Creamos la carpeta correspondiente en el conjunto de validación si no existe
+    eclipse_val_dir = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(eclipse_val_dir, exist_ok=True)
+
+    # Listamos y ordenamos los nombres de los archivos de imagen
+    images_filenames = sorted(os.listdir(eclipse_train_dir))
+    num_images = len(images_filenames)
+    num_val = int(num_images * VAL_FRAC)
+    
+    # Seleccionamos índices aleatorios sin reemplazo para la validación
+    val_indices = rng.choice(num_images, size=num_val, replace=False)
+    val_images = np.take(images_filenames, val_indices)
+
+    print(f"{eclipse} | train images = {num_images - num_val} | val images = {num_val}")
+
+    # Movemos las imágenes de validación a la carpeta correspondiente en VAL_DIR
+    for image_filename in val_images:
+        source = os.path.join(eclipse_train_dir, image_filename)
+        destination = os.path.join(eclipse_val_dir, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

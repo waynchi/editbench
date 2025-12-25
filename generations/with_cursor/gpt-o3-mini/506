@@ -1,0 +1,39 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Crear un DataFrame para almacenar los resultados, 
+# forzando que sus elementos sean de tipo objeto (object) para poder almacenar diccionarios.
+results_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        # Crear el DataFrame de entrada para las predicciones
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+        
+        # Realizar la codificación one-hot para la columna "Embarked"
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+        
+        # Asegurarse de que las columnas one-hot tengan valores 0 o 1
+        # La conversión mediante map es opcional si estos ya son 0/1, 
+        # pero se incluye para prevenir inconsistencias.
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].map({True: 1, False: 0})
+        
+        # Obtener las predicciones de ambos modelos
+        knn_prediction = knn.predict(my_df)
+        mlp_prediction = mlp.predict(my_df)
+        
+        # Guardar las predicciones en el DataFrame de resultados usando at para asignar un solo valor
+        results_df.at[fare, pclass] = {"knn": knn_prediction, "mlp": mlp_prediction}
+
+print(results_df)

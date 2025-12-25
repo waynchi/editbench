@@ -1,0 +1,108 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+def czyPoprawny(obrazek): # obraz contiene una lista de cadenas de caracteres y se puede usar el operador de bits
+                            # imagen[i][j]
+    for wiersz in obrazek[:-1]: # no contamos desde la última fila, allí están los bits de paridad
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna+=obrazek[j][i]
+        if kolumna[:-1].count('1')% 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]: # no contamos desde la última fila, allí están los bits de paridad
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne+=1
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna+=obrazek[j][i]
+        if kolumna[:-1].count('1')% 2 != int(kolumna[-1]):
+           bityKolBleden+=1
+    global maxbitybledne
+    if maxbitybledne<(bityKolBleden+bityWierBledne):
+        maxbitybledne = bityKolBleden+bityWierBledne
+    bityBledne.append(bityKolBleden+bityWierBledne)
+
+    if bityWierBledne >1 :
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """La entrada es un archivo de texto que contiene datos de una imagen en blanco y negro codificada como píxeles. 0 - píxel blanco 1 - píxel negro. Cada fila y columna contiene al final un bit de paridad. El bit de paridad es igual a 0 si la cantidad de unos en la fila (o en la columna para las columnas) es par y 1 si es impar. por ejemplo. 0 1 1 0 1 1 bit incorrecto debe cambiarse al opuesto 1 1 1 0 1 0 1 1 1 1 1 1 0 1 1 0 0 0 1 1 0 1 1 0 1 1 0 0 0 - bits de paridad de la columna ^ |- bits de paridad de la fila Escribe una función que encuentre imágenes dañadas y las repare. es decir, es una imagen reparable (tiene como máximo un bit de paridad de fila y como máximo un bit de paridad de columna incorrecto) y luego repare esas imágenes El resultado debe contener la imagen incorrecta (reparable) y la imagen corregida"""
+    idx_fila_erronea = -1
+    idx_col_erronea = -1
+
+    # Encontrar el índice de la fila con paridad incorrecta
+    for i in range(20):
+        wiersz = obrazek[i]
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            idx_fila_erronea = i
+            break
+
+    # Encontrar el índice de la columna con paridad incorrecta
+    for i in range(20):
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            idx_col_erronea = i
+            break
+
+    # Crear una copia mutable de la imagen para poder modificarla
+    imagen_reparada_lista = [list(fila) for fila in obrazek]
+    
+    y, x = -1, -1
+
+    if idx_fila_erronea != -1 and idx_col_erronea != -1:
+        # Caso 1: Error en un bit de datos en la intersección
+        y, x = idx_fila_erronea, idx_col_erronea
+    elif idx_fila_erronea != -1:
+        # Caso 2: Error en el bit de paridad de la fila
+        y, x = idx_fila_erronea, 20
+    elif idx_col_erronea != -1:
+        # Caso 3: Error en el bit de paridad de la columna
+        y, x = 20, idx_col_erronea
+    
+    # Si se encontró un bit para corregir, invertirlo (0 a 1 o 1 a 0)
+    if y != -1 and x != -1:
+        if imagen_reparada_lista[y][x] == '1':
+            imagen_reparada_lista[y][x] = '0'
+        else:
+            imagen_reparada_lista[y][x] = '1'
+
+    # Convertir la lista de listas de caracteres de nuevo a una lista de cadenas
+    wynik = ["".join(fila) for fila in imagen_reparada_lista]
+
+    return wynik
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip() # cortamos los espacios en blanco como enter
+   # wiersz = wiersz[:-1]  # solo datos de la imagen sin el bit de paridad ahora leemos toda la fila de datos
+    obrazek.append(wiersz)
+    if len(obrazek) == 21: # tenemos 21 líneas, es decir, toda la imagen junto con las líneas de bits de paridad
+        if czyPoprawny(obrazek):
+            poprawne+=1
+        elif czyNaprawialny(obrazek):
+            naprawialne+=1
+            naprawiony = napraw(obrazek)
+
+
+    if len(obrazek) == 22:  # después de la línea 22 limpiamos la imagen para leer las filas de la siguiente imagen
+        obrazek = list()
+
+print(poprawne,naprawialne,200-poprawne-naprawialne)
+print(maxbitybledne,max(bityBledne))

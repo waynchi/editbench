@@ -1,0 +1,121 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=1000):
+    """
+    使用共轭梯度法 (Conjugate Gradient Method) 求解线性方程组 Ax = b。
+
+    该方法主要适用于系数矩阵 A 是对称正定 (Symmetric Positive-Definite) 的情况。
+
+    参数:
+    A (np.ndarray): 系数矩阵，必须是 n x n 的对称正定矩阵。
+    b (np.ndarray): 右侧向量，维度为 n。
+    x0 (np.ndarray, optional): 初始猜测解，维度为 n。如果为 None，则使用零向量作为初始解。默认为 None。
+    tol (float, optional): 收敛的容差。当残差的L2范数小于此值时，迭代停止。默认为 1e-5。
+    max_iter (int, optional): 最大迭代次数。如果达到此次数仍未收敛，函数将停止并返回当前解。默认为 1000。
+
+    返回:
+    np.ndarray: 方程组的近似解 x。
+    """
+    n = len(b)
+
+    # 如果没有提供初始猜测 x0，则使用零向量
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+
+    # 计算初始残差 r = b - Ax
+    r = b - A @ x
+    
+    # 初始搜索方向 p 等于初始残差
+    p = r.copy()
+    
+    # 计算残差的内积 (r.T * r)
+    rs_old = np.dot(r, r)
+
+    # 如果初始解已经满足精度要求
+    if np.sqrt(rs_old) < tol:
+        print("初始猜测已经满足收敛条件。")
+        return x
+
+    for i in range(max_iter):
+        # 计算矩阵向量乘积 Ap
+        Ap = A @ p
+        
+        # 计算步长 alpha
+        alpha = rs_old / np.dot(p, Ap)
+        
+        # 更新解: x_{k+1} = x_k + alpha_k * p_k
+        x = x + alpha * p
+        
+        # 更新残差: r_{k+1} = r_k - alpha_k * A * p_k
+        r = r - alpha * Ap
+        
+        # 计算新的残差内积
+        rs_new = np.dot(r, r)
+        
+        # 检查是否收敛
+        if np.sqrt(rs_new) < tol:
+            print(f"在 {i+1} 次迭代后收敛。")
+            break
+            
+        # 更新搜索方向: p_{k+1} = r_{k+1} + beta_k * p_k, 其中 beta_k = rs_new / rs_old
+        beta = rs_new / rs_old
+        p = r + beta * p
+        
+        # 更新旧的残差内积
+        rs_old = rs_new
+    else:  # 如果循环正常结束（没有被 break），说明达到最大迭代次数
+        print(f"达到最大迭代次数 {max_iter}，可能未收敛。")
+
+    return x
+
+# --- 示例用法 ---
+if __name__ == '__main__':
+    # 1. 创建一个对称正定矩阵 A
+    #    A = [[4, 1], [1, 3]] 是对称的。
+    #    特征值为 (7 ± sqrt(17))/2，均为正，所以是正定的。
+    A = np.array([[4, 1], 
+                  [1, 3]])
+
+    # 2. 创建一个向量 b
+    b = np.array([1, 2])
+
+    # 3. 设置初始猜测解（通常为零向量）
+    x0 = np.array([0.0, 0.0])
+
+    print("求解方程组 Ax = b")
+    print("矩阵 A:\n", A)
+    print("向量 b:\n", b)
+    print("-" * 30)
+
+    # 4. 使用共轭梯度法求解
+    solution_cg = conjugate_gradient(A, b, x0)
+    print("\n共轭梯度法求得的解 x:", solution_cg)
+
+    # 5. 使用 numpy.linalg.solve 求解以验证结果
+    solution_np = np.linalg.solve(A, b)
+    print("Numpy linalg.solve 求得的精确解 x:", solution_np)
+
+    # 6. 检查结果
+    print("\n验证 A * x_cg 是否约等于 b:")
+    print("A @ solution_cg =", A @ solution_cg)
+    
+    # --- 另一个 3x3 的例子 ---
+    print("\n" + "="*40 + "\n")
+    A2 = np.array([[5, -2, 0],
+                   [-2, 5, -1],
+                   [0, -1, 4]])
+    b2 = np.array([1, 2, 3])
+    x0_2 = np.zeros(3)
+    
+    print("求解另一个方程组 Ax = b")
+    print("矩阵 A:\n", A2)
+    print("向量 b:\n", b2)
+    print("-" * 30)
+    
+    solution_cg_2 = conjugate_gradient(A2, b2, x0_2)
+    print("\n共轭梯度法求得的解 x:", solution_cg_2)
+    
+    solution_np_2 = np.linalg.solve(A2, b2)
+    print("Numpy linalg.solve 求得的精确解 x:", solution_np_2)

@@ -1,0 +1,88 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Solve the linear system Ax = b using the Conjugate Gradient method.
+    
+    Parameters:
+    A : array-like, sparse matrix, or function
+        The system matrix. Can be:
+        - 2D numpy array (dense matrix)
+        - Scipy sparse matrix
+        - Function that computes A.dot(x)
+    b : array-like
+        Right-hand side vector
+    x0 : array-like, optional
+        Initial guess for solution. If None, uses zero vector.
+    tol : float, optional
+        Tolerance for convergence (default: 1e-6)
+    max_iter : int, optional
+        Maximum number of iterations. If None, uses len(b)
+    
+    Returns:
+    x : numpy array
+        The solution vector
+    convergence_info : dict
+        Dictionary containing:
+        - 'iterations': number of iterations performed
+        - 'residual_norm': final residual norm
+        - 'converged': boolean indicating if convergence was achieved
+    """
+    import numpy as np
+    
+    b = np.asarray(b)
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.asarray(x0)
+    
+    # Handle different types of A
+    if callable(A):
+        # A is a function
+        matvec = A
+    else:
+        # A is a matrix/array
+        A = np.asarray(A)
+        def matvec(x):
+            return A.dot(x)
+    
+    # Initial residual
+    r = b - matvec(x)
+    p = r.copy()
+    rsold = np.dot(r, r)
+    
+    iterations = 0
+    converged = False
+    
+    for i in range(max_iter):
+        iterations = i + 1
+        
+        # Matrix-vector product
+        Ap = matvec(p)
+        
+        # Compute step size
+        alpha = rsold / np.dot(p, Ap)
+        
+        # Update solution and residual
+        x += alpha * p
+        r -= alpha * Ap
+        
+        # Check convergence
+        rsnew = np.dot(r, r)
+        if np.sqrt(rsnew) < tol:
+            converged = True
+            break
+        
+        # Update search direction
+        beta = rsnew / rsold
+        p = r + beta * p
+        rsold = rsnew
+    
+    return x, {
+        'iterations': iterations,
+        'residual_norm': np.sqrt(rsold),
+        'converged': converged
+    }

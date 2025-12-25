@@ -1,0 +1,26 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Assuming brand_A, brand_B, brand_C, and all_data are defined elsewhere in your code
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+y = df['Cost']
+
+# Create dummy variables for the 'Brand' column in a Pythonic way (explicit design matrix)
+# Here we use one-hot encoding without dropping any level; this lets us compare against a null model.
+X_full = pd.get_dummies(df['Brand'])
+
+# Fit the full model (group means for each brand, no intercept needed since the dummies cover all groups)
+full_model = sm.OLS(y, X_full).fit()
+
+# Fit the null model (only intercept, representing the overall mean)
+X_null = pd.DataFrame({'Intercept': [1] * len(df)})
+null_model = sm.OLS(y, X_null).fit()
+
+# Perform ANOVA comparing the null model with the full model
+anova_table = sm.stats.anova_lm(null_model, full_model)
+print(anova_table)

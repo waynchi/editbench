@@ -1,0 +1,65 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+
+  // Функция для определения текущей стороны хода на основе флага hasActed у юнитов.
+  function getCurrentTurn() {
+    // Если у игрока есть юниты, которые еще не совершили действие, значит сейчас ход игрока.
+    if (allyStates.some(unit => !unit.hasActed)) {
+      return "player";
+    }
+    // Если игрок закончил, а у CPU (врагов) остались юниты для действия, значит сейчас ход CPU.
+    if (foeStates.some(unit => !unit.hasActed)) {
+      return "cpu";
+    }
+    // Если ни у одной стороны нет доступных юнитов, значит раунд завершён.
+    // Сбросим состояние всех юнитов, увеличим номер хода и начинаем новый раунд с игрока.
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+    turnNumber++;
+    return "player";
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // nextTurn завершает действия текущей стороны, "завершаем" все доступные юниты этой стороны,
+  // затем проверяем, у кого из сторон остаются действия.
+  // Если ход переходит к CPU, автоматически выполняется логика ИИ.
+  function nextTurn() {
+    const current = getCurrentTurn();
+    if (current === "player") {
+      allyStates.forEach(unit => unit.hasActed = true);
+    } else if (current === "cpu") {
+      foeStates.forEach(unit => unit.hasActed = true);
+    }
+    // После того как текущая сторона завершила все действия,
+    // определим, кто должен ходить следующим.
+    const newTurn = getCurrentTurn();
+    if (newTurn === "cpu") {
+      cpuTurn();
+    }
+  }
+
+  // Простая реализация логики ИИ.
+  function cpuTurn() {
+    // Для каждого юнита CPU, если он ещё не действовал, выполнить действие.
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // Здесь должна быть ваша логика для действий CPU (например, перемещение и атака).
+        // ... логика ИИ ...
+        cpuUnit.hasActed = true;
+      }
+    }
+    // После того как все CPU-юниты совершили свои действия, завершить ход CPU.
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

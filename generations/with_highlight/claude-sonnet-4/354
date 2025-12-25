@@ -1,0 +1,57 @@
+import random
+
+# English dictionary - sample words of different lengths
+english_words = {
+    3: ["cat", "dog", "run", "sun", "car", "bat", "hat", "rat", "map", "cup", "pen", "red", "big", "hot", "yes"],
+    4: ["book", "tree", "moon", "star", "fish", "bird", "hand", "door", "love", "time", "word", "play", "work", "home", "life"],
+    5: ["house", "world", "music", "peace", "light", "water", "smile", "happy", "green", "quick", "stone", "beach", "magic", "heart", "dream"],
+    6: ["flower", "garden", "friend", "family", "wonder", "answer", "animal", "planet", "castle", "bridge", "nature", "shadow", "silver", "golden", "future"],
+    7: ["rainbow", "freedom", "journey", "picture", "kitchen", "brother", "morning", "evening", "chicken", "perfect", "tonight", "amazing", "crystal", "diamond", "monster"],
+    8: ["birthday", "airplane", "elephant", "vacation", "sandwich", "envelope", "umbrella", "computer", "dinosaur", "princess", "triangle", "surprise", "universe", "treasure", "midnight"],
+    9: ["adventure", "telephone", "butterfly", "professor", "Christmas", "beautiful", "wonderful", "knowledge", "interview", "community", "landscape", "important", "education", "childhood", "different"],
+    10: ["basketball", "television", "restaurant", "playground", "toothbrush", "watermelon", "incredible", "motorcycle", "strawberry", "basketball", "everywhere", "everything", "understand", "generation", "complement"]
+}
+
+def search_words_by_length(n):
+    """Search for words with N characters"""
+    if n in english_words:
+        available_words = english_words[n]
+        # Return up to 10 random words
+        return random.sample(available_words, min(10, len(available_words)))
+    else:
+        return []
+
+def main():
+    print("English Dictionary Word Search")
+    print("=" * 30)
+    
+    while True:
+        try:
+            print("\nEnter the number of characters (or 0 to exit):")
+            n = int(input("Number of characters: "))
+            
+            if n == 0:
+                print("Goodbye!")
+                break
+            
+            if n < 1:
+                print("Please enter a positive number.")
+                continue
+            
+            words = search_words_by_length(n)
+            
+            if words:
+                print(f"\nFound {len(words)} words with {n} characters:")
+                for i, word in enumerate(words, 1):
+                    print(f"{i}. {word}")
+            else:
+                print(f"Sorry, no words found with {n} characters in the dictionary.")
+                
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

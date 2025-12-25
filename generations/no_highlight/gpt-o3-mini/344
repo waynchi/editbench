@@ -1,0 +1,16 @@
+import pandas as pd
+
+def create_column(df):
+    # Utwórz nową kolumnę 'Frequency' i przypisz do niej wartość 117 w każdej linii, gdzie 'EventId' jest równe 'E16'
+    df.loc[df['EventId'] == 'E16', 'Frequency'] = 117
+    return df
+
+# Przykładowe użycie:
+if __name__ == "__main__":
+    # Tworzymy przykładowy DataFrame
+    data = {'EventId': ['E16', 'E15', 'E16', 'E14']}
+    df = pd.DataFrame(data)
+    
+    # Modyfikacja DataFrame
+    df = create_column(df)
+    print(df)

@@ -1,0 +1,59 @@
+import os
+import random
+import torch
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import precision_score, recall_score
+from torch.nn import functional as F
+from PIL import Image
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Путь к извлеченному набору данных Flickr8k
+FLICKR8K_IMAGES_PATH = "flickr8k/Images"
+FLICKR8K_CAPTIONS_PATH = "flickr8k/captions.txt"
+
+# Функция для загрузки пар изображение-текст из Flickr8k
+def load_flickr8k_data(images_path, captions_path, fraction=0.1):
+    # Прочитать файл с подписями
+    with open(captions_path, "r") as f:
+        captions_data = f.readlines()[1:]  # Пропустить заголовок
+
+    # Разобрать подписи
+    image_text_pairs = {}
+    for line in captions_data:
+        image_name, caption = line.strip().split(",", 1)
+        if image_name not in image_text_pairs:
+            image_text_pairs[image_name] = []
+        image_text_pairs[image_name].append(caption)
+
+    # Загрузить только часть набора данных
+    selected_images = random.sample(list(image_text_pairs.keys()), int(len(image_text_pairs) * fraction))
+    image_text_pairs = {k: image_text_pairs[k] for k in selected_images}
+
+    # Создать пары изображений и подписей
+    pairs = []
+    for image_name, captions in image_text_pairs.items():
+        image_path = os.path.join(images_path, image_name)
+        if os.path.exists(image_path):
+            pairs.append((Image.open(image_path), random.choice(captions)))
+    return pairs
+
+# Функция для создания несвязанных пар
+def create_unrelated_pairs(image_text_pairs):
+    """Создает несвязанные пары изображений и текстов, случайным образом перемешивая тексты.
+
+Аргументы:
+    image_text_pairs (list): Список кортежей, содержащих изображения и соответствующие им тексты.
+
+Возвращает:
+    list: Список кортежей, содержащих изображения и несвязанные тексты."""
+    images, texts = zip(*image_text_pairs)
+    unrelated_texts = random.sample(texts, len(texts))
+    return list(zip(images, unrelated_texts))
+
+
+def create_visual_pairs(image_text_pairs):
+    """Создает пары оригинальных и аугментированных изображений из пар изображение-текст.
+
+Эта функция принимает список пар изображение-текст и создает новые пары, состоя

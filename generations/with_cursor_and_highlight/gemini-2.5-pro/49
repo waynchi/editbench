@@ -1,0 +1,104 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Создает матрицу размера rows x cols, заполненную значением fill_value.
+    Параметры:
+    rows (int): количество строк.
+    cols (int): количество столбцов.
+    fill_value (любой тип): значение для заполнения матрицы.
+    Возвращает:
+    list: матрица в виде списка списков.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Складывает две матрицы одинакового размера.
+    Параметры:
+    matrix_a (list): первая матрица.
+    matrix_b (list): вторая матрица.
+    Возвращает:
+    list: результат сложения матриц.
+    """
+    # Предполагается, что матрицы имеют одинаковые размеры
+    rows = len(matrix_a)
+    cols = len(matrix_a[0])
+    return [[matrix_a[i][j] + matrix_b[i][j] for j in range(cols)] for i in range(rows)]
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Умножает все элементы матрицы на скаляр.
+    Параметры:
+    matrix (list): исходная матрица.
+    scalar (float): число, на которое умножаются элементы матрицы.
+    Возвращает:
+    list: результат умножения матрицы на скаляр.
+    """
+    return [[element * scalar for element in row] for row in matrix]
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Перемножает две матрицы.
+    Параметры:
+    matrix_a (list): первая матрица.
+    matrix_b (list): вторая матрица.
+    Возвращает:
+    list: результат умножения матриц.
+    """
+    # Предполагается, что количество столбцов matrix_a равно количеству строк matrix_b
+    rows_a = len(matrix_a)
+    cols_a = len(matrix_a[0])
+    cols_b = len(matrix_b[0])
+
+    # Создаем результирующую матрицу, заполненную нулями
+    result_matrix = create_matrix(rows_a, cols_b, 0)
+
+    # Выполняем умножение
+    for i in range(rows_a):
+        for j in range(cols_b):
+            for k in range(cols_a):
+                result_matrix[i][j] += matrix_a[i][k] * matrix_b[k][j]
+
+    return result_matrix
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Транспонирует матрицу.
+    Параметры:
+    matrix (list): исходная матрица.
+    Возвращает:
+    list: транспонированная матрица.
+    """
+    if not matrix:
+        return []
+    rows = len(matrix)
+    cols = len(matrix[0])
+    
+    transposed = create_matrix(cols, rows)
+    
+    for i in range(rows):
+        for j in range(cols):
+            transposed[j][i] = matrix[i][j]
+            
+    return transposed
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Вычисляет определитель матрицы 3x3.
+    Параметры:
+    matrix (list): исходная матрица размером 3x3.
+    Возвращает:
+    float: определитель матрицы.
+    """
+    # Предполагается, что матрица имеет размер 3x3
+    # det(A) = a11(a22*a33 - a23*a32) - a12(a21*a33 - a23*a31) + a13(a21*a32 - a22*a31)
+    
+    det = (matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
+           matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
+           matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]))
+
+    return float(det)

@@ -1,0 +1,18 @@
+import requests
+
+def registerKey(key: str, user: str):
+    print(f'chave: {key}\nnome: {user}')
+    try:
+        # Выполнение POST-запроса с передачей ключа и пользователя в формате JSON
+        response = requests.post('http://127.0.0.1:5000/register', json={'key': key, 'user': user})
+        response_json = response.json()
+        
+        # Если статус 200 и сервер отвечает, что ключ валиден, возвращаем True
+        if response.status_code == 200 and response_json.get('valid'):
+            return True
+        
+        return False
+
+    except requests.RequestException as e:
+        print(f"Erro de conexão: {e}")
+        return False

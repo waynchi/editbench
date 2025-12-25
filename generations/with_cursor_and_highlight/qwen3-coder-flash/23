@@ -1,0 +1,49 @@
+import random
+
+def load_dictionary():
+    # This would typically load from a file or API
+    # For demonstration, using a sample dictionary
+    sample_words = [
+        "cat", "dog", "bird", "fish", "tree", "book", "cake", "door", "lamp", "moon",
+        "sun", "star", "rain", "wind", "fire", "water", "earth", "air", "love", "hope",
+        "time", "life", "work", "play", "walk", "talk", "read", "write", "think", "dream",
+        "happy", "sad", "big", "small", "fast", "slow", "new", "old", "hot", "cold",
+        "red", "blue", "green", "yellow", "black", "white", "long", "short", "high", "low"
+    ]
+    return sample_words
+
+def find_words_by_length(words, length):
+    """Find all words with the specified number of characters"""
+    matching_words = [word for word in words if len(word) == length]
+    return matching_words
+
+def main():
+    # Load dictionary
+    dictionary = load_dictionary()
+    
+    # Get user input
+    try:
+        n = int(input("Enter the number of characters you want: "))
+        if n <= 0:
+            print("Please enter a positive number.")
+            return
+    except ValueError:
+        print("Please enter a valid number.")
+        return
+    
+    # Find words with N characters
+    words_with_n_chars = find_words_by_length(dictionary, n)
+    
+    if not words_with_n_chars:
+        print(f"No words found with exactly {n} characters.")
+        return
+    
+    # Select and display 10 random words (or all if less than 10)
+    selected_words = random.sample(words_with_n_chars, min(10, len(words_with_n_chars)))
+    
+    print(f"\nWords with exactly {n} characters:")
+    for i, word in enumerate(selected_words, 1):
+        print(f"{i}. {word}")
+
+if __name__ == "__main__":
+    main()

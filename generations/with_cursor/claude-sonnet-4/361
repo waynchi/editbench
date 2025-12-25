@@ -1,0 +1,69 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Sprawdza, czy liczba n może być wyrażona jako suma czterech niezerowych kwadratów.
+    """
+    # Sprawdzamy wszystkie możliwe kombinacje czterech niezerowych kwadratów
+    max_sqrt = int(n**0.5) + 1
+    
+    for a in range(1, max_sqrt):
+        if a*a >= n:
+            break
+        for b in range(1, max_sqrt):
+            if a*a + b*b >= n:
+                break
+            for c in range(1, max_sqrt):
+                if a*a + b*b + c*c >= n:
+                    break
+                d_squared = n - a*a - b*b - c*c
+                if d_squared > 0:
+                    d = int(d_squared**0.5)
+                    if d*d == d_squared:
+                        return True, (a, b, c, d)
+    
+    return False, None
+
+def find_numbers_as_sum_of_four_squares(limit):
+    """
+    Znajduje wszystkie liczby do 'limit', które można wyrazić jako sumę czterech niezerowych kwadratów.
+    """
+    results = []
+    
+    for n in range(4, limit + 1):  # Minimalna suma to 1² + 1² + 1² + 1² = 4
+        can_express, squares = can_be_sum_of_four_nonzero_squares(n)
+        if can_express:
+            results.append((n, squares))
+    
+    return results
+
+def display_results(results, max_display=20):
+    """
+    Wyświetla wyniki w czytelnej formie.
+    """
+    print("Liczby, które można wyrazić jako sumę czterech niezerowych kwadratów:")
+    print("=" * 60)
+    
+    for i, (number, squares) in enumerate(results[:max_display]):
+        a, b, c, d = squares
+        print(f"{number:3d} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+    
+    if len(results) > max_display:
+        print(f"\n... i {len(results) - max_display} więcej liczb")
+    
+    print(f"\nŁącznie znaleziono {len(results)} liczb do {max(result[0] for result in results)}")
+
+# Przykład użycia
+if __name__ == "__main__":
+    # Znajdź liczby do 100, które można wyrazić jako sumę czterech niezerowych kwadratów
+    limit = 100
+    results = find_numbers_as_sum_of_four_squares(limit)
+    display_results(results)
+    
+    # Sprawdź konkretną liczbę
+    print("\n" + "="*60)
+    test_number = 30
+    can_express, squares = can_be_sum_of_four_nonzero_squares(test_number)
+    if can_express:
+        a, b, c, d = squares
+        print(f"Liczba {test_number} może być wyrażona jako: {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+    else:
+        print(f"Liczba {test_number} nie może być wyrażona jako suma czterech niezerowych kwadratów")

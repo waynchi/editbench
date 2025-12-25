@@ -1,0 +1,227 @@
+An excellent choice. Optimizing this custom hook will improve performance and maintainability.
+
+The main issues in the original code are:
+
+1.  **Single monolithic state object**: This causes unnecessary re-renders. A small change to one part of the state (like a loading flag) triggers updates in all components that use any part of the state.
+2.  **Complex and fragile effects**: The `useEffect` dependencies are not straightforward, especially `useEffect(..., [loadData])`, which is a common anti-pattern that can lead to infinite loops.
+3.  **Incorrect state updates**: Functions like `loadData` and `checkWebsites` call `calculateHealthData` inside a `setData` call, which uses a stale version of the state (a "stale closure") and produces incorrect results.
+
+The optimized implementation below addresses these problems by:
+
+1.  **Splitting state**: Using multiple `useState` hooks for logically separate pieces of data (`customerData`, `dateRange`, `error`, etc.). This ensures components only re-render when the specific data they care about changes.
+2.  **Using `useMemo` for derived data**: The `healthData` is now calculated with `useMemo`. It automatically and efficiently re-calculates only when its dependencies (`customerData` or `dateRange`) change, solving the stale closure problem.
+3.  **Simplifying `useEffect` logic**: Data fetching is organized into a clear, sequential chain of effects. One effect fetches the API key, and another fetches the main data once the key is available. This is more readable and robust.
+4.  **Optimizing `actions`**: Each action function is wrapped in `useCallback` with precise dependencies, and they now correctly update state, letting derived data like `healthData` update reactively.
+
+This new version preserves the external API (`data`, `actions`, `isLoading`), so you won't need to change the components that use this hook.
+
+Here is the optimized code:
+javascript/react
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// Helper to get the initial date range, preventing recalculation on every render.
+function getInitialDateRange() {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setFullYear(startDate.getFullYear() - 1);
+  return { startDate, endDate };
+}
+
+function useDashboardData(user) {
+  // --- STATE MANAGEMENT ---
+  // State is split into logical pieces to prevent unnecessary re-renders.
+  const [customerData, setCustomerData] = useState({ summary: null, loading: false });
+  const [websiteStatus, setWebsiteStatus] = useState({ checking: false });
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRange] = useState(getInitialDateRange);
+  const [error, setError] = useState(null);
+
+  // --- DERIVED STATE ---
+  // healthData is now derived state using useMemo. It will automatically and
+  // efficiently recalculate whenever its dependencies change.
+  const healthData = useMemo(() => {
+    const allCustomers = customerData.summary?.customers;
+    if (!allCustomers || allCustomers.length === 0) return [];
+
+    const months = [];
+    const loopDate = new Date(dateRange.startDate);
+
+    while (loopDate <= dateRange.endDate) {
+      const currentMonth = loopDate.getMonth();
+      const currentYear = loopDate.getFullYear();
+
+      // Filter customers for the current month and year in the loop.
+      const monthCustomers = allCustomers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === currentMonth && customerDate.getFullYear() === currentYear;
+      });
+
+      // Use a single reduce pass for better performance than multiple filters.
+      const stats = monthCustomers.reduce((acc, customer) => {
+        if (customer.status === "active") acc.healthy++;
+        else if (customer.status === "churned") acc.warning++;
+        else if (customer.status === "delinquent") acc.critical++;
+        return acc;
+      }, { healthy: 0, warning: 0, critical: 0 });
+
+      months.push({
+        monthYear: loopDate.toLocaleString("default", { month: "short", year: 'numeric' }),
+        ...stats,
+      });
+
+      // Advance to the next month for the next iteration.
+      loopDate.setMonth(loopDate.getMonth() + 1);
+    }
+
+    return months;
+  }, [customerData.summary?.customers, dateRange]);
+
+
+  // --- DATA FETCHING EFFECTS ---
+  // Effect 1: Load user settings (API Key) when the user changes.
+  useEffect(() => {
+    if (!user?.id) {
+      setStripeApiKey(""); // Clear key on logout
+      return;
+    }
+
+    const loadSettings = async () => {
+      try {
+        setError(null);
+        const response = await fetch("/api/db/churnary_user_settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+            values: [user.id],
+          }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const settings = await response.json();
+        setStripeApiKey(settings[0]?.stripe_api_key || "");
+      } catch (e) {
+        setError("Failed to load user settings");
+      }
+    };
+
+    loadSettings();
+  }, [user?.id]);
+
+  // Effect 2: Load customer data once the user and API key are available.
+  useEffect(() => {
+    if (!user?.id || !stripeApiKey) {
+      setCustomerData({ summary: null, loading: false }); // Clear data if dependencies are missing
+      return;
+    }
+
+    const loadData = async () => {
+      setCustomerData({ summary: null, loading: true });
+      setError(null);
+      try {
+        const response = await fetch("/api/stripe-customer-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch customer summary");
+        const summary = await response.json();
+        if (summary.error) throw new Error(summary.error);
+
+        setCustomerData({
+          summary: { ...summary, customers: summary.customers || [] }, // Ensure customers is always an array
+          loading: false,
+        });
+
+      } catch (e) {
+        setCustomerData({ summary: null, loading: false });
+        setError(e.message);
+      }
+    };
+
+    loadData();
+  }, [user?.id, stripeApiKey]);
+
+
+  // --- ACTIONS ---
+  // Actions are individually wrapped in useCallback for stability.
+  const checkWebsites = useCallback(async () => {
+    const customers = customerData.summary?.customers;
+    if (!customers || customers.length === 0) return;
+
+    setWebsiteStatus({ checking: true });
+    setError(null);
+
+    try {
+      const updatedCustomers = await Promise.all(
+        customers.map(async (customer) => {
+          const response = await fetch("/api/website-churn-detector", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ websiteUrl: customer.website }),
+          });
+          const health = await response.json();
+          return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+        })
+      );
+
+      const newSummary = {
+        ...customerData.summary,
+        customers: updatedCustomers,
+        active: updatedCustomers.filter(c => c.status === "active").length,
+        churned: updatedCustomers.filter(c => c.status === "churned").length,
+      };
+      
+      // Update customerData. The `healthData` useMemo will recalculate automatically.
+      setCustomerData(prev => ({ ...prev, summary: newSummary }));
+
+    } catch (err) {
+      setError("Failed to check websites. Please try again.");
+    } finally {
+      // Use finally to ensure the checking state is always reset.
+      setWebsiteStatus({ checking: false });
+    }
+  }, [customerData.summary]);
+
+  const handleSetDateRange = useCallback((range) => {
+    if (range.startDate > range.endDate) {
+      setError("Start date cannot be after end date");
+      return;
+    }
+    setError(null);
+    setDateRange(range);
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  // The actions object is memoized to maintain a stable reference.
+  const actions = useMemo(() => ({
+    checkWebsites,
+    setDateRange: handleSetDateRange,
+    clearError,
+  }), [checkWebsites, handleSetDateRange, clearError]);
+
+
+  // --- RETURNED VALUES ---
+  // The hook's public API is maintained for compatibility with consuming components.
+  // The `data` object is memoized to prevent it from being a new object on every render.
+  const data = useMemo(() => ({
+    customerData,
+    healthData,
+    websiteStatus,
+    stripeApiKey,
+    dateRange,
+    error
+  }), [customerData, healthData, websiteStatus, stripeApiKey, dateRange, error]);
+
+  const isLoading = customerData.loading || websiteStatus.checking;
+
+  return {
+    data,
+    actions,
+    isLoading
+  };
+}
+
+export default useDashboardData;

@@ -1,0 +1,32 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input: str, start_pos: int) -> bool:
+        '''如果输入是有效的整数标记，则返回标记的结束位置，否则返回 -1'''
+        if start_pos >= len(input):
+            return False
+        return input[start_pos].isdigit()
+    
+    @staticmethod
+    def is_int(input: str, start_pos: int) -> int:
+        max_pos = len(input)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos:
+            if not input[current_pos].isdigit():
+                break
+            digit_found = True
+            current_pos += 1
+    
+        assert digit_found, "Not an integer"
+        return current_pos
+
+if __name__=="__main__":
+    print(IntegerToken.is_int("1234", 0))
+    print(IntegerToken.is_int("a123", 0))

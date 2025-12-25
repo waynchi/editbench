@@ -1,0 +1,132 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+# tkinterdnd2 and gui.main_window are imported later to handle potential ImportErrors
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    Logs to both the console and a file, handling potential file access errors.
+    """
+    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    stream_handler = logging.StreamHandler()
+    handlers = [stream_handler]
+
+    # Try to add a file handler, but continue if it fails (e.g., permissions)
+    try:
+        file_handler = logging.FileHandler('app.log', encoding='utf-8')
+        handlers.append(file_handler)
+    except (IOError, PermissionError) as e:
+        # If file logging setup fails, we can't use the logger yet.
+        # Print a warning directly and proceed with console-only logging.
+        print(f"WARNING: Could not create 'app.log' due to a permission or I/O error: {e}. "
+              "Logging to console only.", file=sys.stderr)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=handlers
+    )
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to the resources directory.
+    """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        # This is the 'frozen' executable case
+        base_path = sys._MEIPASS
+    except AttributeError:
+        # This is the 'unfrozen' script case
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    
+    return os.path.join(base_path, 'resources')
+
+
+def check_resources():
+    """
+    Check if the resource directory and required files exist.
+
+    Returns:
+        bool: True if all required resources are present, False otherwise.
+    """
+    resource_dir = get_resource_path()
+
+    # First, check if the resource directory itself exists
+    if not os.path.isdir(resource_dir):
+        logging.error(f"Resource directory not found at: {resource_dir}")
+        return False
+
+    required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+    missing_files = [
+        file for file in required_files
+        if not os.path.exists(os.path.join(resource_dir, file))
+    ]
+
+    if missing_files:
+        logging.error(f"Missing required resource files: {', '.join(missing_files)} "
+                      f"in directory {resource_dir}")
+        return False
+
+    logging.info("All required resource files found.")
+    return True
+
+def main():
+    """
+    Main function to initialize logging, check resources, and start the application.
+    Includes comprehensive error handling for startup failures.
+    """
+    # Set up logging as the very first step
+    setup_logging()
+    
+    try:
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Check for required resources before initializing the GUI
+        if not check_resources():
+            logging.error("Required resource files are missing. Application cannot start.")
+            # Optionally show a simple Tkinter error message box here if Tk is available
+            # but for now, logging and exiting is sufficient.
+            sys.exit(1)
+
+        # Import GUI-related libraries here to catch ImportErrors gracefully
+        import tkinterdnd2
+        from gui.main_window import AudioTranscriberApp
+
+        # Initialize main window with drag and drop support
+        root = tkinterdnd2.TkinterDnD.Tk()
+        
+        # Create the application instance
+        app = AudioTranscriberApp(root)
+        
+        # Start the main event loop
+        logging.info("Starting GUI main loop.")
+        root.mainloop()
+        
+    except ImportError as e:
+        error_msg = f"A required library is missing: {e}. Please ensure all dependencies are installed."
+        logging.critical(error_msg, exc_info=True)
+        # For user-friendliness, you might show a tk.messagebox here if Tkinter itself imported successfully
+        sys.exit(1)
+
+    except tk.TclError as e:
+        error_msg = f"Failed to initialize the graphical user interface (Tkinter error): {e}. This may be due to a missing display environment."
+        logging.critical(error_msg, exc_info=True)
+        sys.exit(1)
+
+    except Exception as e:
+        # Catch any other unexpected exception during startup or runtime
+        logging.critical(f"An unexpected application error occurred: {e}", exc_info=True)
+        # exc_info=True will log the full stack trace to the log file
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

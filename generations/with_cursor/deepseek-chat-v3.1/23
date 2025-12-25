@@ -1,0 +1,63 @@
+import random
+
+def load_dictionary():
+    """
+    Load English words from a dictionary file.
+    Assumes a file named 'words.txt' with one word per line.
+    """
+    try:
+        with open('words.txt', 'r') as file:
+            words = [line.strip().lower() for line in file]
+        return words
+    except FileNotFoundError:
+        print("Error: 'words.txt' file not found.")
+        return []
+
+def get_words_by_length(words, length):
+    """
+    Filter words by the specified length.
+    """
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Load the dictionary
+    words = load_dictionary()
+    if not words:
+        return
+    
+    print("English Dictionary Word Lookup")
+    print("Enter the number of characters to find words (or 'quit' to exit):")
+    
+    while True:
+        user_input = input("\nNumber of characters: ").strip().lower()
+        
+        if user_input == 'quit':
+            print("Goodbye!")
+            break
+        
+        try:
+            length = int(user_input)
+            if length <= 0:
+                print("Please enter a positive integer.")
+                continue
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+            continue
+        
+        # Find words with the specified length
+        matching_words = get_words_by_length(words, length)
+        
+        if not matching_words:
+            print(f"No words found with {length} characters.")
+            continue
+        
+        # Select up to 10 random words
+        sample_size = min(10, len(matching_words))
+        selected_words = random.sample(matching_words, sample_size)
+        
+        print(f"\n{sample_size} words with {length} characters:")
+        for i, word in enumerate(selected_words, 1):
+            print(f"{i}. {word}")
+
+if __name__ == "__main__":
+    main()

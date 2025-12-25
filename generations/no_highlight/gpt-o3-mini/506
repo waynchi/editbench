@@ -1,0 +1,39 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Create an empty DataFrame to store the predictions.
+# Rows are fares and columns are Pclass.
+results_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3])
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        # Build a DataFrame with three rows, one per embarked value.
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+        
+        # One-hot encode the "Embarked" column.
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+        
+        # Ensure the one-hot columns have correct integer values.
+        # (They might already be 0/1 but we enforce integer conversion.)
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].astype(int)
+        
+        # Get predictions from knn and mlp.
+        prediction_knn = knn.predict(my_df)
+        prediction_mlp = mlp.predict(my_df)
+        
+        # Save a dictionary with both predictions in the corresponding cell.
+        # Use .at[] for scalar assignment to a specific cell.
+        results_df.at[fare, pclass] = {"knn": prediction_knn, "mlp": prediction_mlp}
+
+print(results_df)

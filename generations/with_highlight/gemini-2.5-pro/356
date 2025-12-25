@@ -1,0 +1,44 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+import json
+
+# Zainicjuj model ChatOllama
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# Wczytaj wartości SHAP z pliku JSON
+# Upewnij się, że pliki 'Vuori_Final_Approval_2024_09_24.json' i 'system.prompt' istnieją i są w odpowiedniej lokalizacji.
+try:
+    with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    print(f"Błąd podczas wczytywania pliku JSON: {e}")
+    shap_values_json = None  # Ustawienie wartości domyślnej w razie błędu
+
+try:
+    with open("system.prompt", "r") as file:
+        sys_prompt = file.read().strip()
+except FileNotFoundError as e:
+    print(f"Błąd podczas wczytywania pliku system.prompt: {e}")
+    sys_prompt = "Jesteś pomocnym asystentem." # Domyślny prompt systemowy
+
+# Przygotuj szablon wiadomości
+template = ChatPromptTemplate.from_messages([
+    ("system", sys_prompt),
+    ("human", "{user_input}"),
+])
+
+# Zbuduj łańcuch LCEL (LangChain Expression Language)
+# Poprawna implementacja polega na połączeniu szablonu, modelu i parsera w jeden 'łańcuch'.
+chain = template | chat_model | StrOutputParser()
+
+# Wywołaj łańcuch tylko jeśli dane zostały poprawnie wczytane
+if shap_values_json is not None:
+    # Wywołaj łańcuch, przekazując dane wejściowe w postaci słownika.
+    # Klucz 'user_input' musi odpowiadać zmiennej zdefiniowanej w szablonie.
+    response = chain.invoke({"user_input": json.dumps(shap_values_json)})
+
+    # Wyświetl odpowiedź
+    print(response)
+else:
+    print("Nie można wygenerować odpowiedzi, ponieważ dane wejściowe SHAP nie zostały wczytane.")

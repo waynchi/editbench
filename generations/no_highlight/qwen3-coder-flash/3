@@ -1,0 +1,33 @@
+def is_prime(n):
+    """
+    Check if a number is prime.
+    
+    Args:
+        n (int): The number to check
+        
+    Returns:
+        bool: True if the number is prime, False otherwise
+    """
+    # Handle edge cases
+    if n < 2:
+        return False
+    if n == 2:
+        return True
+    if n % 2 == 0:
+        return False
+    
+    # Check odd divisors up to sqrt(n)
+    import math
+    for i in range(3, int(math.sqrt(n)) + 1, 2):
+        if n % i == 0:
+            return False
+    
+    return True
+
+# Example usage
+if __name__ == "__main__":
+    # Test the function
+    test_numbers = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 17, 25, 29]
+    
+    for num in test_numbers:
+        print(f"{num} is {'prime' if is_prime(num) else 'not prime'}")

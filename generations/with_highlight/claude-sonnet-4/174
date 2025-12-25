@@ -1,0 +1,27 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from scipy import stats
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# 执行ANOVA分析
+groups = [df[df['Brand'] == brand]['Cost'].values for brand in df['Brand'].unique()]
+f_stat, p_value = stats.f_oneway(*groups)
+
+# 创建ANOVA表格
+anova_table = pd.DataFrame({
+    'sum_sq': [sum((group - group.mean())**2) for group in groups],
+    'df': [len(group) - 1 for group in groups],
+    'F': [f_stat],
+    'PR(>F)': [p_value]
+}, index=['Brand', 'Residual'])
+
+# 打印 ANOVA 表格
+print(anova_table)

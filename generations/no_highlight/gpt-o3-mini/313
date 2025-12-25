@@ -1,0 +1,75 @@
+import tkinter as tk
+import random
+
+# Список цветов для квадратов
+COLORS = ["red", "green", "blue", "yellow", "magenta", "cyan", "orange", "purple"]
+
+class Square:
+    def __init__(self, canvas, size, x, y):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+        # Скорость может быть случайной величиной для разнообразия
+        self.dx = random.choice([-2, 2])
+        self.dy = random.choice([-2, 2])
+        # Выбрать случайный цвет
+        self.color = random.choice(COLORS)
+        self.square = canvas.create_rectangle(x, y, x + size, y + size, fill=self.color, outline="black")
+    
+    def move(self):
+        # Обновляем позицию
+        self.x += self.dx
+        self.y += self.dy
+        self.canvas.move(self.square, self.dx, self.dy)
+        
+        # Получаем актуальные размеры холста
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Если квадрат достигает границ холста, он "лопается"
+        if (self.x <= 0 or self.x + self.size >= canvas_width or 
+            self.y <= 0 or self.y + self.size >= canvas_height):
+            # Удалить текущий квадрат
+            self.canvas.delete(self.square)
+            # Если квадрат достаточно велик, создать два новых квадрата в центре холста
+            if self.size > 10:
+                new_size = self.size / 2
+                # Расположим квадраты ближе к центру холста
+                new_x1 = canvas_width / 2 - new_size - new_size/4
+                new_y1 = canvas_height / 2 - new_size - new_size/4
+                new_x2 = canvas_width / 2 + new_size/4
+                new_y2 = canvas_height / 2 + new_size/4
+                squares.append(Square(self.canvas, new_size, new_x1, new_y1))
+                squares.append(Square(self.canvas, new_size, new_x2, new_y2))
+            return False
+        return True
+
+def update():
+    global squares
+    # Перемещаем все квадраты и оставляем те, которые еще внутри границ
+    squares = [square for square in squares if square.move()]
+    root.after(20, update)  # Запускаем следующий цикл через 20 мс
+
+# Создаем главное окно
+root = tk.Tk()
+root.title("Цветные движущиеся квадраты")
+
+# Создаем холст
+canvas = tk.Canvas(root, width=600, height=600, bg="white")
+canvas.pack(expand=True, fill="both")
+
+# Важно: обновляем окно, чтобы размеры холста установились до запуска анимации
+root.update()
+
+# Создаем начальный квадрат, расположенный в центре холста
+init_size = 100
+start_x = (canvas.winfo_width() - init_size) / 2
+start_y = (canvas.winfo_height() - init_size) / 2
+squares = [Square(canvas, init_size, start_x, start_y)]
+
+# Запускаем анимацию
+update()
+
+# Запускаем главный цикл
+root.mainloop()

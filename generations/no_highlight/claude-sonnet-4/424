@@ -1,0 +1,73 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_analysis(json_file_path, system_prompt_path, model="llama3.2", base_url="http://localhost:11434", client_kwargs=None):
+    """
+    Funkcja do generowania analizy wartości SHAP przy użyciu modelu ChatOllama.
+    
+    Args:
+        json_file_path (str): Ścieżka do pliku JSON z wartościami SHAP
+        system_prompt_path (str): Ścieżka do pliku z systemowym promptem
+        model (str): Nazwa modelu do użycia (domyślnie "llama3.2")
+        base_url (str): URL bazy modelu (domyślnie "http://localhost:11434")
+        client_kwargs (dict): Dodatkowe argumenty klienta (np. headers z autoryzacją)
+    
+    Returns:
+        str: Odpowiedź wygenerowana przez model
+    """
+    
+    # Zainicjuj model ChatOllama
+    if client_kwargs:
+        chat_model = ChatOllama(
+            model=model,
+            base_url=base_url,
+            client_kwargs=client_kwargs
+        )
+    else:
+        chat_model = ChatOllama(model=model, base_url=base_url)
+    
+    # Załaduj wartości SHAP z pliku JSON
+    with open(json_file_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Wczytaj systemowy prompt z pliku
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Przygotuj wiadomości
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Generuj odpowiedź
+    user_input = json.dumps(shap_values_json)  # Przygotuj dane wejściowe użytkownika
+    
+    chain = prompt | chat_model
+    
+    # Zwróć odpowiedź
+    response = chain.invoke(user_input)
+    return response.content
+
+# Przykład użycia funkcji
+if __name__ == "__main__":
+    # Podstawowe użycie
+    result = generate_shap_analysis(
+        json_file_path="Vuori_Final_Approval_2024_09_24.json",
+        system_prompt_path="system.prompt"
+    )
+    print(result)
+    
+    # Użycie z niestandardowym modelem i autoryzacją
+    # custom_headers = {"authorization": "Bearer <MASKED>"}
+    # result = generate_shap_analysis(
+    #     json_file_path="Vuori_Final_Approval_2024_09_24.json",
+    #     system_prompt_path="system.prompt",
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={"headers": custom_headers}
+    # )
+    # print(result)

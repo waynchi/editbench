@@ -1,0 +1,50 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the relative path to the chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# Create Chrome options
+options = uc.ChromeOptions()
+# Remove the binary_location setting as it's causing the issue
+# options.binary_location should point to Chrome browser, not chromedriver
+# Let undetected_chromedriver handle the Chrome browser location automatically
+
+# Add some additional options for better compatibility
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--remote-debugging-port=9222")
+
+print("Initializing Chrome driver...")
+
+try:
+    # Initialize Chrome driver - let it auto-detect Chrome browser location
+    driver = uc.Chrome(options=options, use_subprocess=True)
+    
+    print("Chrome driver initialized successfully")
+    
+    # Navigate to the website
+    driver.get("https://lmarena.ai/")
+    print("Page loaded successfully")
+    
+    # Wait for 10 seconds
+    time.sleep(10)
+    
+    print("Test completed successfully")
+    
+except Exception as e:
+    print(f"Error occurred: {e}")
+    
+finally:
+    # Ensure driver is properly closed
+    try:
+        if 'driver' in locals():
+            driver.quit()
+            print("Driver closed successfully")
+    except Exception as e:
+        print(f"Error closing driver: {e}")

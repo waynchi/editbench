@@ -1,0 +1,26 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Obtener el directorio del script actual
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construir la ruta relativa al chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# Corregir: binary_location debe apuntar al ejecutable de Chrome, no al chromedriver
+# options.binary_location = chromedriver_path  # Esta línea está incorrecta
+
+print("Iniciando navegador...")
+try:
+    with uc.Chrome(use_subprocess=True, options=options) as driver:
+        print("Navegador iniciado correctamente")
+        driver.get("https://lmarena.ai/")
+        print("Página cargada")
+        # crear una instancia de ChromeOptions para undetected_chromedriver
+        # inicializar el controlador de Chrome no detectado con las opciones especificadas
+        time.sleep(10)
+except Exception as e:
+    print(f"Error: {e}")
+    print("Asegúrate de que Chrome está instalado y chromedriver es compatible con tu versión de Chrome")

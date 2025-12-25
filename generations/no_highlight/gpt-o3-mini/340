@@ -1,0 +1,41 @@
+def is_sum_of_four_nonzero_squares(n):
+    """Sprawdza, czy n można zapisać jako sumę czterech niezerowych kwadratów.
+       Zwraca krotkę (a, b, c, d) jeśli tak, lub None w przeciwnym przypadku."""
+    # Minimalna wartość to 1^2 + 1^2 + 1^2 + 1^2 = 4
+    if n < 4:
+        return None
+    # Maksymalna wartość liczby, której kwadrat może być użyty, to sqrt(n)
+    max_val = int(n**0.5)
+    for a in range(1, max_val + 1):
+        for b in range(1, max_val + 1):
+            for c in range(1, max_val + 1):
+                for d in range(1, max_val + 1):
+                    if a*a + b*b + c*c + d*d == n:
+                        return a, b, c, d
+    return None
+
+def find_four_nonzero_squares_sums(limit):
+    """Znajduje liczby od 1 do limit, które można wyrazić 
+       jako sumę czterech niezerowych kwadratów."""
+    results = []
+    for n in range(4, limit + 1):
+        if is_sum_of_four_nonzero_squares(n):
+            results.append(n)
+    return results
+
+if __name__ == "__main__":
+    try:
+        limit = int(input("Digite o limite superior: "))
+    except ValueError:
+        print("Podaj poprawną liczbę całkowitą.")
+        exit(1)
+    
+    sums_found = find_four_nonzero_squares_sums(limit)
+    if not sums_found:
+        print("Nie znaleziono żadnych liczb, które można wyrazić jako sumę czterech niezerowych kwadratów.")
+    else:
+        print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+        for num in sums_found:
+            result = is_sum_of_four_nonzero_squares(num)
+            a, b, c, d = result
+            print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

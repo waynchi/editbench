@@ -1,0 +1,36 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Assume brand_A, brand_B, brand_C, and all_data are defined earlier.
+# For example:
+# brand_A = [/* list of values */]
+# brand_B = [/* list of values */]
+# brand_C = [/* list of values */]
+# all_data = [/* combined cost values corresponding to brand_A, brand_B, and brand_C */]
+
+# Create the DataFrame with brand labels and cost values
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+df = pd.DataFrame(data)
+
+# Instead of using R-style formulas, we create the design matrix manually.
+# Convert the categorical 'Brand' variable into dummy (indicator) variables.
+# We drop one category (here, 'A') to avoid multicollinearity.
+brand_dummies = pd.get_dummies(df['Brand'], drop_first=True)
+
+# Add a constant term to the model (intercept)
+X = sm.add_constant(brand_dummies)
+y = df['Cost']
+
+# Fit the model using OLS (ordinary least squares)
+model = sm.OLS(y, X).fit()
+
+# Perform ANOVA analysis using the fitted model.
+# This compares the full model with a reduced model (intercept only) and tests if the brand dummies
+# provide a significant improvement in explaining the cost variability.
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Print the ANOVA table
+print(anova_table)

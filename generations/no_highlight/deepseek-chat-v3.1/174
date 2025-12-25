@@ -1,0 +1,25 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+# Assuming brand_A, brand_B, brand_C and all_data are defined elsewhere
+# data = {
+#     'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+#     'Cost': all_data
+# }
+
+df = pd.DataFrame(data)
+
+# Create design matrices for the model
+X = pd.get_dummies(df['Brand'], drop_first=True)
+X = sm.add_constant(X)
+y = df['Cost']
+
+# Fit the model using matrices instead of R-style formula
+model = sm.OLS(y, X).fit()
+
+# Perform ANOVA analysis
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Print ANOVA table
+print(anova_table)

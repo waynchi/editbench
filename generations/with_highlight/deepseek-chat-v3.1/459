@@ -1,0 +1,36 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print(lines)
+    
+    # Improved parsing with error handling and strip whitespace
+    cols = []
+    for line in lines:
+        if line.strip():  # Skip empty lines
+            # Handle multiple spaces or tabs as separators
+            cols.append([x.strip() for x in line.split()])
+    
+    cols = np.array(cols).T.astype(int)
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    # Sort both lists first for better performance
+    list_1_sorted = sorted(list_1)
+    list_2_sorted = sorted(list_2)
+    
+    # Calculate distances using zip (more efficient)
+    all_dists = [abs(x - y) for x, y in zip(list_1_sorted, list_2_sorted)]
+    
+    print(sum(all_dists))
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

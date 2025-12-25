@@ -1,0 +1,48 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+# 初始化 ChatOllama 模型
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# 从 JSON 文件加载 SHAP 值
+try:
+    with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+        data = json.load(file)
+        shap_values_json = data.get("shap_values")
+        if shap_values_json is None:
+            print("Warning: 'shap_values' key not found in JSON file")
+            shap_values_json = {}
+except FileNotFoundError:
+    print("Error: JSON file not found")
+    shap_values_json = {}
+except json.JSONDecodeError:
+    print("Error: Invalid JSON format")
+    shap_values_json = {}
+
+# 从文件加载系统提示
+try:
+    with open("system.prompt", "r") as file:
+        sys_prompt = file.read().strip()
+except FileNotFoundError:
+    print("Error: system.prompt file not found")
+    sys_prompt = "You are a helpful assistant."
+
+# 准备消息模板
+template = ChatPromptTemplate([
+    ("system", sys_prompt),
+    ("human", "{user_input}"),
+])
+
+# 创建链
+chain = template | chat_model
+
+# 准备用户输入（SHAP 值的 JSON 字符串）
+user_input = json.dumps(shap_values_json)
+
+# 生成并打印响应
+try:
+    response = chain.invoke({"user_input": user_input})
+    print(response.content)
+except Exception as e:
+    print(f"Error generating response: {e}")

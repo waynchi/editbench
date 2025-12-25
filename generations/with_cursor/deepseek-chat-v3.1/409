@@ -1,0 +1,10 @@
+// In camera.service.js
+const getAllCamerasWithAreaName = async () => {
+  // Example using a raw query (adjust based on your database)
+  const query = `
+    SELECT cameras.*, areas.area_name 
+    FROM cameras 
+    INNER JOIN areas ON cameras.area_id = areas.id
+  `;
+  return await db.query(query);
+};

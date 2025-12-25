@@ -1,0 +1,111 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Решение системы линейных уравнений Ax = b методом сопряженных градиентов
+    
+    Parameters:
+    A : array_like
+        Положительно определенная матрица коэффициентов
+    b : array_like
+        Вектор правой части
+    x0 : array_like, optional
+        Начальное приближение (по умолчанию нулевой вектор)
+    tol : float, optional
+        Точность решения (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций (по умолчанию 1000)
+    
+    Returns:
+    x : ndarray
+        Решение системы уравнений
+    residual : float
+        Норма невязки
+    iterations : int
+        Количество выполненных итераций
+    """
+    
+    A = np.array(A)
+    b = np.array(b)
+    n = len(b)
+    
+    # Начальное приближение
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0)
+    
+    # Начальный остаток
+    r = b - A @ x
+    p = r.copy()
+    
+    # Начальная норма остатка
+    rsold = r @ r
+    
+    for i in range(max_iter):
+        # Произведение A * p
+        Ap = A @ p
+        
+        # Размер шага
+        alpha = rsold / (p @ Ap)
+        
+        # Обновление решения
+        x = x + alpha * p
+        
+        # Обновление остатка
+        r = r - alpha * Ap
+        
+        # Новая норма остатка
+        rsnew = r @ r
+        
+        # Проверка сходимости
+        if np.sqrt(rsnew) < tol:
+            return x, np.sqrt(rsnew), i + 1
+        
+        # Коэффициент для сопряженного направления
+        beta = rsnew / rsold
+        
+        # Обновление направления поиска
+        p = r + beta * p
+        
+        # Подготовка к следующей итерации
+        rsold = rsnew
+    
+    return x, np.sqrt(rsnew), max_iter
+
+
+def quadratic_form_minimize(A, b, c=0, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Минимизация квадратичной формы f(x) = 0.5 * x^T * A * x - b^T * x + c
+    методом сопряженных градиентов
+    
+    Parameters:
+    A : array_like
+        Положительно определенная матрица
+    b : array_like
+        Линейный коэффициент
+    c : float, optional
+        Константа (по умолчанию 0)
+    x0 : array_like, optional
+        Начальное приближение
+    tol : float, optional
+        Точность решения
+    max_iter : int, optional
+        Максимальное количество итераций
+    
+    Returns:
+    x : ndarray
+        Точка минимума
+    f_min : float
+        Минимальное значение функции
+    iterations : int
+        Количество итераций
+    """
+    
+    # Минимум квадратичной формы достигается при решении Ax = b
+    x, residual, iterations = conjugate_gradient(A, b, x0, tol, max_iter)
+    
+    # Вычисление минимального значения функции
+    f_min = 0.5 * x @ A @ x - b @ x + c
+    
+    return x, f_min, iterations

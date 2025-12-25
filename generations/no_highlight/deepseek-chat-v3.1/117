@@ -1,0 +1,67 @@
+def sum_of_four_nonzero_squares(n):
+    """
+    Check if a number can be expressed as the sum of four non-zero squares.
+    
+    Args:
+        n (int): The number to check
+        
+    Returns:
+        tuple: (True, [a, b, c, d]) if possible, where a² + b² + c² + d² = n and a,b,c,d > 0
+               (False, []) if not possible
+    """
+    if n < 4:
+        return False, []
+    
+    # Try all possible combinations with a <= b <= c <= d to avoid duplicates
+    max_a = int(n**0.5)
+    for a in range(1, max_a + 1):
+        remaining = n - a*a
+        if remaining < 3:  # Need at least 3 more squares (1+1+1)
+            continue
+            
+        max_b = int(remaining**0.5)
+        for b in range(a, max_b + 1):
+            remaining2 = remaining - b*b
+            if remaining2 < 2:  # Need at least 2 more squares (1+1)
+                continue
+                
+            max_c = int(remaining2**0.5)
+            for c in range(b, max_c + 1):
+                remaining3 = remaining2 - c*c
+                if remaining3 < 1:  # Need at least 1 more square
+                    continue
+                    
+                d_sq = remaining3
+                d = int(d_sq**0.5)
+                if d*d == d_sq and d >= c:  # Check if it's a perfect square and maintain order
+                    return True, [a, b, c, d]
+    
+    return False, []
+
+def main():
+    """Demonstrate the function with examples"""
+    print("Numbers that can be expressed as the sum of four non-zero squares:")
+    print("-" * 60)
+    
+    # Test numbers from 1 to 30
+    for i in range(1, 31):
+        possible, squares = sum_of_four_nonzero_squares(i)
+        if possible:
+            print(f"{i} = {squares[0]}² + {squares[1]}² + {squares[2]}² + {squares[3]}²")
+        else:
+            print(f"{i}: Cannot be expressed as sum of four non-zero squares")
+    
+    print("\n" + "=" * 60)
+    
+    # Test some larger numbers
+    test_numbers = [50, 100, 123, 256, 1000]
+    print("Testing larger numbers:")
+    for num in test_numbers:
+        possible, squares = sum_of_four_nonzero_squares(num)
+        if possible:
+            print(f"{num} = {squares[0]}² + {squares[1]}² + {squares[2]}² + {squares[3]}²")
+        else:
+            print(f"{num}: Cannot be expressed as sum of four non-zero squares")
+
+if __name__ == "__main__":
+    main()

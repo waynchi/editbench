@@ -1,0 +1,125 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str) -> bool:
+    return "count me " in texto
+
+def is_own_author(autor: str) -> bool:
+    # Se evalúa si el autor es el propio 'subidu'
+    return autor == 'subidu'
+
+def is_banned(autor: str) -> bool:
+    list_banned = []
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+
+def procesar_replies(replies: list) -> list:
+    """
+    Procesa recursivamente una lista de replies y construye una estructura jerárquica.
+    Cada reply es representado como un diccionario con claves: author, permlink, body y replies.
+    """
+    replies_tree = []
+    for reply in replies:
+        reply_dict = {
+            "author": reply.get('author', ''),
+            "permlink": reply.get('permlink', ''),
+            "body": reply.get('body', ''),
+            "replies": []
+        }
+        # Intenta obtener replies anidados usando la API Comment
+        try:
+            comment_instance = Comment(authorperm=f"{reply.get('author')}/{reply.get('permlink')}")
+            sub_replies = comment_instance.get_replies()
+            if sub_replies:
+                # Llamada recursiva para construir el árbol de replies anidados
+                reply_dict["replies"] = procesar_replies(sub_replies)
+        except Exception:
+            # En caso de error, se ignoran los replies anidados para este comentario
+            reply_dict["replies"] = []
+        replies_tree.append(reply_dict)
+    return replies_tree
+
+def crear_diccionario_jerarquico(posts_generator) -> dict:
+    """
+    Construye un diccionario jerárquico donde cada post se mapea a un sub-diccionario que contiene:
+        - detalles básicos del post (author, permlink, body)
+        - un árbol de replies procesado recursivamente.
+    """
+    posts_dict = {}
+    for post in posts_generator:
+        post_author = post.get('author', '')
+        post_permlink = post.get('permlink', '')
+        post_body = post.get('body', '')
+        key = f"{post_author}/{post_permlink}"
+        # Se instancia el Comment para obtener las respuestas al post
+        try:
+            comment_instance = Comment(authorperm=key)
+            replies = comment_instance.get_replies()
+        except Exception:
+            replies = []
+        posts_dict[key] = {
+            "author": post_author,
+            "permlink": post_permlink,
+            "body": post_body,
+            "replies": procesar_replies(replies)
+        }
+    return posts_dict
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Se puede utilizar este diccionario jerárquico para manejar los posts y sus replies
+posts_jerarquicos = {}
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies_count = post['children']
+    cnt = 0
+    X += 1
+    if post_replies_count > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies = comment.get_replies()
+        
+        cnt = 0
+        for reply in post_replies:
+            author = reply.get('author')
+            text = reply.get('body', '')
+            if is_own_author(author):
+                # Reevaluar el comentario si es el propio autor
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+    if cnt > 3:
+        print("Iterador: ", X)
+        print(reply.get('author', ''), '/', reply.get('permlink', ''))
+
+# Construir el diccionario jerárquico de posts y replies
+# Nota: Si posts_generator es un generador único, se debe reinicializar o almacenar los posts en una lista previa.
+# Para este ejemplo, se asume que posts_generator puede ser iterado de nuevo.
+# En caso contrario, se debería convertir a lista: posts_list = list(posts_generator)
+posts_jerarquicos = crear_diccionario_jerarquico(posts_generator)
+
+# Se puede imprimir o almacenar posts_jerarquicos según se necesite
+#print(posts_jerarquicos)

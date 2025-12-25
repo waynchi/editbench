@@ -1,0 +1,82 @@
+import pandas as pd
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+
+# --- Start of Setup for a runnable example ---
+# To make the code runnable, we need to create and train placeholder models.
+# The original code assumed 'knn' and 'mlp' were imported from 'main13'.
+# Here, we create sample data and train them.
+
+# 1. Create sample data that resembles the expected input format.
+# This data will be used to "train" our example models.
+sample_data = {
+    'Survived': [0, 1, 1, 1, 0, 0, 0, 0, 1, 1],
+    'Pclass':   [3, 1, 3, 1, 3, 3, 1, 3, 3, 2],
+    'Name':     range(10),  # Using integers for 'Name' as in the original code's logic
+    'Sex':      [0, 1, 1, 1, 0, 0, 0, 0, 1, 1], # Assuming 0: male, 1: female
+    'Age':      [22, 38, 26, 35, 35, 28, 54, 2, 27, 14],
+    'SibSp':    [1, 1, 0, 1, 0, 0, 0, 3, 0, 1],
+    'Parch':    [0, 0, 0, 0, 0, 0, 0, 1, 2, 0],
+    'Fare':     [7.25, 71.28, 7.92, 53.1, 8.05, 8.45, 51.86, 21.07, 11.13, 30.07],
+    'Embarked': ['S', 'C', 'S', 'S', 'S', 'Q', 'S', 'S', 'S', 'C']
+}
+train_df = pd.DataFrame(sample_data)
+
+# 2. Preprocess the training data just like the prediction data will be processed.
+# Perform one-hot encoding for the 'Embarked' column.
+train_df_processed = pd.get_dummies(train_df, columns=["Embarked"], prefix="Embarked")
+
+# Define the feature columns and the target column.
+# The order of columns is important and must be consistent.
+# Note: 'Survived' is the target, and the original 'Embarked' is removed by get_dummies.
+features = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked_C', 'Embarked_Q', 'Embarked_S']
+X_train = train_df_processed[features]
+y_train = train_df_processed['Survived']
+
+# 3. Create and train the models.
+knn = KNeighborsClassifier(n_neighbors=3)
+knn.fit(X_train, y_train)
+
+# Using simple parameters for the MLP model to ensure it trains quickly.
+mlp = MLPClassifier(random_state=1, max_iter=500, hidden_layer_sizes=(10,))
+mlp.fit(X_train, y_train)
+
+# --- End of Setup ---
+
+
+# This is the corrected version of the original loop.
+# The main fix is to ensure the DataFrame passed to predict() has the exact
+# same columns as the data used for training the models.
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create a dictionary for the single data point.
+            input_data = {"Pclass": pclass,
+                          "Name": 24,
+                          "Sex": 0,
+                          "Age": 19,
+                          "SibSp": 0,
+                          "Parch": 0,
+                          "Fare": fare,
+                          "Embarked": embarked
+                         }
+            # Create a single-row DataFrame. Note: The dictionary is wrapped in a list.
+            my_df = pd.DataFrame([input_data])
+
+            # Perform one-hot encoding. This will create one of: Embarked_S, Embarked_Q, or Embarked_C.
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+            # **KEY FIX**: Reindex the DataFrame to match the training data columns.
+            # This adds any missing one-hot encoded columns (e.g., Embarked_Q, Embarked_C if embarked was 'S')
+            # and fills them with 0. It also ensures the column order is correct.
+            my_df = my_df.reindex(columns=features, fill_value=0)
+
+            # Now my_df is ready for prediction.
+            # The previous complex logic with 'if' and '.map' is no longer needed.
+            knn_prediction = knn.predict(my_df)
+            mlp_prediction = mlp.predict(my_df)
+
+            print(f"""-------------------------------------------------------
+                  Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+                  По knn: {knn_prediction}
+                  По mlp: {mlp_prediction}""")

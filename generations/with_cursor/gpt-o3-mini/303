@@ -1,0 +1,201 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+function useDashboardData(user) {
+  const [data, setData] = useState({
+    customerData: { summary: null, loading: false, customers: [] },
+    healthData: [],
+    websiteStatus: { checking: false },
+    stripeApiKey: "",
+    dateRange: {
+      startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+      endDate: new Date(),
+    },
+    error: null,
+  });
+
+  // Calculate monthly health data based on customer summary and date range
+  const calculateHealthData = useCallback(() => {
+    const summaryCustomers = data.customerData.summary?.customers;
+    if (!summaryCustomers) return [];
+
+    const { startDate, endDate } = data.dateRange;
+    const dates = [];
+    let current = new Date(startDate);
+
+    // Generate a list of dates (one per month)
+    while (current <= endDate) {
+      dates.push(new Date(current));
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return dates.map(date => {
+      const month = date.toLocaleString('default', { month: 'short' });
+      const year = date.getFullYear();
+      const monthYear = `${month} ${year}`;
+      // Filter customers for this month and year
+      const monthlyCustomers = summaryCustomers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === date.getMonth() &&
+               customerDate.getFullYear() === year;
+      });
+      return {
+        monthYear,
+        healthy: monthlyCustomers.filter(c => c.status === 'active').length,
+        warning: monthlyCustomers.filter(c => c.status === 'churned').length,
+        critical: monthlyCustomers.filter(c => c.status === 'delinquent').length,
+      };
+    });
+  }, [data.customerData.summary, data.dateRange]);
+
+  // Load user settings (stripe API key)
+  const loadSettings = useCallback(async () => {
+    if (!user?.id || data.stripeApiKey || data.customerData.summary) return;
+    try {
+      const response = await fetch("/api/db/churnary_user_settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+          values: [user.id],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const settings = await response.json();
+      setData(prev => ({
+        ...prev,
+        stripeApiKey: settings[0]?.stripe_api_key || "",
+      }));
+    } catch (error) {
+      setData(prev => ({ ...prev, error: "Failed to load user settings" }));
+    }
+  }, [user?.id, data.stripeApiKey, data.customerData.summary]);
+
+  // Load customer data from the server
+  const loadData = useCallback(async () => {
+    if (!user?.id || !data.stripeApiKey) return;
+
+    // Start loading customer summary
+    setData(prev => ({
+      ...prev,
+      customerData: { ...prev.customerData, loading: true },
+      error: null,
+    }));
+
+    try {
+      const response = await fetch("/api/stripe-customer-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch customer summary");
+      }
+
+      const summary = await response.json();
+      if (summary.error) throw new Error(summary.error);
+
+      setData(prev => ({
+        ...prev,
+        customerData: {
+          summary,
+          loading: false,
+          customers: summary.customers,
+        },
+        healthData: calculateHealthData(),
+      }));
+    } catch (error) {
+      setData(prev => ({
+        ...prev,
+        customerData: { ...prev.customerData, loading: false },
+        error: error.message,
+      }));
+    }
+  }, [user?.id, data.stripeApiKey, calculateHealthData]);
+
+  // Consolidated effect to load settings and data
+  useEffect(() => {
+    if (user?.id) {
+      loadSettings();
+      loadData();
+    }
+  }, [user?.id, data.stripeApiKey, loadSettings, loadData]);
+
+  // Define actions used in the dashboard
+  const actions = useMemo(() => ({
+    checkWebsites: async () => {
+      const customers = data.customerData.customers;
+      if (!customers?.length) return;
+
+      setData(prev => ({
+        ...prev,
+        websiteStatus: { checking: true },
+        error: null,
+      }));
+
+      try {
+        const updatedCustomers = await Promise.all(
+          customers.map(async customer => {
+            const response = await fetch("/api/website-churn-detector", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ websiteUrl: customer.website }),
+            });
+            const health = await response.json();
+            return {
+              ...customer,
+              health,
+              status: health.status === "active" ? "active" : "churned",
+            };
+          })
+        );
+
+        const summary = {
+          ...data.customerData.summary,
+          customers: updatedCustomers,
+          active: updatedCustomers.filter(c => c.status === "active").length,
+          churned: updatedCustomers.filter(c => c.status === "churned").length,
+        };
+
+        setData(prev => ({
+          ...prev,
+          customerData: {
+            ...prev.customerData,
+            summary,
+            customers: updatedCustomers,
+          },
+          healthData: calculateHealthData(),
+          websiteStatus: { checking: false },
+        }));
+      } catch (err) {
+        setData(prev => ({
+          ...prev,
+          websiteStatus: { checking: false },
+          error: "Failed to check websites. Please try again.",
+        }));
+      }
+    },
+    setDateRange: (range) => {
+      if (range.startDate > range.endDate) {
+        setData(prev => ({ ...prev, error: "Start date cannot be after end date" }));
+        return;
+      }
+      setData(prev => ({ ...prev, dateRange: range, error: null }));
+    },
+    clearError: () => {
+      setData(prev => ({ ...prev, error: null }));
+    },
+  }), [data.customerData.customers, data.customerData.summary, calculateHealthData]);
+
+  return { 
+    data, 
+    actions,
+    isLoading: data.customerData.loading || data.websiteStatus.checking 
+  };
+}
+
+export default useDashboardData;

@@ -1,0 +1,131 @@
+import random
+
+# English dictionary with words of various lengths
+english_words = [
+    # 3-letter words
+    "cat", "dog", "run", "sun", "car", "bat", "hat", "rat", "mat", "sat",
+    "pen", "ten", "men", "hen", "den", "red", "bed", "led", "fed", "wed",
+    
+    # 4-letter words
+    "book", "tree", "home", "love", "time", "work", "play", "good", "nice", "cool",
+    "fast", "slow", "blue", "green", "black", "white", "happy", "smile", "dance", "music",
+    
+    # 5-letter words
+    "house", "water", "light", "world", "peace", "happy", "smile", "dance", "music", "heart",
+    "brain", "smart", "quick", "brown", "green", "white", "black", "sweet", "fresh", "clean",
+    
+    # 6-letter words
+    "python", "coding", "friend", "family", "school", "garden", "flower", "summer", "winter", "spring",
+    "autumn", "bright", "strong", "gentle", "simple", "modern", "future", "nature", "beauty", "wonder",
+    
+    # 7-letter words
+    "program", "computer", "science", "student", "teacher", "library", "kitchen", "bedroom", "morning", "evening",
+    "weekend", "holiday", "journey", "adventure", "mystery", "fantasy", "reality", "freedom", "justice", "courage",
+    
+    # 8-letter words
+    "language", "learning", "thinking", "creative", "positive", "negative", "question", "solution", "problem", "research",
+    "discover", "treasure", "mountain", "elephant", "butterfly", "sunshine", "rainbow", "universe", "infinite", "powerful",
+    
+    # 9-letter words
+    "wonderful", "beautiful", "excellent", "fantastic", "adventure", "knowledge", "education", "important", "different", "community",
+    "technology", "celebrate", "understand", "recognize", "determine", "establish", "recommend", "encourage", "challenge", "opportunity",
+    
+    # 10-letter words
+    "programming", "dictionary", "incredible", "magnificent", "spectacular", "extraordinary", "comfortable", "responsible", "independent", "intelligent",
+    "generation", "revolution", "innovation", "inspiration", "motivation", "dedication", "preparation", "organization", "information", "communication"
+]
+
+def search_words_by_length(word_list, length):
+    """
+    Search for words with specific length in the word list
+    
+    Args:
+        word_list: List of words to search through
+        length: Desired word length
+    
+    Returns:
+        List of words with the specified length
+    """
+    matching_words = [word for word in word_list if len(word) == length]
+    return matching_words
+
+def display_words(words, count=10):
+    """
+    Display up to 'count' random words from the list
+    
+    Args:
+        words: List of words to display
+        count: Maximum number of words to display (default: 10)
+    """
+    if not words:
+        print(f"Nie znaleziono słów o podanej długości.")
+        return
+    
+    # If we have fewer words than requested, show all available
+    display_count = min(len(words), count)
+    
+    # Randomly select words to display
+    selected_words = random.sample(words, display_count)
+    
+    print(f"\nZnalezione słowa ({display_count} z {len(words)} dostępnych):")
+    print("-" * 40)
+    
+    for i, word in enumerate(selected_words, 1):
+        print(f"{i:2d}. {word}")
+
+def main():
+    """
+    Main program function
+    """
+    print("=" * 50)
+    print("    ANGIELSKI SŁOWNIK - WYSZUKIWANIE PO DŁUGOŚCI")
+    print("=" * 50)
+    print("Program wyszukuje angielskie słowa o określonej długości.")
+    print("Wyświetli maksymalnie 10 losowych słów z podaną liczbą znaków.")
+    print()
+    
+    while True:
+        try:
+            print("-" * 50)
+            user_input = input("Podaj liczbę znaków (lub 'q' aby zakończyć): ").strip()
+            
+            # Check if user wants to quit
+            if user_input.lower() in ['q', 'quit', 'exit']:
+                print("Dziękuję za korzystanie z programu!")
+                break
+            
+            # Convert input to integer
+            word_length = int(user_input)
+            
+            # Validate input
+            if word_length <= 0:
+                print("Proszę podać liczbę większą od 0.")
+                continue
+            
+            if word_length > 20:
+                print("Proszę podać liczbę mniejszą lub równą 20.")
+                continue
+            
+            # Search for words with specified length
+            matching_words = search_words_by_length(english_words, word_length)
+            
+            # Display results
+            display_words(matching_words)
+            
+            # Show statistics
+            if matching_words:
+                print(f"\nStatystyki:")
+                print(f"- Długość słowa: {word_length} znaków")
+                print(f"- Znaleziono łącznie: {len(matching_words)} słów")
+                print(f"- Wyświetlono: {min(10, len(matching_words))} słów")
+        
+        except ValueError:
+            print("Błąd: Proszę podać prawidłową liczbę.")
+        except KeyboardInterrupt:
+            print("\n\nProgram przerwany przez użytkownika.")
+            break
+        except Exception as e:
+            print(f"Wystąpił nieoczekiwany błąd: {e}")
+
+if __name__ == "__main__":
+    main()

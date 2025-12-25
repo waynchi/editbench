@@ -1,0 +1,96 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_config, clustering_method='kmeans'):
+    """
+    Выполняет кластеризацию данных для нескольких наборов столбцов.
+
+    Args:
+        features_transformed (pandas.DataFrame): Преобразованный DataFrame с параметрами.
+        cluster_config (dict): Словарь с конфигурацией кластеризации.
+                              Ключи - имена новых столбцов, значения - кортежи с именами столбцов для кластеризации.
+        clustering_method (str): Метод кластеризации ('kmeans').
+
+    Returns:
+        pandas.DataFrame: DataFrame с добавленными столбцами меток кластеров.
+    """
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+
+    for cluster_name, columns in cluster_config.items():
+        if isinstance(columns, str):
+            columns = [columns]
+        
+        # Проверяем, что все указанные столбцы существуют
+        missing_columns = [col for col in columns if col not in features_transformed.columns]
+        if missing_columns:
+            print(f"Ошибка: Не найдены столбцы {missing_columns} для кластера '{cluster_name}'")
+            continue
+            
+        # Получаем данные для кластеризации
+        data_for_clustering = features_transformed[columns]
+        
+        # Обработка пропущенных значений
+        if data_for_clustering.isnull().any().any():
+            print(f"Предупреждение: В данных для кластера '{cluster_name}' есть пропущенные значения. Они будут удалены.")
+            data_for_clustering = data_for_clustering.dropna()
+            
+        # Проверяем, что остались данные для кластеризации
+        if len(data_for_clustering) == 0:
+            print(f"Ошибка: Нет данных для кластеризации '{cluster_name}'")
+            continue
+            
+        n_clusters = 3  # Количество кластеров по умолчанию
+        
+        if clustering_method == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(data_for_clustering)
+            
+            # Оценка качества кластеризации
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(data_for_clustering, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters} кластеров '{cluster_name}': {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters} кластера '{cluster_name}' (все точки в одном кластере).")
+
+        else:
+            print(f"Неподдерживаемый метод кластеризации для '{cluster_name}'.")
+            continue
+
+        features_transformed[cluster_name] = cluster_labels
+        print(f"Кластеризация '{cluster_name}' выполнена. Метки кластеров добавлены в столбец '{cluster_name}'.")
+
+    return features_transformed
+
+# Выполнение кластеризации (после этапа 5 и до этапа 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    cluster_config = {
+        'cluster1': ['column1', 'column2'],  # Пример
+        'cluster2': ['column3']              # Пример
+    }
+    features_transformed = cluster_data(features_transformed, cluster_config)
+    
+    # Визуализация кластеров для первого кластера (если есть 2 числовых признака)
+    if 'cluster1' in features_transformed.columns:
+        numerical_features = features_transformed[['column1', 'column2']].dropna()
+        if len(numerical_features) > 0:
+            plt.figure(figsize=(8, 6))
+            plt.scatter(numerical_features['column1'], numerical_features['column2'], 
+                       c=features_transformed.loc[numerical_features.index, 'cluster1'], cmap='viridis')
+            plt.xlabel('column1')
+            plt.ylabel('column2')
+            plt.title('Результаты кластеризации cluster1')
+            plt.colorbar(label='Номер кластера')
+            plt.show()
+        else:
+            print("Недостаточно данных для визуализации кластеров cluster1.")
+    else:
+        print("Столбцы для визуализации не найдены.")
+
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

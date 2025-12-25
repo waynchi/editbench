@@ -1,0 +1,22 @@
+import os
+from pymilvus import connections
+
+# Record the current path as cwd
+cwd = os.getcwd()
+
+# Create vector database path using the current working directory
+db_path = os.path.join(cwd, 'milvus_db.db')
+
+# Define additional parameters for the Milvus collection
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# Establish a connection to Milvus using pymilvus
+# Note: Replace 'host' and 'port' with your Milvus server details if different.
+host = "127.0.0.1"
+port = "19530"
+connections.connect(alias="default", host=host, port=port)
+
+print(f"Connected to Milvus at {host}:{port}")
+print(f"Current working directory: {cwd}")
+print(f"Database file path: {db_path}")

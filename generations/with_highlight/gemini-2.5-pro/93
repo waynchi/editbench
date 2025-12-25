@@ -1,0 +1,73 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+
+def generate_analysis(model_config: dict, shap_json_path: str, system_prompt_path: str):
+    """
+    Generates a model response based on SHAP values and a system prompt.
+
+    Args:
+        model_config: A dictionary with configuration for the ChatOllama model.
+        shap_json_path: The file path for the SHAP values JSON file.
+        system_prompt_path: The file path for the system prompt text file.
+
+    Returns:
+        The response object from the model chain invocation.
+    """
+    # Initialize the ChatOllama model
+    chat_model = ChatOllama(**model_config)
+
+    # Load SHAP values from JSON file
+    with open(shap_json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Load system prompt from file
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Prepare the messages
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Generate the response
+    user_input = json.dumps(shap_values_json)  # Prepare user input
+
+    chain = prompt | chat_model
+
+    response = chain.invoke({"user_input": user_input})
+    return response
+
+
+# --- The highlighted section has been refactored into the function above ---
+# The script now configures and calls the function to get the response.
+
+# Configure the model to use
+# Local model configuration
+model_config = {"model": "llama3.2", "base_url": "http://localhost:11434"}
+# Remote model configuration (from original commented code)
+# model_config = {
+#     "model": "llama3.1:70b",
+#     "base_url": "http://ada-open-webui.serveo.net/ollama",
+#     "client_kwargs": {
+#         "headers": {"authorization": "Bearer <MASKED>"}
+#     },
+# }
+
+# Define file paths
+SHAP_VALUES_FILE = "Vuori_Final_Approval_2024_09_24.json"
+SYSTEM_PROMPT_FILE = "system.prompt"
+
+# Generate the response by calling the refactored function
+response = generate_analysis(
+    model_config=model_config,
+    shap_json_path=SHAP_VALUES_FILE,
+    system_prompt_path=SYSTEM_PROMPT_FILE,
+)
+
+# Print the response (This line was not part of the highlighted section)
+print(response.content)

@@ -1,0 +1,35 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Initialize the results DataFrame before looping.
+# Specify dtype=object so that cells can hold dictionary objects.
+results_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Convert categorical 'Embarked' column into one-hot encoding.
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+        # Ensure that the one-hot columns contain only 0's and 1's.
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].map({True: 1, False: 0})
+
+        # Get predictions from both models.
+        prediction = {"knn": knn.predict(my_df), "mlp": mlp.predict(my_df)}
+
+        # Assign the prediction dictionary to the corresponding cell.
+        results_df.loc[fare, pclass] = prediction
+
+print(results_df)

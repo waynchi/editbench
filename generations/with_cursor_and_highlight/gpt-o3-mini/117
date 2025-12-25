@@ -1,0 +1,19 @@
+def sum_of_four_nonzero_squares(max_term):
+    """
+    Returns a set of numbers that can be expressed as the sum of four non-zero squares,
+    where each square is formed from an integer in the range [1, max_term].
+    """
+    sums_set = set()
+    for a in range(1, max_term + 1):
+        for b in range(1, max_term + 1):
+            for c in range(1, max_term + 1):
+                for d in range(1, max_term + 1):
+                    sums_set.add(a*a + b*b + c*c + d*d)
+    return sums_set
+
+if __name__ == '__main__':
+    max_term = int(input("Enter the maximum term for the squares (e.g., 10): "))
+    possible_sums = sum_of_four_nonzero_squares(max_term)
+    sorted_sums = sorted(possible_sums)
+    print("Numbers that can be expressed as the sum of four non-zero squares (with terms up to {}):".format(max_term))
+    print(sorted_sums)

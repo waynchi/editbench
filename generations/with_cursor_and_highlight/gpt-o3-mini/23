@@ -1,0 +1,33 @@
+import random
+import sys
+
+def main():
+    try:
+        n = int(input("Enter the number of characters: "))
+    except ValueError:
+        print("Please enter a valid integer.")
+        sys.exit(1)
+
+    # Begin highlighted section (modified)
+    dictionary_file = "/usr/share/dict/words"  # Path to the english dictionary file (for Unix-based systems)
+    try:
+        with open(dictionary_file, "r") as f:
+            # Read all words, strip whitespace, and filter for words with exactly n characters
+            words = [word.strip() for word in f if len(word.strip()) == n]
+    except IOError:
+        print("Dictionary file not found.")
+        sys.exit(1)
+
+    if not words:
+        print(f"No words found with {n} characters.")
+        sys.exit(0)
+
+    # If there are more than 10 words, randomly choose 10 to display
+    selected_words = random.sample(words, 10) if len(words) >= 10 else words
+    print(f"Words with {n} characters:")
+    for word in selected_words:
+        print(word)
+    # End highlighted section
+
+if __name__ == "__main__":
+    main()

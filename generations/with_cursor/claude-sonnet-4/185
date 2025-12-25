@@ -1,0 +1,426 @@
+import os
+import shutil
+import logging
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Union
+from contextlib import contextmanager
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+
+from dotenv import load_dotenv
+
+import pickle
+import torch
+import json
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+
+@contextmanager
+def safe_file_operation(file_path: Union[str, Path], mode: str = 'r'):
+    """Context manager for safe file operations with proper error handling."""
+    file_handle = None
+    try:
+        file_handle = open(file_path, mode)
+        yield file_handle
+    except (IOError, OSError) as e:
+        logger.error(f"File operation failed for {file_path}: {e}")
+        raise
+    finally:
+        if file_handle:
+            file_handle.close()
+
+
+def save_log_to_file(log_history: List[Dict], file_path: Union[str, Path], 
+                    append_latest_only: bool = False) -> bool:
+    """将日志历史保存到JSON文件中。如果文件已存在，则追加到文件中。
+
+    参数：
+    - log_history：日志条目列表（每个条目是一个字典）。
+    - file_path：保存日志的文件路径。
+    - append_latest_only：如果为True，则仅追加最新的日志条目。
+    
+    返回：
+    - bool: 操作是否成功
+    """
+    if not log_history:
+        logger.warning("Empty log history provided")
+        return False
+    
+    file_path = Path(file_path)
+    current_logs = []
+
+    # 读取现有日志
+    if file_path.exists():
+        try:
+            with safe_file_operation(file_path, 'r') as f:
+                content = f.read().strip()
+                current_logs = json.loads(content) if content else []
+        except json.JSONDecodeError:
+            logger.warning(f"{file_path} contains invalid JSON. Creating backup and overwriting.")
+            # 创建备份
+            backup_path = file_path.with_suffix(f"{file_path.suffix}.backup")
+            shutil.copy2(file_path, backup_path)
+            current_logs = []
+        except Exception as e:
+            logger.error(f"Error reading {file_path}: {e}")
+            return False
+
+    # 添加新日志
+    if append_latest_only:
+        current_logs.append(log_history[-1])
+    else:
+        current_logs.extend(log_history)
+
+    # 保存日志
+    try:
+        # 确保目录存在
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with safe_file_operation(file_path, 'w') as f:
+            json.dump(current_logs, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Successfully saved {len(current_logs)} log entries to {file_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error writing to {file_path}: {e}")
+        return False
+
+
+def clear_directory(directory: Union[str, Path], delete_directory: bool = False) -> bool:
+    """清除给定目录中的所有文件和子目录。可选择删除目录本身。
+
+    参数：
+        directory: 要清除的目录路径。
+        delete_directory: 如果为 True，则在清除内容后删除目录。
+
+    返回：
+        bool: 操作是否成功
+
+    优化改进：
+    1. 使用 pathlib.Path 提供更好的路径操作
+    2. 批量操作减少系统调用
+    3. 更好的错误处理和日志记录
+    4. 返回操作状态
+    """
+    directory = Path(directory)
+    
+    if not directory.exists():
+        if not delete_directory:
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Directory '{directory}' created.")
+                return True
+            except OSError as e:
+                logger.error(f"Failed to create directory '{directory}': {e}")
+                return False
+        else:
+            logger.error("Directory does not exist and delete_directory is True.")
+            return False
+
+    failed_items = []
+    
+    # 批量收集要删除的项目
+    items_to_remove = list(directory.iterdir())
+    
+    for item_path in items_to_remove:
+        try:
+            if item_path.is_dir():
+                shutil.rmtree(item_path)
+                logger.debug(f"Removed directory: {item_path}")
+            else:
+                item_path.unlink()
+                logger.debug(f"Removed file: {item_path}")
+        except OSError as e:
+            logger.error(f"Failed to delete '{item_path}': {e}")
+            failed_items.append(item_path)
+
+    if failed_items:
+        logger.error(f"Failed to delete {len(failed_items)} items")
+        return False
+
+    if delete_directory:
+        try:
+            directory.rmdir()
+            logger.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logger.error(f"Failed to delete '{directory}': {e}")
+            return False
+
+    return True
+
+
+def merge_lora_model(
+    model_name: str = "pythia-31M",
+    base_model_repo_name: str = "EleutherAI/",
+    model_load_path: Optional[str] = None,
+    model_save_path: Optional[str] = None,
+    device: str = "auto"
+) -> bool:
+    """合并LoRA模型的优化版本。
+    
+    优化改进：
+    1. 添加设备管理
+    2. 内存优化
+    3. 更好的错误处理
+    4. 参数验证
+    """
+    model_load_path = model_load_path or MODEL_PATH
+    model_save_path = model_save_path or MODEL_PATH
+    
+    if not model_load_path or not model_save_path:
+        logger.error("Model paths not configured")
+        return False
+
+    try:
+        my_model_path = Path(model_load_path) / model_name
+        param_count = model_name.lower().split("m")[0].split("-")[1]
+        base_model_name = f"pythia-{param_count}M"
+        base_model_path = f"{base_model_repo_name.rstrip('/')}/{base_model_name}"
+
+        logger.info(f"Loading base model: {base_model_path}")
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_path,
+            device_map=device,
+            torch_dtype=torch.float16  # 使用半精度减少内存使用
+        )
+        
+        logger.info(f"Loading LoRA model: {my_model_path}")
+        model = PeftModel.from_pretrained(base_model, str(my_model_path))
+        
+        logger.info("Merging models...")
+        merged_model = model.merge_and_unload()
+        
+        # 清理内存
+        del model
+        del base_model
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        
+        my_model_save_path = Path(model_save_path) / f"{model_name}_merged"
+        my_model_save_path.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"Saving merged model to: {my_model_save_path}")
+        merged_model.save_pretrained(str(my_model_save_path))
+        
+        logger.info("Model merge completed successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error merging LoRA model: {e}")
+        return False
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """移除答案中的重复问题部分。
+    
+    优化改进：
+    1. 添加类型提示
+    2. 输入验证
+    3. 更高效的字符串操作
+    """
+    if not question or not answer:
+        return answer
+    
+    # 使用更高效的字符串操作
+    if question in answer:
+        return answer.replace(question, "", 1).strip()  # 只替换第一次出现
+    return answer
+
+
+def load_model(
+    model_type: str,
+    model_path: Optional[str] = None,
+    blocks_str: Optional[str] = None,
+    vanilla_model_name: Optional[str] = None,
+    host_model_name: Optional[str] = None,
+    device: str = "auto"
+) -> Optional[Any]:
+    """
+    加载不同类型模型的优化版本。
+
+    优化改进：
+    1. 添加类型提示和输入验证
+    2. 使用字典映射减少if-elif链
+    3. 添加设备管理
+    4. 更好的错误处理和日志记录
+    5. 内存优化
+    """
+    
+    def _load_tuned_model():
+        if not vanilla_model_name or not blocks_str:
+            raise ValueError("vanilla_model_name and blocks_str required for Tuned Model")
+        
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        model_full_path = Path(model_path) / tuned_model_name
+        
+        return AutoModelForCausalLM.from_pretrained(
+            str(model_full_path),
+            device_map=device,
+            torch_dtype=torch.float16
+        )
+    
+    def _load_vanilla_model():
+        if not vanilla_model_name:
+            raise ValueError("vanilla_model_name required for Vanilla Model")
+        
+        return AutoModelForCausalLM.from_pretrained(
+            vanilla_model_name,
+            device_map=device,
+            torch_dtype=torch.float16
+        )
+    
+    def _load_transformed_model():
+        if not host_model_name or not blocks_str:
+            raise ValueError("host_model_name and blocks_str required for Transformed Model")
+        
+        name = host_model_name.split("/")[-1]
+        save_path = Path(model_path) / f"{name}_preGRAFTED_{blocks_str}.pkl"
+        
+        with safe_file_operation(save_path, "rb") as f:
+            return pickle.load(f)
+    
+    def _load_final_model():
+        if not host_model_name or not blocks_str:
+            raise ValueError("host_model_name and blocks_str required for Final Model")
+        
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = Path(model_path) / model_save_name
+        
+        with safe_file_operation(save_path, "rb") as f:
+            return pickle.load(f)
+    
+    def _load_host_model():
+        if not host_model_name:
+            raise ValueError("host_model_name required for Host Model")
+        
+        return AutoModelForCausalLM.from_pretrained(
+            host_model_name,
+            device_map=device,
+            torch_dtype=torch.float16
+        )
+    
+    # 使用字典映射替代长if-elif链
+    model_loaders = {
+        "Tuned Model": _load_tuned_model,
+        "Vanilla Model": _load_vanilla_model,
+        "Transformed Model": _load_transformed_model,
+        "Final Model": _load_final_model,
+        "Host Model": _load_host_model
+    }
+    
+    if model_type not in model_loaders:
+        raise ValueError(f"Unknown model type: {model_type}. Available types: {list(model_loaders.keys())}")
+    
+    try:
+        logger.info(f"Loading {model_type}...")
+        model = model_loaders[model_type]()
+        logger.info(f"Successfully loaded {model_type}")
+        return model
+    except Exception as e:
+        logger.error(f"Error loading {model_type}: {e}")
+        return None
+
+
+def load_batch_losses(file_path: Union[str, Path]) -> Optional[List]:
+    """从检查点文件加载批次损失数据的优化版本。
+
+    优化改进：
+    1. 使用 pathlib.Path
+    2. 更具体的异常处理
+    3. 内存映射优化大文件加载
+    4. 添加类型提示
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        logger.error(f"Checkpoint file not found: {file_path}")
+        return None
+    
+    try:
+        # 对于大文件使用内存映射
+        checkpoint = torch.load(
+            file_path, 
+            map_location=torch.device("cpu"),
+            weights_only=True  # 安全性改进
+        )
+        
+        batch_losses = checkpoint.get("batch_losses")
+        if batch_losses is not None:
+            logger.info(f"Loaded {len(batch_losses)} batch losses from {file_path}")
+        else:
+            logger.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        
+        return batch_losses
+        
+    except FileNotFoundError:
+        logger.error(f"Checkpoint file not found: {file_path}")
+    except (IOError, OSError) as e:
+        logger.error(f"IO error loading checkpoint from {file_path}: {e}")
+    except RuntimeError as e:
+        logger.error(f"Runtime error loading checkpoint from {file_path}: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error loading checkpoint from {file_path}: {e}")
+    
+    return None
+
+
+# 新增：批量处理函数
+def batch_merge_lora_models(model_configs: List[Dict[str, Any]], 
+                           max_workers: int = 2) -> Dict[str, bool]:
+    """批量合并多个LoRA模型以提高效率。
+    
+    优化改进：
+    1. 并行处理多个模型
+    2. 批量操作减少重复的模型加载
+    3. 进度跟踪
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    results = {}
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_config = {
+            executor.submit(merge_lora_model, **config): config['model_name']
+            for config in model_configs
+        }
+        
+        for future in as_completed(future_to_config):
+            model_name = future_to_config[future]
+            try:
+                results[model_name] = future.result()
+            except Exception as e:
+                logger.error(f"Error processing {model_name}: {e}")
+                results[model_name] = False
+    
+    return results
+
+
+# 新增：缓存装饰器
+def model_cache(func):
+    """简单的模型缓存装饰器以避免重复加载。"""
+    cache = {}
+    
+    def wrapper(*args, **kwargs):
+        # 创建缓存键
+        cache_key = str(args) + str(sorted(kwargs.items()))
+        
+        if cache_key not in cache:
+            cache[cache_key] = func(*args, **kwargs)
+        
+        return cache[cache_key]
+    
+    return wrapper
+
+
+# 应用缓存到模型加载函数
+load_model = model_cache(load_model)

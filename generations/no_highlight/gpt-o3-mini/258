@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+import random
+import sys
+
+def load_dictionary(file_path='/usr/share/dict/words'):
+    """
+    Загружает английский словарь из указанного файла.
+    По умолчанию используется файл /usr/share/dict/words, который есть в большинстве Unix-систем.
+    Если файл не найден, программа завершается.
+    """
+    try:
+        with open(file_path, 'r') as f:
+            # Читаем слова, удаляя пробельные символы, и оставляем только слова, состоящие из букв.
+            words = [word.strip() for word in f if word.strip().isalpha()]
+        return words
+    except FileNotFoundError:
+        print(f"Файл словаря не найден по пути: {file_path}")
+        sys.exit(1)
+
+def find_words_by_length(words, length):
+    """
+    Ищет в списке слов те, длина которых равна length.
+    Возвращает случайные 10 слов (или меньше, если слов не хватает).
+    """
+    filtered_words = [word for word in words if len(word) == length]
+    random.shuffle(filtered_words)
+    return filtered_words[:10]
+
+def main():
+    try:
+        n = int(input("Введите количество символов в слове: "))
+        if n <= 0:
+            print("Число должно быть положительным.")
+            return
+    except ValueError:
+        print("Ошибка ввода! Пожалуйста, введите целое число.")
+        return
+
+    words = load_dictionary()
+    selected_words = find_words_by_length(words, n)
+    
+    if not selected_words:
+        print(f"Слова длиной {n} символов не найдены в словаре.")
+    else:
+        print(f"Найденные слова длиной {n} символов:")
+        for word in selected_words:
+            print(word)
+
+if __name__ == '__main__':
+    main()

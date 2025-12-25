@@ -1,0 +1,71 @@
+function createTurnState(allyStates, foeStates) {
+  // 根据哪个组仍然有可以行动的单位来确定当前回合
+  let currentTurn = "player";
+
+  let turnNumber = 1;
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    // 检查是否有单位仍然可以行动
+    const allyCanAct = allyStates.some(unit => !unit.hasActed);
+    const foeCanAct = foeStates.some(unit => !unit.hasActed);
+
+    if (currentTurn === "player") {
+      if (foeCanAct) {
+        currentTurn = "cpu";
+        // 在这里实现CPU逻辑（例如，AI移动和动作）
+        allyStates.forEach(unit => unit.hasActed = true);
+        foeStates.forEach(unit => unit.hasActed = false);
+        cpuTurn();
+      } else {
+        // 如果敌人没有可行动单位，则直接进入下一个玩家回合
+        currentTurn = "player";
+        foeStates.forEach(unit => unit.hasActed = true);
+        allyStates.forEach(unit => unit.hasActed = false);
+        turnNumber++;
+      }
+    } else {
+      if (allyCanAct) {
+        currentTurn = "player";
+        foeStates.forEach(unit => unit.hasActed = true);
+        allyStates.forEach(unit => unit.hasActed = false);
+      } else {
+        // 如果友方没有可行动单位，则直接进入下一个回合
+        currentTurn = "cpu";
+        allyStates.forEach(unit => unit.hasActed = true);
+        foeStates.forEach(unit => unit.hasActed = false);
+        turnNumber++;
+      }
+    }
+  }
+
+  function cpuTurn() {
+    // 示例 CPU 行为（用您实际的 AI 逻辑替换）
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // 检查该单位在此回合中是否已行动过
+        // 执行CPU动作（例如，移动，攻击）
+        // ...在这里编写你的CPU AI逻辑...
+
+        cpuUnit.hasActed = true; // 将该单位标记为已行动
+      }
+    }
+
+    // 在所有CPU单元都已行动（或选择不行动）后，结束CPU回合
+    nextTurn(); // 自动切换回玩家的回合
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

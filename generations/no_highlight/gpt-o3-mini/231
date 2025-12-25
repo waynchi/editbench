@@ -1,0 +1,59 @@
+import numpy as np
+
+# Use the correct input file path (modify as necessary)
+INPUT_FILE_PATH = './input.txt'
+# 如果测试，需要使用下面的路径：
+# INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # 如果存在空行则过滤
+    lines = [line for line in lines if line.strip()]
+    
+    # 将每行转换为字符列表以创建二维网格
+    grid = np.array([list(line) for line in lines])
+    print("Grid:")
+    print(grid)
+
+    str_to_match = "XMAS"
+    count = 0
+    
+    # 水平检查：遍历每一行
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # 垂直检查：依次遍历每一列
+    # 如果grid只有一行或一列，都可以处理，但需要确认grid.ndim == 2
+    if grid.ndim == 2 and grid.shape[0] > 0 and grid.shape[1] > 0:
+        for col in range(grid.shape[1]):
+            col_str = ''.join(grid[:, col])
+            count += col_str.count(str_to_match)
+    
+    # 检查对角线（从左上到右下）
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # 检查对角线（从右上到左下）
+    # 先水平翻转网格
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(flipped_grid.shape[0]-1), flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+    
+    print(f"Found {count} occurrences of '{str_to_match}'.")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            lines = f.read().splitlines()
+        return lines
+    except Exception as e:
+        print(f"Error reading file {INPUT_FILE_PATH}: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

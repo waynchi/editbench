@@ -1,0 +1,51 @@
+# Папка со всеми фотографиями / папка с фотографиями для тренировки
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Считываем названия директорий, которые и являются видом затмения
+ECLIPSE_LIST = {i:name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+
+# Папка с фотографиями для валидации
+VAL_DIR = os.path.join(DATA_PATH, "val")
+# Папка с фотографиями для теста
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+
+# Доля изображений в валидации
+VAL_FRAC = 0.3
+
+
+# Разобьем `train` выборку на `train` и `val`:
+from sklearn.model_selection import train_test_split
+
+# Проверим, существует ли папка для валидации, чтобы не выполнять разбиение повторно.
+if not os.path.exists(VAL_DIR):
+    print("Создание валидационной выборки...")
+    os.makedirs(VAL_DIR)
+
+    # Для каждого класса выполним разделение
+    for eclipse in ECLIPSE_LIST.values():
+        # Создаем подпапку класса в валидационной директории
+        val_class_dir = os.path.join(VAL_DIR, eclipse)
+        os.makedirs(val_class_dir, exist_ok=True)
+
+        train_class_dir = os.path.join(TRAIN_DIR, eclipse)
+
+        # Получаем отсортированный список файлов для воспроизводимости
+        images_filenames = sorted(os.listdir(train_class_dir))
+
+        # Разбиваем список файлов на обучающую и валидационную части
+        train_filenames, val_filenames = train_test_split(
+            images_filenames, test_size=VAL_FRAC, random_state=42
+        )
+
+        print(f'{eclipse} | train images = {len(train_filenames)} | val images = {len(val_filenames)}')
+
+        # Перемещаем файлы валидационной выборки
+        for filename in val_filenames:
+            shutil.move(
+                os.path.join(train_class_dir, filename),
+                os.path.join(val_class_dir, filename)
+            )
+    print("Разбиение на train и val завершено.")
+else:
+    print(f"Директория {VAL_DIR} уже существует. Разбиение пропущено.")

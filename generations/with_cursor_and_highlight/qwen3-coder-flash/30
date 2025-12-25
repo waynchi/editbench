@@ -1,0 +1,32 @@
+# Números que podem ser expressos como a soma de quatro quadrados não nulos
+
+def pode_ser_soma_quatro_quadrados_nao_nulos(n):
+    """Verifica se um número pode ser expresso como soma de quatro quadrados não nulos"""
+    if n < 4:
+        return False
+    
+    # Testa todas as combinações possíveis de quatro quadrados não nulos
+    for a in range(1, int(n**0.5) + 1):
+        if a*a > n:
+            break
+        for b in range(a, int((n-a*a)**0.5) + 1):
+            if a*a + b*b > n:
+                break
+            for c in range(b, int((n-a*a-b*b)**0.5) + 1):
+                if a*a + b*b + c*c > n:
+                    break
+                d_squared = n - a*a - b*b - c*c
+                d = int(d_squared**0.5)
+                if d*d == d_squared and d >= 1:
+                    return True
+    return False
+
+def numeros_com_quatro_quadrados_nao_nulos(limite):
+    """Retorna uma lista de números até o limite que podem ser expressos como soma de quatro quadrados não nulos"""
+    return [n for n in range(1, limite + 1) if pode_ser_soma_quatro_quadrados_nao_nulos(n)]
+
+# Exemplo de uso
+limite = 50
+numeros = numeros_com_quatro_quadrados_nao_nulos(limite)
+print(f"Números até {limite} que podem ser expressos como soma de quatro quadrados não nulos:")
+print(numeros)

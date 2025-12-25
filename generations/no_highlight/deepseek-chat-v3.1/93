@@ -1,0 +1,63 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_analysis_response(
+    model_name="llama3.2",
+    base_url="http://localhost:11434",
+    shap_values_file="Vuori_Final_Approval_2024_09_24.json",
+    system_prompt_file="system.prompt"
+):
+    """
+    Generate an analysis response based on SHAP values using the ChatOllama model.
+    
+    Args:
+        model_name (str): The name of the Ollama model to use
+        base_url (str): The base URL for the Ollama API
+        shap_values_file (str): Path to the JSON file containing SHAP values
+        system_prompt_file (str): Path to the system prompt file
+        
+    Returns:
+        str: The generated response content
+    """
+    # Initialize the ChatOllama model
+    chat_model = ChatOllama(model=model_name, base_url=base_url)
+    
+    # Load SHAP values from JSON file
+    with open(shap_values_file, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Load system prompt from file
+    with open(system_prompt_file, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Prepare the messages
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Prepare user input
+    user_input = json.dumps(shap_values_json)
+    
+    # Create and invoke the chain
+    chain = prompt | chat_model
+    response = chain.invoke(user_input)
+    
+    return response.content
+
+# Example usage
+if __name__ == "__main__":
+    response_content = generate_shap_analysis_response()
+    print(response_content)
+    
+    # Alternative usage with custom parameters
+    # response_content = generate_shap_analysis_response(
+    #     model_name="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     shap_values_file="path/to/shap_values.json",
+    #     system_prompt_file="path/to/system.prompt"
+    # )
+    # print(response_content)

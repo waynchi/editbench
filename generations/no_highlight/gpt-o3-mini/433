@@ -1,0 +1,53 @@
+import numpy as np
+
+# Use the correct input file path
+INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file():
+    # Read the file without including newline characters.
+    with open(INPUT_FILE_PATH, 'r') as f:
+        # Using splitlines() avoids empty strings if newlines are at the end.
+        lines = f.read().splitlines()
+    return lines
+
+def main():
+    lines = parse_input_file()
+    
+    # Convert each line (a string) into a list of characters.
+    # This ensures that the grid is truly 2-dimensional.
+    grid = np.array([list(line) for line in lines if line])
+    
+    # Uncomment the next line to see the grid
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+
+    # Check horizontally
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Check vertically
+    # Now grid is 2-D so grid.shape[1] is the number of columns.
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col])
+        count += col_str.count(str_to_match)
+
+    # Check diagonals from top-left to bottom-right.
+    for i in range(-(grid.shape[0] - 1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Check anti-diagonals (top-right to bottom-left).
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(flipped_grid.shape[0] - 1), flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+if __name__ == "__main__":
+    main()

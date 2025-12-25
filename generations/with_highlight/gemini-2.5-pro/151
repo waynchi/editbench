@@ -1,0 +1,59 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Reads two columns of integers from a file, sorts each column independently,
+    and calculates the sum of the absolute differences between the corresponding
+    elements of the sorted columns.
+    """
+    try:
+        # Use numpy.loadtxt for efficient and robust parsing of text files.
+        # It handles various whitespace delimiters and directly creates a NumPy array.
+        data = np.loadtxt(INPUT_FILE_PATH, dtype=int)
+    except FileNotFoundError:
+        print(f"Error: Input file not found at '{INPUT_FILE_PATH}'")
+        return
+    except ValueError:
+        print("Error: File contains non-integer data or is improperly formatted.")
+        return
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return
+
+    # Ensure the input data has a valid shape (N rows, 2 columns)
+    if data.ndim != 2 or data.shape[1] != 2:
+        print("Error: Input data must have exactly two columns.")
+        return
+
+    # Separate the data into two column vectors
+    list_1 = data[:, 0]
+    list_2 = data[:, 1]
+
+    # Sort both lists. To minimize the sum of absolute differences,
+    # we pair the i-th smallest element of one list with the i-th
+    # smallest element of the other. Sorting is the most efficient
+    # way to achieve this pairing.
+    list_1.sort()
+    list_2.sort()
+
+    # Calculate the sum of absolute differences using vectorized NumPy operations.
+    # This is significantly more efficient than the original element-by-element loop.
+    total_distance = np.sum(np.abs(list_1 - list_2))
+    
+    print(total_distance)
+
+
+def parse_input_file():
+    # This function is no longer used by the improved main() but is kept
+    # as per the instruction to only modify the highlighted code block,
+    # which contained this as a separate function. A more thorough
+    # refactoring would replace its usage with np.loadtxt directly.
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

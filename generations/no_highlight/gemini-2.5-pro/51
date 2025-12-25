@@ -1,0 +1,407 @@
+import sqlite3
+import datetime
+import logging
+import plotly.express as px
+import pandas as pd
+
+def connect_to_db(db_file='dns_monitor.db'):
+    """Establishes a connection to the SQLite database."""
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+        logging.info(f"Successfully connected to the database: {db_file}")
+        return conn
+    except sqlite3.Error as e:
+        logging.error(f"Failed to connect to database: {e}")
+        raise ValueError(f"Failed to connect to database: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error connecting to database: {e}")
+        raise ValueError(f"Unexpected error connecting to database: {e}")  # Re-raise the exception with a more specific error message
+
+def create_tables(conn):
+    """Creates the necessary tables in the database if they don't exist."""
+    try:
+        if conn is None:
+            logging.error("Database connection is None")
+            raise ValueError("Database connection is None")
+        cursor = conn.cursor()
+
+        table_definitions = [
+            """
+            CREATE TABLE IF NOT EXISTS root_servers (
+                id INTEGER PRIMARY KEY,
+                server_name TEXT,
+                ip_address TEXT
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS dns_tests (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP,
+                server_id INTEGER,
+                query_type TEXT,
+                response_time REAL,
+                success BOOLEAN,
+                error_message TEXT,
+                FOREIGN KEY (server_id) REFERENCES root_servers (id)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP,
+                event_type TEXT,
+                severity TEXT,
+                message TEXT,
+                source TEXT
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS service_status (
+                id INTEGER PRIMARY KEY,
+                service_name TEXT,
+                status TEXT,
+                last_checked TIMESTAMP,
+                uptime REAL,
+                error_count INTEGER
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS dns_queries (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP,
+                query TEXT,
+                response_time REAL
+            )
+            """
+        ]
+
+        for table_definition in table_definitions:
+            try:
+                cursor.execute(table_definition)
+                logging.info(f"Table created or already exists: {table_definition.split()[5]}")
+            except sqlite3.Error as e:
+                logging.error(f"Error creating table: {e}")
+                raise ValueError(f"Error creating table: {e}")  # Re-raise the exception with a more specific error message
+            except Exception as e:
+                logging.exception(f"Unexpected error creating table: {e}")
+                raise ValueError(f"Unexpected error creating table: {e}")  # Re-raise the exception with a more specific error message
+
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error creating tables: {e}")
+        raise ValueError(f"Error creating tables: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error creating tables: {e}")
+        raise ValueError(f"Unexpected error creating tables: {e}")  # Re-raise the exception with a more specific error message
+
+def check_database_tables(conn):
+    """Checks if all required tables exist in the database."""
+    try:
+        if conn is None:
+            logging.error("Database connection is None")
+            raise ValueError("Database connection is None")
+        cursor = conn.cursor()
+
+        table_names = ["root_servers", "dns_tests", "events", "service_status", "dns_queries"]
+        for table_name in table_names:
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
+            if cursor.fetchone() is None:
+                logging.error(f"Table {table_name} does not exist")
+                raise ValueError(f"Table {table_name} does not exist")  # Re-raise the exception with a more specific error message
+            else:
+                logging.info(f"Table {table_name} exists.")
+
+    except sqlite3.Error as e:
+        logging.error(f"Error checking database tables: {e}")
+        raise ValueError(f"Error checking database tables: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error checking database tables: {e}")
+        raise ValueError(f"Unexpected error checking database tables: {e}")  # Re-raise the exception with a more specific error message
+
+def insert_dummy_data(conn):
+    """Inserts dummy data into the tables for demonstration purposes."""
+    try:
+        if conn is None:
+            raise ValueError("Database connection is None")
+
+        cursor = conn.cursor()
+
+        # Clear existing data to avoid duplicates on re-run
+        tables_to_clear = ["dns_tests", "events", "service_status", "dns_queries", "root_servers"]
+        for table in tables_to_clear:
+            cursor.execute(f"DELETE FROM {table}")
+        
+        # Insert dummy root_servers
+        servers = [
+            (1, 'a.root-servers.net', '198.41.0.4'),
+            (2, 'b.root-servers.net', '199.9.14.201'),
+            (3, 'c.root-servers.net', '192.33.4.12')
+        ]
+        cursor.executemany("INSERT INTO root_servers VALUES (?, ?, ?)", servers)
+
+        # Insert dummy dns_tests
+        tests = []
+        base_time = datetime.datetime.now()
+        for i in range(50):
+            ts = base_time - datetime.timedelta(minutes=i * 10)
+            server_id = (i % 3) + 1
+            success = i % 10 != 0  # make some fail
+            tests.append((
+                ts, server_id, 'A', 0.05 + (i % 10) * 0.01,
+                success, "Timeout" if not success else None
+            ))
+        cursor.executemany("""
+            INSERT INTO dns_tests (timestamp, server_id, query_type, response_time, success, error_message)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, tests)
+
+        # Insert dummy events
+        events = []
+        severities = ['INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        for i in range(20):
+            ts = base_time - datetime.timedelta(hours=i)
+            events.append((
+                ts, 'DNS_Check', severities[i % 4], f'Event message {i}', 'MonitorScript'
+            ))
+        cursor.executemany("""
+            INSERT INTO events (timestamp, event_type, severity, message, source)
+            VALUES (?, ?, ?, ?, ?)
+        """, events)
+
+        # Insert dummy service_status
+        statuses = [
+            ('DNS-Resolver-1', 'OPERATIONAL', base_time, 99.9, 5),
+            ('DNS-Resolver-2', 'DEGRADED', base_time - datetime.timedelta(minutes=30), 95.5, 52),
+            ('Web-Interface', 'OPERATIONAL', base_time, 99.99, 2)
+        ]
+        cursor.executemany("INSERT INTO service_status (service_name, status, last_checked, uptime, error_count) VALUES (?, ?, ?, ?, ?)", statuses)
+
+        conn.commit()
+        logging.info("Inserted dummy data into all tables.")
+    except sqlite3.Error as e:
+        logging.error(f"Error inserting dummy data: {e}")
+        conn.rollback()
+        raise ValueError(f"Error inserting dummy data: {e}")
+    except Exception as e:
+        logging.exception(f"Unexpected error inserting dummy data: {e}")
+        conn.rollback()
+        raise ValueError(f"Unexpected error inserting dummy data: {e}")
+
+
+def retrieve_data(conn):
+    """Retrieves data from the database for visualization."""
+    try:
+        if conn is None:
+            logging.error("Database connection is None")
+            raise ValueError("Database connection is None")
+        cursor = conn.cursor()
+
+        response_times = get_response_times(cursor)
+        event_log_data = get_event_log_data(cursor)
+        service_status_data = get_service_status_data(cursor)
+
+        return response_times, event_log_data, service_status_data
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving data: {e}")
+        raise ValueError(f"Error retrieving data: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving data: {e}")
+        raise ValueError(f"Unexpected error retrieving data: {e}")  # Re-raise the exception with a more specific error message
+
+def get_response_times(cursor):
+    """Retrieves the last 100 DNS test response times."""
+    try:
+        if cursor is None:
+            logging.error("Cursor is None")
+            raise ValueError("Cursor is None")
+        cursor.execute("SELECT timestamp, response_time FROM dns_tests ORDER BY timestamp DESC LIMIT 100")
+        response_times = cursor.fetchall()
+        logging.info(f"Retrieved {len(response_times)} response times.")
+        return response_times
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving response times: {e}")
+        raise ValueError(f"Error retrieving response times: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving response times: {e}")
+        raise ValueError(f"Unexpected error retrieving response times: {e}")  # Re-raise the exception with a more specific error message
+
+def get_event_log_data(cursor):
+    """Retrieves the last 100 event log entries."""
+    try:
+        if cursor is None:
+            logging.error("Cursor is None")
+            raise ValueError("Cursor is None")
+        cursor.execute("SELECT timestamp, event_type, severity, message, source FROM events ORDER BY timestamp DESC LIMIT 100")
+        event_log_data = cursor.fetchall()
+        logging.info(f"Retrieved {len(event_log_data)} event log entries.")
+        return event_log_data
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving event log data: {e}")
+        raise ValueError(f"Error retrieving event log data: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving event log data: {e}")
+        raise ValueError(f"Unexpected error retrieving event log data: {e}")  # Re-raise the exception with a more specific error message
+
+def get_service_status_data(cursor):
+    """Retrieves the status of all monitored services."""
+    try:
+        if cursor is None:
+            logging.error("Cursor is None")
+            raise ValueError("Cursor is None")
+        cursor.execute("SELECT service_name, status, last_checked, uptime, error_count FROM service_status ORDER BY service_name")
+        service_status_data = cursor.fetchall()
+        logging.info(f"Retrieved {len(service_status_data)} service status entries.")
+        return service_status_data
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving service status data: {e}")
+        raise ValueError(f"Error retrieving service status data: {e}")  # Re-raise the exception with a more specific error message
+    except Exception as e:
+        logging.exception(f"Unexpected error retrieving service status data: {e}")
+        raise ValueError(f"Unexpected error retrieving service status data: {e}")  # Re-raise the exception with a more specific error message
+
+def create_visualizations(response_times, event_log_data, service_status_data):
+    """Generates visualizations from the provided data."""
+    # Input validation
+    if response_times is None or not isinstance(response_times, list):
+        logging.error("Invalid response_times data")
+        raise ValueError("Invalid response_times data")
+    if event_log_data is None or not isinstance(event_log_data, list):
+        logging.error("Invalid event_log_data data")
+        raise ValueError("Invalid event_log_data data")
+    if service_status_data is None or not isinstance(service_status_data, list):
+        logging.error("Invalid service_status_data data")
+        raise ValueError("Invalid service_status_data data")
+
+    # Create DataFrames
+    if not response_times:
+        logging.warning("No response times data to visualize")
+        response_time_df = pd.DataFrame(columns=['timestamp', 'response_time'])
+    else:
+        response_time_df = pd.DataFrame(response_times, columns=['timestamp', 'response_time'])
+        response_time_df['timestamp'] = pd.to_datetime(response_time_df['timestamp'])
+
+    if not event_log_data:
+        logging.warning("No event log data to visualize")
+        event_log_df = pd.DataFrame(columns=['timestamp', 'event_type', 'severity', 'message', 'source'])
+    else:
+        event_log_df = pd.DataFrame(event_log_data, columns=['timestamp', 'event_type', 'severity', 'message', 'source'])
+        event_log_df['timestamp'] = pd.to_datetime(event_log_df['timestamp'])
+
+    if not service_status_data:
+        logging.warning("No service status data to visualize")
+        service_status_df = pd.DataFrame(columns=['service_name', 'status', 'last_checked', 'uptime', 'error_count'])
+    else:
+        service_status_df = pd.DataFrame(service_status_data, columns=['service_name', 'status', 'last_checked', 'uptime', 'error_count'])
+        service_status_df['last_checked'] = pd.to_datetime(service_status_df['last_checked'])
+
+    visualizations = {}
+
+    # Visualization 1: Response Time Over Time
+    if not response_time_df.empty:
+        fig_response_time = px.line(response_time_df,
+                                    x='timestamp',
+                                    y='response_time',
+                                    title='DNS Response Time Over Time',
+                                    labels={'timestamp': 'Time', 'response_time': 'Response Time (s)'})
+        visualizations['response_time'] = fig_response_time
+        logging.info("Created response time line chart.")
+    else:
+        visualizations['response_time'] = None
+        logging.info("Skipped response time chart: No data.")
+
+    # Visualization 2: Event Log Summary by Severity
+    if not event_log_df.empty:
+        event_severity_counts = event_log_df['severity'].value_counts().reset_index()
+        event_severity_counts.columns = ['severity', 'count']
+        fig_event_severity = px.bar(event_severity_counts,
+                                    x='severity',
+                                    y='count',
+                                    title='Event Counts by Severity',
+                                    color='severity',
+                                    labels={'severity': 'Severity Level', 'count': 'Number of Events'})
+        visualizations['event_severity'] = fig_event_severity
+        logging.info("Created event severity bar chart.")
+    else:
+        visualizations['event_severity'] = None
+        logging.info("Skipped event severity chart: No data.")
+
+    # Visualization 3: Service Status Uptime
+    if not service_status_df.empty:
+        fig_service_uptime = px.bar(service_status_df,
+                                    x='service_name',
+                                    y='uptime',
+                                    color='status',
+                                    title='Service Uptime',
+                                    labels={'service_name': 'Service', 'uptime': 'Uptime (%)', 'status': 'Current Status'},
+                                    text='uptime')
+        fig_service_uptime.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+        fig_service_uptime.update_layout(uniformtext_minsize=8, uniformtext_mode='hide', yaxis_range=[0,100])
+        visualizations['service_uptime'] = fig_service_uptime
+        logging.info("Created service uptime bar chart.")
+    else:
+        visualizations['service_uptime'] = None
+        logging.info("Skipped service uptime chart: No data.")
+
+    # Visualization 4: Service Error Counts
+    if not service_status_df.empty and service_status_df['error_count'].sum() > 0:
+        fig_service_errors = px.bar(service_status_df,
+                                    x='service_name',
+                                    y='error_count',
+                                    color='service_name',
+                                    title='Service Error Counts',
+                                    labels={'service_name': 'Service', 'error_count': 'Total Errors'})
+        visualizations['service_errors'] = fig_service_errors
+        logging.info("Created service error count bar chart.")
+    else:
+        visualizations['service_errors'] = None
+        logging.info("Skipped service error count chart: No errors or no data.")
+
+    return visualizations
+
+
+if __name__ == '__main__':
+    # Configure logging
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+
+    DB_FILE = 'dns_monitor.db'
+    conn = None
+
+    try:
+        # 1. Connect to DB
+        conn = connect_to_db(DB_FILE)
+
+        # 2. Create tables
+        create_tables(conn)
+
+        # 3. Check if tables exist
+        check_database_tables(conn)
+
+        # 4. (Optional) Insert dummy data for demonstration
+        insert_dummy_data(conn)
+
+        # 5. Retrieve data
+        response_times, event_log_data, service_status_data = retrieve_data(conn)
+
+        # 6. Create visualizations
+        visualizations = create_visualizations(response_times, event_log_data, service_status_data)
+
+        # 7. Display visualizations
+        print("\nDisplaying generated visualizations...")
+        for name, fig in visualizations.items():
+            if fig:
+                print(f"Showing plot: {name}")
+                fig.show()
+            else:
+                print(f"Skipping plot: {name} (no data or not generated)")
+
+    except (ValueError, sqlite3.Error) as e:
+        logging.error(f"A critical error occurred: {e}")
+    except Exception as e:
+        logging.exception(f"An unexpected error occurred in the main execution block: {e}")
+    finally:
+        # 8. Close connection
+        if conn:
+            conn.close()
+            logging.info("Database connection closed.")

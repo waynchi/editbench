@@ -1,0 +1,290 @@
+import aiohttp  # 用于异步 API 请求
+import asyncio
+import xml.etree.ElementTree  # 用于处理 API 的 XML 响应
+import matplotlib.pyplot as plt  # 用于绘制图表
+import pandas as pd  # 用于创建数据框并将所有蜡烛分为两种类型：收盘和开盘
+import datetime  # 用于 X 轴的日期
+import pickle  # 用于在文件中存储变量
+import json  # 用于处理数据库
+
+# 没有技术分析工具和空白天（无交易）的问题，因为在数据框中无交易的天数不是零，而是根本不存在。因此，它们不会破坏指标的值。
+# 类标的，方法图表和当前价格
+class ticker():
+    """股票代码及其相关内容，通过 MoexApi
+需要的库：
+aiohttp, asyncio
+xml.etree.ElementTree
+matplotlib.pyplot as plt
+pandas as pd
+datetime
+pickle
+json
+    """
+    def __init__(self, name: str):
+        """
+        self.name - 股票代码名称
+        self.tech_dict - 技术分析字典
+        """
+        self.name = name 
+        # 原则上这里可以更改所有用户的默认设置。可能需要通过这个实现自定义技术分析工具。
+        self.tech_dict = {
+            "value": {"use": False, "has_periods": False, "need_graph_space": True}, 
+            "sma": {"use": False, "has_periods": True, "periods": [], "need_graph_space": False},
+            "ema": {"use": False, "has_periods": True, "periods": [], "need_graph_space": False}
+        }
+        # 其他属性将在后续异步方法中创建
+
+    async def correct_name(self):
+        """检查股票代码名称是否存在于股票代码集合中。集合每天更新不超过一次。"""
+        with open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_opened_file:
+            info = json.load(info_opened_file)
+        
+        last_check = datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            # 如果相差超过1天，则重写股票代码列表（集合）：
+            set_tickers = set()
+            url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    content = await response.read()
+            root = xml.etree.ElementTree.fromstring(content)
+            # 遍历 XML，更新集合
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID"))
+            with open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb") as set_tickers_file:
+                pickle.dump(set_tickers, set_tickers_file)
+            # 更改最后更新时间
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            with open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_file:
+                json.dump(info, info_file, indent=3, ensure_ascii=False)
+        # 检查股票代码是否在集合中
+        with open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb") as set_tickers_file:
+            set_tickers = pickle.load(set_tickers_file)
+        return self.name in set_tickers
+
+    async def CurrentPrice(self):
+        """获取股票的当前价格"""
+        url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                content = await response.read()
+        root = xml.etree.ElementTree.fromstring(content)
+        for data in root.findall("data"):
+            if data.get("id") == "marketdata":
+                rows = data.find("rows")
+                row = rows.find("row")
+                return row.get("LAST")
+        return None
+
+    async def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """
+        获取该股票在指定时间段内的蜡烛图数据
+
+        candles_name - 蜡烛图数据名称: open, close, high, low, value, volume, begin, end
+        timeframe - 时间框架: 1 - 1 分钟, 10 - 10 分钟, 60 - 1 小时, 24 - 1 天, 7 - 1 周, 31 - 1 个月, 4 - 4 个月
+        start, end - 时间段的开始和结束，格式为 年-月-日 时:分:秒
+        """
+        url = (
+            "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/"
+            + self.name +
+            f"/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}"
+        )
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                content = await response.read()
+        root = xml.etree.ElementTree.fromstring(content)
+        candles_data = root.find("data")
+        rows = candles_data.find("rows")
+        listcandles = []
+        if candles_name in ["begin", "end"]:
+            for row in rows.findall("row"):
+                datetime_str = row.get(candles_name)
+                # 解析日期时间字符串到 datetime.datetime 对象
+                dt = datetime.datetime(
+                    int(datetime_str[0:4]),
+                    int(datetime_str[5:7]),
+                    int(datetime_str[8:10]),
+                    int(datetime_str[11:13]),
+                    int(datetime_str[14:16]),
+                    int(datetime_str[17:])
+                )
+                listcandles.append(dt)
+        else:
+            for row in rows.findall("row"):
+                listcandles.append(float(row.get(candles_name)))
+        return listcandles
+
+    async def setattr_candles_dataframe(self, timeframe: str = "24", start: str = "", end: str = ""):
+        """
+        创建蜡烛数据框并将其作为属性存入 self.candles_dataframe
+        """
+        # 异步获取各项蜡烛数据
+        opens = await self.candles("open", timeframe, start, end)
+        closes = await self.candles("close", timeframe, start, end)
+        highs = await self.candles("high", timeframe, start, end)
+        lows = await self.candles("low", timeframe, start, end)
+        values = await self.candles("value", timeframe, start, end)
+        begins = await self.candles("begin", timeframe, start, end)
+        candles_dataframe = pd.DataFrame({
+            "open": opens,
+            "close": closes,
+            "high": highs,
+            "low": lows,
+            "value": values,
+            "begin": begins
+        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+
+    async def graphic(self, timeframe: str = "24", start: str = "", end: str = ""):
+        """
+        绘制从 start 到 end 的蜡烛图图表，并叠加技术分析工具
+
+        timeframe - 时间框架: 1 - 1分钟, 10 - 10分钟, 60 - 1小时, 24 - 1天, 7 - 1周, 31 - 1月, 4 - 4个月
+        start, end - 时间段的开始和结束，格式为 YYYY-MM-DD HH:MM:SS
+        """
+        # 异步构建数据框架
+        await self.setattr_candles_dataframe(timeframe, start, end)
+        df = self.candles_dataframe
+        up = df[df.close >= df.open]
+        down = df[df.close < df.open]
+        self.up = up
+        self.down = down
+
+        # 根据 timeframe 计算蜡烛宽度
+        if timeframe == "1":
+            width_big = 1 / 24 / 60
+        elif timeframe == "10":
+            width_big = 1 / 24 / 6
+        elif timeframe == "60":
+            width_big = 1 / 24
+        elif timeframe == "24":
+            width_big = 1
+        elif timeframe == "7":
+            width_big = 7
+        elif timeframe == "31":
+            width_big = 30
+        elif timeframe == "4":
+            width_big = 90
+        else:
+            width_big = 0
+        width_small = width_big / 10
+        self.width_big = width_big
+
+        # 计算需要额外图表的数量
+        number_of_additional_graphics = 0
+        for tech in self.tech_dict:
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]:
+                number_of_additional_graphics += 1
+
+        if number_of_additional_graphics != 0:
+            height_ratios_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics
+            fig, axs = plt.subplots(
+                nrows=1 + number_of_additional_graphics, ncols=1,
+                sharex=True, figsize=(10, 6), height_ratios=height_ratios_list
+            )
+            plt.suptitle(self.name, fontsize=15)
+            axs[0].grid(True)
+            # 绘制上涨蜡烛
+            axs[0].bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            axs[0].bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            axs[0].bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            # 绘制下跌蜡烛
+            axs[0].bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            axs[0].bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            axs[0].bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            # 添加技术分析工具
+            additional_idx = 0
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    if not self.tech_dict[tech]["need_graph_space"]:
+                        tech_func(axs[0])
+                    else:
+                        # 分配给额外的图表
+                        axs[additional_idx + 1].grid(True)
+                        tech_func(axs[additional_idx + 1])
+                        additional_idx += 1
+        else:
+            fig = plt.figure(figsize=(10, 6))
+            plt.title(self.name, fontsize=15)
+            ax = fig.add_subplot(111)
+            ax.grid(True)
+            # 绘制上涨蜡烛
+            ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            # 绘制下跌蜡烛
+            ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(ax)
+        
+        # 保存图形为图片并返回打开的文件对象
+        save_path = r"D:\Python files\!MoexApiBot\graphic.png"
+        fig.savefig(save_path)
+        opened_graphic = open(save_path, "rb")
+        return opened_graphic
+
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                sma_list = []
+                sma_list.append(sum(self.candles_dataframe.close[0:period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period]) / period)
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list, label=f"SMA {period}")
+        ax.legend(fontsize=7)
+
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0:period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1) * ema_list[i - period] + 2 * self.candles_dataframe.close[i]) / (period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list, label=f"EMA {period}")
+        ax.legend(fontsize=7)
+
+    def value(self, ax):
+        ax.bar(x=self.up.begin, height=self.up.value, width=self.width_big, color="green")
+        ax.bar(x=self.down.begin, height=self.down.value, width=self.width_big, color="red")
+        ax.set_title("Value", fontsize=7)
+
+
+"""
+Тесты示例
+
+# 示例 1: 检查股票代码名称
+async def test_current_price():
+    t = ticker("SBER")
+    is_valid = await t.correct_name()
+    if is_valid:
+        price = await t.CurrentPrice()
+        print("Current Price:", price)
+    else:
+        print("Ticker 不存在")
+
+# 示例 2: 绘制图表（请确保时间段内有数据）
+async def test_graphic():
+    t = ticker("SBER")
+    # 激活一些技术分析工具
+    t.tech_dict["sma"]["use"] = True
+    t.tech_dict["sma"]["periods"] = [20, 10]
+    t.tech_dict["ema"]["use"] = True
+    t.tech_dict["ema"]["periods"] = [150, 250]
+    t.tech_dict["value"]["use"] = True
+    graphic_file = await t.graphic("24", "2024-01-01", "2024-05-01")
+    # 此处可以将 graphic_file 发送至其他地方，或展示保存的图片
+    graphic_file.close()
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(test_current_price())
+    loop.run_until_complete(test_graphic())
+"""

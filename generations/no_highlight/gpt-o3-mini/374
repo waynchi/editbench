@@ -1,0 +1,28 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.stats.anova import anova_lm
+
+# Zakładamy, że zmienne brand_A, brand_B, brand_C i all_data są już zdefiniowane wcześniej
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Stwórz macierz designu używając kodowania zmiennych zero-jedynkowych
+# Używamy pd.get_dummies, aby przekształcić kategorię 'Brand' w zmienne dummy
+X = pd.get_dummies(df['Brand'], drop_first=True)
+
+# Dodaj stałą, aby oszacować wyraz wolny
+X = sm.add_constant(X)
+y = df['Cost']
+
+# Dopasuj model regresji liniowej używając podejścia czysto Pythonowego (bez stylu R)
+model = sm.OLS(y, X).fit()
+
+# Oblicz analizę ANOVA na oszacowanym modelu
+anova_table = anova_lm(model, typ=2)
+
+# Wydrukuj tabelę ANOVA
+print(anova_table)

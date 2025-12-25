@@ -1,0 +1,48 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Crear un DataFrame de ejemplo para obtener la estructura de columnas esperada
+sample_df = pd.DataFrame({
+    "Pclass": [1],
+    "Name": [24],
+    "Sex": [0],
+    "Age": [19],
+    "SibSp": [0],
+    "Parch": [0],
+    "Fare": [50],
+    "Embarked": ["S"]
+})
+
+# Aplicar one-hot encoding al ejemplo para obtener todas las columnas esperadas
+sample_df = pd.get_dummies(sample_df, columns=["Embarked"], prefix="Embarked")
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Crear el DataFrame con los datos de entrada
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked": [embarked]
+            })
+            
+            # Aplicar one-hot encoding
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Asegurarse de que todas las columnas esperadas estén presentes
+            for col in sample_df.columns:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Reordenar las columnas en el mismo orden que el ejemplo
+            my_df = my_df[sample_df.columns]
+            
+            print(f"""-------------------------------------------------------
+                  Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+                  По knn: {knn.predict(my_df)[0]}
+                  По mlp: {mlp.predict(my_df)[0]}""")

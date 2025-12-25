@@ -1,0 +1,23 @@
+def is_prime(n):
+    """
+    判断一个数是否为质数
+
+    参数:
+        n (int): 待判断的整数
+
+    返回:
+        bool: 如果 n 是质数返回 True，否则返回 False
+    """
+    if n < 2:
+        return False
+    # 仅需检验到 sqrt(n)
+    for i in range(2, int(n**0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
+
+if __name__ == "__main__":
+    # 示例测试
+    test_numbers = [0, 1, 2, 3, 4, 16, 17, 18, 19, 20, 23, 29]
+    for number in test_numbers:
+        print(f"{number} 是质数: {is_prime(number)}")

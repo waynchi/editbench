@@ -1,0 +1,73 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+def is_own_author(autor: str):
+    return autor == 'subidu'
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies(replies: Comment):
+    pass
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str,str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+
+# ------------------------- MODIFIED SECTION -------------------------
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies_count = post['children']
+    X += 1
+
+    # Creamos una clave única para el post
+    post_key = f"{post_author}/{post_permlink}"
+    # Inicializamos la entrada en el diccionario jerárquico
+    diccionario[post_key] = {
+        "post": post,
+        "replies": []
+    }
+
+    cnt = 0
+    if post_replies_count > n_respuestas_minimas:
+        comment = Comment(authorperm=post_key)
+        replies_list = comment.get_replies()
+        
+        # Procesar cada respuesta del post
+        for reply in replies_list:
+            author = reply['author']
+            text = reply['body']
+            if is_own_author(author):
+                # Reevaluar el comentario
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+                # Agregamos la respuesta al diccionario jerárquico
+                diccionario[post_key]["replies"].append(reply)
+    if cnt > 3:
+        print("Iterador:", X)
+        # Imprimir la última respuesta procesada que cumplió la condición
+        print(reply['author'], '/', reply['permlink'])
+# ------------------------- END OF MODIFIED SECTION -------------------------

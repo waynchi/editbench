@@ -1,0 +1,40 @@
+def can_be_sum_of_four_squares(n):
+    """Check if a number can be expressed as sum of four non-zero squares"""
+    if n < 4:
+        return False
+    
+    # Check all possible combinations of four non-zero squares
+    # We only need to check up to sqrt(n) since larger squares would make the sum too large
+    limit = int(n**0.5) + 1
+    
+    for a in range(1, limit):
+        a_squared = a * a
+        if a_squared > n:
+            break
+        for b in range(a, limit):
+            b_squared = b * b
+            if a_squared + b_squared > n:
+                break
+            for c in range(b, limit):
+                c_squared = c * c
+                if a_squared + b_squared + c_squared > n:
+                    break
+                d_squared = n - a_squared - b_squared - c_squared
+                if d_squared > 0:
+                    d = int(d_squared**0.5)
+                    if d * d == d_squared and d >= 1:
+                        return True
+    return False
+
+def find_numbers_with_four_squares(limit):
+    """Find all numbers up to limit that can be expressed as sum of four non-zero squares"""
+    result = []
+    for i in range(1, limit + 1):
+        if can_be_sum_of_four_squares(i):
+            result.append(i)
+    return result
+
+# Generate the list of numbers that can be expressed as sum of four non-zero squares
+numbers = find_numbers_with_four_squares(100)
+print("Numbers that can be expressed as sum of four non-zero squares:")
+print(numbers)

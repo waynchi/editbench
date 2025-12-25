@@ -1,0 +1,76 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    X += 1
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_identifier = f"{post_author}/{post_permlink}"
+    
+    cnt = 0
+    
+    # This list will hold replies that match the 'procesar' condition
+    matching_replies_for_post = []
+    
+    # Flag to indicate if the post should be disqualified
+    is_disqualified = False
+
+    # Check only posts with a minimum number of children (potential replies)
+    if post['children'] > n_respuestas_minimas:
+        comment = Comment(authorperm=post_identifier)
+        post_replies = comment.get_replies()
+        
+        for reply in post_replies:
+            author = reply['author']
+            text = reply['body']
+            
+            # If our own reply or a banned user is found, disqualify this post and stop checking replies
+            if is_own_author(author) or is_banned(author):
+                is_disqualified = True
+                break  # Stop processing replies for THIS post
+            
+            # If a reply meets the criteria, count it and store it
+            if procesar(text):
+                cnt += 1
+                matching_replies_for_post.append(reply.copy())
+    
+    # If the post is not disqualified and has more than 3 matching replies,
+    # add it to the hierarchical dictionary.
+    if not is_disqualified and cnt > 3:
+        diccionario[post_identifier] = {
+            'post_data': post.copy(),
+            'replies': matching_replies_for_post
+        }
+        
+        print(f"Iterador: {X}")
+        print(f"Added post to dictionary: {post_identifier}")

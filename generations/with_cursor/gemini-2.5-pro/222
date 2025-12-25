@@ -1,0 +1,98 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+from typing import Optional, Dict, Any
+
+
+def generate_shap_analysis(
+    shap_json_path: str,
+    system_prompt_path: str,
+    model: str = "llama3.2",
+    base_url: str = "http://localhost:11434",
+    client_kwargs: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Generates a natural language analysis from SHAP values using a ChatOllama model.
+
+    Args:
+        shap_json_path (str): Path to the JSON file containing SHAP values.
+        system_prompt_path (str): Path to the file containing the system prompt.
+        model (str): The name of the Ollama model to use.
+        base_url (str): The base URL of the Ollama service.
+        client_kwargs (Optional[Dict[str, Any]]): Optional keyword arguments for the Ollama client,
+                                                  e.g., for authentication headers.
+
+    Returns:
+        str: The content of the generated response from the language model.
+    """
+    # 初始化 ChatOllama 模型
+    chat_model = ChatOllama(
+        model=model, base_url=base_url, client_kwargs=client_kwargs
+    )
+
+    # 从 JSON 文件加载 SHAP 值
+    with open(shap_json_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # 从文件加载系统提示
+    with open(system_prompt_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # 准备消息
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # 准备用户输入
+    user_input = json.dumps(shap_values_json)
+
+    # 创建并执行链
+    chain = prompt | chat_model
+    response = chain.invoke({"user_input": user_input})
+
+    return response.content
+
+
+if __name__ == "__main__":
+    # --- 配置 ---
+    SHAP_FILE_PATH = "Vuori_Final_Approval_2024_09_24.json"
+    SYSTEM_PROMPT_FILE_PATH = "system.prompt"
+    MODEL_NAME = "llama3.2"
+    BASE_URL = "http://localhost:11434"
+
+    # --- 执行并打印结果 ---
+    try:
+        analysis_content = generate_shap_analysis(
+            shap_json_path=SHAP_FILE_PATH,
+            system_prompt_path=SYSTEM_PROMPT_FILE_PATH,
+            model=MODEL_NAME,
+            base_url=BASE_URL,
+        )
+        print(analysis_content)
+    except FileNotFoundError as e:
+        print(f"Error: File not found - {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+    # --- 备用配置示例 (带认证) ---
+    # ALT_MODEL_NAME = "llama3.1:70b"
+    # ALT_BASE_URL = "http://ada-open-webui.serveo.net/ollama"
+    # ALT_CLIENT_KWARGS = {
+    #     "headers": {"authorization": "Bearer <已隐藏>"}
+    # }
+    #
+    # try:
+    #     print("\n--- Running with alternate configuration ---")
+    #     alt_analysis_content = generate_shap_analysis(
+    #         shap_json_path=SHAP_FILE_PATH,
+    #         system_prompt_path=SYSTEM_PROMPT_FILE_PATH,
+    #         model=ALT_MODEL_NAME,
+    #         base_url=ALT_BASE_URL,
+    #         client_kwargs=ALT_CLIENT_KWARGS
+    #     )
+    #     print(alt_analysis_content)
+    # except Exception as e:
+    #     print(f"An error occurred with the alternate configuration: {e}")

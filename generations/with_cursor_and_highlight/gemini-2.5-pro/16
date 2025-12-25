@@ -1,0 +1,20 @@
+import time
+import undetected_chromedriver as uc
+import os
+
+options = uc.ChromeOptions()
+# The path is now relative to the location of the script file.
+# Note: `options.binary_location` should point to the browser executable (chrome.exe),
+# not the driver. For specifying the driver path, you might need to use
+# the `driver_executable_path` argument in the uc.Chrome() call.
+options.binary_location = os.path.join(
+    os.path.dirname(__file__), "chromedriver-win64", "chromedriver.exe"
+)
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # create an instance of ChromeOptions for undetected_chromedriver
+    # initialize the undetected Chrome driver with specified options
+    time.sleep(10)

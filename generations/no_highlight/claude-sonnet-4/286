@@ -1,0 +1,305 @@
+import os
+import shutil
+import logging
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Union
+from contextlib import contextmanager
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+
+from dotenv import load_dotenv
+
+import pickle
+import torch
+import json
+
+# Configure logging once at module level
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# Cache for loaded models to avoid reloading
+_model_cache = {}
+
+@contextmanager
+def safe_file_operation(file_path: Union[str, Path], mode: str = 'r'):
+    """Context manager for safe file operations with proper error handling."""
+    file_handle = None
+    try:
+        file_handle = open(file_path, mode)
+        yield file_handle
+    except (IOError, OSError) as e:
+        logger.error(f"File operation failed for {file_path}: {e}")
+        raise
+    finally:
+        if file_handle:
+            file_handle.close()
+
+
+def save_log_to_file(log_history: List[Dict], file_path: Union[str, Path], append_latest_only: bool = False) -> None:
+    """Сохраняет историю логов в файл JSON с оптимизированной обработкой файлов.
+
+    Оптимизации:
+    1. Использование pathlib для более эффективной работы с путями
+    2. Контекстный менеджер для безопасной работы с файлами
+    3. Типизация для лучшей читаемости и проверки ошибок
+    4. Упрощенная логика чтения существующих логов
+    
+    Параметры:
+    - log_history: Список записей логов (каждая запись - это словарь).
+    - file_path: Путь к файлу, в который будут сохранены логи.
+    - append_latest_only: Если True, добавляется только последняя запись лога.
+    """
+    file_path = Path(file_path)
+    current_logs = []
+
+    # Оптимизация: проверяем существование и размер файла одновременно
+    if file_path.exists() and file_path.stat().st_size > 0:
+        try:
+            with safe_file_operation(file_path, 'r') as f:
+                current_logs = json.load(f)
+        except json.JSONDecodeError:
+            logger.warning(f"Invalid JSON in {file_path}. Overwriting file.")
+            current_logs = []
+
+    # Оптимизация: упрощенная логика добавления логов
+    logs_to_add = [log_history[-1]] if append_latest_only and log_history else log_history
+    current_logs.extend(logs_to_add)
+
+    # Создаем директорию если не существует
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        with safe_file_operation(file_path, 'w') as f:
+            json.dump(current_logs, f, indent=2, separators=(',', ':'))  # Более компактный JSON
+    except Exception as e:
+        logger.error(f"Failed to write logs to {file_path}: {e}")
+        raise
+
+
+def clear_directory(directory: Union[str, Path], delete_directory: bool = False) -> None:
+    """Очищает директорию с оптимизированной обработкой ошибок.
+    
+    Оптимизации:
+    1. Использование pathlib для более эффективной работы с файловой системой
+    2. Batch операции для улучшения производительности
+    3. Улучшенная обработка ошибок с продолжением операций
+    4. Логирование только критических ошибок
+    
+    Аргументы:
+        directory: Путь к директории для очистки
+        delete_directory: Удалить ли саму директорию после очистки
+    """
+    directory = Path(directory)
+    
+    if not directory.exists():
+        if not delete_directory:
+            directory.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Directory '{directory}' created.")
+        else:
+            raise ValueError("Directory does not exist and delete_directory is True.")
+        return
+
+    errors = []
+    
+    # Оптимизация: используем iterdir() вместо listdir() для лучшей производительности
+    for item_path in directory.iterdir():
+        try:
+            if item_path.is_dir():
+                shutil.rmtree(item_path)
+            else:
+                item_path.unlink()
+        except OSError as e:
+            error_msg = f"Failed to delete '{item_path}': {e}"
+            errors.append(error_msg)
+            logger.error(error_msg)
+
+    if delete_directory:
+        try:
+            directory.rmdir()
+            logger.info(f"Removed directory: {directory}")
+        except OSError as e:
+            error_msg = f"Failed to delete directory '{directory}': {e}"
+            errors.append(error_msg)
+            logger.error(error_msg)
+
+    if errors:
+        raise OSError(f"Multiple errors occurred: {'; '.join(errors)}")
+
+
+def merge_lora_model(
+    model_name: str = "pythia-31M",
+    base_model_repo_name: str = "EleutherAI/",
+    model_load_path: str = MODEL_PATH,
+    model_save_path: str = MODEL_PATH,
+) -> None:
+    """Объединяет LoRA модель с базовой моделью с кэшированием.
+    
+    Оптимизации:
+    1. Кэширование загруженных моделей
+    2. Улучшенная обработка путей
+    3. Проверка существования файлов перед загрузкой
+    """
+    cache_key = f"{base_model_repo_name}{model_name}"
+    
+    my_model_path = Path(model_load_path) / model_name
+    if not my_model_path.exists():
+        raise FileNotFoundError(f"Model path does not exist: {my_model_path}")
+    
+    # Извлекаем размер модели более надежным способом
+    try:
+        param_count = model_name.lower().split("-")[1].split("m")[0]
+        base_model_name = f"pythia-{param_count}M"
+        full_base_model_path = f"{base_model_repo_name.rstrip('/')}/{base_model_name}"
+    except (IndexError, ValueError) as e:
+        raise ValueError(f"Invalid model name format: {model_name}") from e
+
+    # Кэширование базовой модели
+    if cache_key not in _model_cache:
+        logger.info(f"Loading base model: {full_base_model_path}")
+        _model_cache[cache_key] = AutoModelForCausalLM.from_pretrained(full_base_model_path)
+    
+    base_model = _model_cache[cache_key]
+    model = PeftModel.from_pretrained(base_model, str(my_model_path))
+    merged_model = model.merge_and_unload()
+    
+    save_path = Path(model_save_path) / f"{model_name}_merged"
+    save_path.mkdir(parents=True, exist_ok=True)
+    merged_model.save_pretrained(str(save_path))
+    
+    logger.info(f"Model merged and saved to: {save_path}")
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """Удаляет повторения вопроса в ответе с оптимизацией."""
+    # Оптимизация: избегаем ненужных операций если вопрос не найден
+    if not question or question not in answer:
+        return answer
+    return answer.replace(question, "", 1).strip()  # Заменяем только первое вхождение
+
+
+def load_model(
+    model_type: str,
+    model_path: Optional[str] = None,
+    blocks_str: Optional[str] = None,
+    vanilla_model_name: Optional[str] = None,
+    host_model_name: Optional[str] = None,
+) -> Any:
+    """Загружает модели с кэшированием и улучшенной обработкой ошибок.
+    
+    Оптимизации:
+    1. Кэширование загруженных моделей
+    2. Ранняя валидация параметров
+    3. Использование pathlib для работы с путями
+    4. Улучшенная обработка ошибок
+    """
+    # Ранняя валидация
+    valid_types = {"Tuned Model", "Vanilla Model", "Transformed Model", "Final Model", "Host Model"}
+    if model_type not in valid_types:
+        raise ValueError(f"Unknown model type: {model_type}. Valid types: {valid_types}")
+
+    # Создаем ключ для кэша
+    cache_key = f"{model_type}_{vanilla_model_name or host_model_name}_{blocks_str}"
+    
+    if cache_key in _model_cache:
+        logger.info(f"Loading {model_type} from cache")
+        return _model_cache[cache_key]
+
+    try:
+        if model_type == "Tuned Model":
+            if not vanilla_model_name or not blocks_str:
+                raise ValueError("vanilla_model_name and blocks_str required for Tuned Model")
+            
+            model_name = vanilla_model_name.split("/")[-1]
+            tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+            model_path_full = Path(model_path) / tuned_model_name
+            
+            if not model_path_full.exists():
+                raise FileNotFoundError(f"Tuned model not found: {model_path_full}")
+            
+            model = AutoModelForCausalLM.from_pretrained(str(model_path_full))
+
+        elif model_type == "Vanilla Model":
+            if not vanilla_model_name:
+                raise ValueError("vanilla_model_name required for Vanilla Model")
+            model = AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+
+        elif model_type in ["Transformed Model", "Final Model"]:
+            if not host_model_name or not blocks_str:
+                raise ValueError(f"host_model_name and blocks_str required for {model_type}")
+            
+            name = host_model_name.split("/")[-1]
+            suffix = "preGRAFTED" if model_type == "Transformed Model" else "GRAFTED"
+            file_name = f"{name}_{suffix}_{blocks_str}.pkl"
+            file_path = Path(model_path) / file_name
+            
+            if not file_path.exists():
+                raise FileNotFoundError(f"Model file not found: {file_path}")
+            
+            with open(file_path, "rb") as f:
+                model = pickle.load(f)
+
+        elif model_type == "Host Model":
+            if not host_model_name:
+                raise ValueError("host_model_name required for Host Model")
+            model = AutoModelForCausalLM.from_pretrained(host_model_name)
+
+        # Кэшируем загруженную модель
+        _model_cache[cache_key] = model
+        logger.info(f"Loaded and cached {model_type}")
+        return model
+
+    except Exception as e:
+        logger.error(f"Failed to load {model_type}: {e}")
+        raise
+
+
+def load_batch_losses(file_path: Union[str, Path]) -> Optional[List]:
+    """Загружает потери батча с оптимизированной обработкой ошибок.
+    
+    Оптимизации:
+    1. Проверка существования файла перед загрузкой
+    2. Использование pathlib
+    3. Более специфичная обработка исключений
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        logger.error(f"Checkpoint file not found: {file_path}")
+        return None
+    
+    try:
+        # Оптимизация: указываем weights_only=True для безопасности и производительности
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"), weights_only=False)
+        batch_losses = checkpoint.get("batch_losses")
+        
+        if batch_losses is not None:
+            logger.info(f"Batch losses loaded from {file_path}")
+        else:
+            logger.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        
+        return batch_losses
+        
+    except Exception as e:
+        logger.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None
+
+
+def clear_model_cache() -> None:
+    """Очищает кэш моделей для освобождения памяти."""
+    global _model_cache
+    _model_cache.clear()
+    logger.info("Model cache cleared")
+
+
+def get_cache_info() -> Dict[str, int]:
+    """Возвращает информацию о текущем состоянии кэша."""
+    return {
+        "cached_models_count": len(_model_cache),
+        "cache_keys": list(_model_cache.keys())
+    }

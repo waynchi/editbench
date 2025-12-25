@@ -1,0 +1,57 @@
+import numpy as np
+
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file(INPUT_FILE_PATH)
+    # Eliminar líneas vacías para evitar errores al parsear
+    lines = [line for line in lines if line.strip()]
+    if not lines:
+        print("El archivo de entrada está vacío o no se pudo leer.")
+        return
+
+    print("Líneas de entrada:")
+    for line in lines:
+        print(line)
+
+    # Separo cada línea en columnas usando tres espacios como separador
+    try:
+        # Convierte cada línea a una lista de enteros
+        data = [list(map(int, line.split("   "))) for line in lines]
+    except ValueError as e:
+        print("Error al convertir datos a enteros:", e)
+        return
+
+    # Verifico que al menos haya dos columnas en la entrada
+    if len(data[0]) < 2:
+        print("Se requieren al menos dos columnas de datos.")
+        return
+
+    # Extraigo y separo las dos columnas
+    col1 = [row[0] for row in data]
+    col2 = [row[1] for row in data]
+
+    # En vez de operar sobre listas removiendo elementos uno a uno mediante pop y np.argmin,
+    # se ordenan las dos listas y se emparejan de forma directa para obtener la suma de las diferencias.
+    col1_sorted = sorted(col1)
+    col2_sorted = sorted(col2)
+
+    differences = [abs(a - b) for a, b in zip(col1_sorted, col2_sorted)]
+    total_difference = sum(differences)
+
+    print("\nSuma total de las diferencias emparejadas:", total_difference)
+
+def parse_input_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            # Lee el archivo línea por línea sin incluir saltos de línea
+            return f.read().splitlines()
+    except FileNotFoundError:
+        print(f"El archivo '{file_path}' no se encontró.")
+        return []
+    except IOError as e:
+        print("Error al leer el archivo:", e)
+        return []
+
+if __name__ == "__main__":
+    main()

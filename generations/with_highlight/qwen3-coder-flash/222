@@ -1,0 +1,42 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+# 初始化 ChatOllama 模型
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+# chat_model = ChatOllama(
+# model="llama3.1:70b",
+# base_url="http://ada-open-webui.serveo.net/ollama",
+# client_kwargs={
+# headers": {"authorization": "Bearer <已隐藏>"}
+# },
+# )
+
+def generate_response():
+    # 从 JSON 文件加载 SHAP 值
+    with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # 从文件加载系统提示
+    with open("system.prompt", "r") as file:
+        sys_prompt = file.read().strip()
+
+    # 准备消息
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # 生成响应
+    user_input = json.dumps(shap_values_json)  # 准备用户输入
+
+    chain = prompt | chat_model
+
+    # 打印响应
+    response = chain.invoke(user_input)
+    return response.content
+
+# 调用函数
+print(generate_response())

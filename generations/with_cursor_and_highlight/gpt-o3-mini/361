@@ -1,0 +1,26 @@
+import math
+
+def main():
+    max_n = int(input("Podaj maksymalną liczbę: "))
+    possible_numbers = set()
+    # Ustalamy maksymalny zakres, aby kwadrat liczby nie przekraczał max_n.
+    max_base = int(math.sqrt(max_n))
+    
+    # Generujemy wszystkie możliwe sumy czterech niezerowych kwadratów.
+    for a in range(1, max_base + 1):
+        a2 = a * a
+        for b in range(1, max_base + 1):
+            b2 = b * b
+            for c in range(1, max_base + 1):
+                c2 = c * c
+                for d in range(1, max_base + 1):
+                    total = a2 + b2 + c2 + d * d
+                    if total <= max_n:
+                        possible_numbers.add(total)
+    
+    print("Liczby, które można wyrazić jako sumę czterech niezerowych kwadratów (mniejsze lub równe", max_n, "):")
+    for num in sorted(possible_numbers):
+        print(num)
+
+if __name__ == "__main__":
+    main()

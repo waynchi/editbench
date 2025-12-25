@@ -1,0 +1,43 @@
+import numpy as np
+
+# Se utiliza únicamente la ruta del archivo de ejemplo.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print("Lineas leídas:", lines)
+    
+    # Se eliminan líneas vacías y se realiza un strip para depurar espacios innecesarios
+    lines = [line.strip() for line in lines if line.strip()]
+    
+    # Se separan las columnas usando tres espacios como delimitador
+    try:
+        cols = [line.split("   ") for line in lines]
+        # Se convierte a un arreglo numpy y se transpone para obtener dos filas
+        data = np.array(cols, dtype=int).T
+    except Exception as e:
+        print("Error procesando las líneas de entrada:", e)
+        return
+
+    # Mejoras: En lugar de remover elemento a elemento utilizando pop, se ordenan ambas listas
+    # y se calculan las diferencias absolutas de manera vectorizada.
+    sorted_list_1 = np.sort(data[0])
+    sorted_list_2 = np.sort(data[1])
+    total_distance = np.sum(np.abs(sorted_list_1 - sorted_list_2))
+    
+    print("Suma total de distancias:", total_distance)
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            # Usamos splitlines para evitar líneas vacías finalizadas por salto de línea.
+            return f.read().splitlines()
+    except FileNotFoundError:
+        print(f"Archivo no encontrado: {INPUT_FILE_PATH}")
+        return []
+    except Exception as e:
+        print("Error al leer el archivo:", e)
+        return []
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,85 @@
+import random
+
+# English dictionary with words of different lengths
+english_dictionary = {
+    1: ['a', 'I'],
+    2: ['an', 'at', 'be', 'do', 'go', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'on', 'or', 'so', 'to', 'up', 'we'],
+    3: ['and', 'are', 'but', 'can', 'cat', 'day', 'dog', 'eat', 'end', 'far', 'get', 'had', 'has', 'her', 'him', 'his', 'how', 'man', 'new', 'not', 'now', 'old', 'one', 'our', 'out', 'put', 'run', 'say', 'see', 'she', 'the', 'too', 'try', 'two', 'use', 'was', 'way', 'who', 'why', 'win', 'yes', 'you'],
+    4: ['able', 'back', 'ball', 'book', 'call', 'came', 'come', 'cool', 'door', 'down', 'each', 'face', 'fact', 'find', 'fire', 'fish', 'food', 'form', 'from', 'game', 'give', 'good', 'hand', 'have', 'help', 'here', 'home', 'hope', 'just', 'keep', 'kind', 'know', 'land', 'last', 'left', 'life', 'like', 'line', 'live', 'long', 'look', 'love', 'make', 'many', 'more', 'move', 'much', 'name', 'need', 'next', 'nice', 'only', 'open', 'over', 'part', 'play', 'read', 'real', 'right', 'room', 'same', 'seem', 'show', 'side', 'some', 'take', 'tell', 'than', 'that', 'them', 'they', 'this', 'time', 'turn', 'very', 'want', 'water', 'well', 'what', 'when', 'will', 'with', 'word', 'work', 'year'],
+    5: ['about', 'after', 'again', 'black', 'bring', 'build', 'carry', 'clean', 'close', 'could', 'every', 'first', 'found', 'great', 'green', 'group', 'happy', 'house', 'large', 'learn', 'light', 'might', 'money', 'never', 'night', 'other', 'place', 'plant', 'point', 'quick', 'right', 'round', 'shall', 'small', 'sound', 'spell', 'start', 'still', 'study', 'their', 'there', 'these', 'thing', 'think', 'three', 'today', 'under', 'until', 'watch', 'where', 'which', 'while', 'white', 'world', 'would', 'write', 'young'],
+    6: ['always', 'animal', 'answer', 'around', 'became', 'become', 'before', 'better', 'change', 'coming', 'differ', 'during', 'enough', 'family', 'follow', 'friend', 'ground', 'happen', 'health', 'inside', 'letter', 'listen', 'little', 'living', 'making', 'mother', 'moving', 'number', 'office', 'people', 'person', 'picture', 'please', 'pretty', 'public', 'really', 'reason', 'school', 'second', 'should', 'simple', 'sister', 'social', 'street', 'strong', 'system', 'though', 'through', 'toward', 'travel', 'trying', 'turned', 'walked', 'wanted', 'window', 'within', 'wonder', 'worked'],
+    7: ['another', 'because', 'between', 'brother', 'brought', 'certain', 'company', 'country', 'develop', 'example', 'feeling', 'general', 'getting', 'government', 'however', 'important', 'include', 'instead', 'kitchen', 'looking', 'machine', 'morning', 'nothing', 'outside', 'perhaps', 'picture', 'playing', 'present', 'problem', 'program', 'project', 'provide', 'reading', 'running', 'science', 'service', 'several', 'special', 'station', 'student', 'surface', 'teacher', 'thought', 'through', 'tonight', 'trouble', 'turning', 'walking', 'wanting', 'weather', 'whether', 'without', 'working', 'writing'],
+    8: ['although', 'business', 'children', 'complete', 'computer', 'continue', 'decision', 'describe', 'different', 'discover', 'distance', 'education', 'everyone', 'everything', 'exercise', 'experience', 'function', 'hospital', 'increase', 'industry', 'interest', 'language', 'learning', 'magazine', 'material', 'medicine', 'mountain', 'national', 'necessary', 'original', 'personal', 'physical', 'position', 'possible', 'practice', 'pressure', 'question', 'remember', 'research', 'resource', 'response', 'security', 'shoulder', 'somebody', 'standard', 'strength', 'struggle', 'suddenly', 'surprise', 'together', 'tomorrow', 'training', 'universe', 'vacation', 'violence', 'whatever', 'yourself'],
+    9: ['advantage', 'agreement', 'attention', 'beautiful', 'beginning', 'character', 'community', 'condition', 'dangerous', 'determine', 'direction', 'education', 'equipment', 'establish', 'everybody', 'excellent', 'executive', 'expensive', 'following', 'furniture', 'generally', 'happening', 'immediate', 'important', 'including', 'knowledge', 'landscape', 'marketing', 'meanwhile', 'necessary', 'obviously', 'operation', 'otherwise', 'paragraph', 'political', 'president', 'principle', 'procedure', 'programme', 'recognize', 'recommend', 'reduction', 'reference', 'represent', 'situation', 'sometimes', 'structure', 'technique', 'telephone', 'therefore', 'treatment', 'understand', 'variation', 'wonderful'],
+    10: ['absolutely', 'background', 'basketball', 'collection', 'commercial', 'commission', 'comparison', 'conference', 'connection', 'democratic', 'department', 'difference', 'difficulty', 'discussion', 'electronic', 'employment', 'everything', 'experience', 'generation', 'government', 'historical', 'importance', 'individual', 'industrial', 'instrument', 'investment', 'management', 'membership', 'particular', 'percentage', 'permission', 'population', 'production', 'profession', 'protection', 'psychology', 'reflection', 'revolution', 'scientific', 'technology', 'television', 'themselves', 'throughout', 'tournament', 'traditional', 'understand', 'university', 'washington', 'wheelchair', 'widespread']
+}
+
+def find_words_by_length(n):
+    """
+    Find words with exactly N characters from the dictionary
+    
+    Args:
+        n (int): Number of characters in the word
+    
+    Returns:
+        list: List of words with N characters
+    """
+    if n in english_dictionary:
+        words = english_dictionary[n]
+        # If there are more than 10 words, randomly select 10
+        if len(words) >= 10:
+            return random.sample(words, 10)
+        else:
+            return words
+    else:
+        return []
+
+def main():
+    """
+    Main function to run the English dictionary lookup program
+    """
+    print("欢迎使用英语词典查找程序！")
+    print("Welcome to the English Dictionary Lookup Program!")
+    print("-" * 50)
+    
+    while True:
+        try:
+            # Get user input
+            user_input = input("\n请输入您想要查找的单词字符数 (输入 'quit' 退出): ")
+            
+            # Check if user wants to quit
+            if user_input.lower() in ['quit', 'exit', 'q']:
+                print("谢谢使用！再见！")
+                break
+            
+            # Convert input to integer
+            n = int(user_input)
+            
+            # Validate input
+            if n <= 0:
+                print("请输入一个正整数！")
+                continue
+            
+            # Find words with N characters
+            words = find_words_by_length(n)
+            
+            # Display results
+            if words:
+                print(f"\n找到 {len(words)} 个包含 {n} 个字符的单词：")
+                print("-" * 30)
+                for i, word in enumerate(words, 1):
+                    print(f"{i:2d}. {word}")
+            else:
+                print(f"抱歉，没有找到包含 {n} 个字符的单词。")
+                print("请尝试输入 1-10 之间的数字。")
+        
+        except ValueError:
+            print("请输入一个有效的数字！")
+        except KeyboardInterrupt:
+            print("\n\n程序被用户中断。再见！")
+            break
+        except Exception as e:
+            print(f"发生错误：{e}")
+
+if __name__ == "__main__":
+    main()

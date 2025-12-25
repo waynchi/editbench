@@ -1,0 +1,49 @@
+import random
+
+def main():
+    # Sample dictionary of English words (in a real application, you might load from a file or API)
+    english_dictionary = [
+        "apple", "banana", "cherry", "date", "elderberry", "fig", "grape", 
+        "honeydew", "kiwi", "lemon", "mango", "nectarine", "orange", "peach",
+        "quince", "raspberry", "strawberry", "tangerine", "watermelon", "zucchini",
+        "ant", "bat", "cat", "dog", "eel", "fox", "goat", "horse", "ibis", "jaguar",
+        "kite", "lion", "mouse", "newt", "otter", "pig", "quail", "rat", "snake",
+        "tiger", "viper", "wolf", "xerus", "yak", "zebra", "book", "chair", "desk",
+        "lamp", "phone", "computer", "window", "door", "table", "carpet", "mirror"
+    ]
+    
+    print("English Dictionary Word Finder")
+    print("===============================")
+    
+    try:
+        # Get the desired word length from user
+        n = int(input("Enter the number of characters for the words: "))
+        
+        # Filter words with exactly n characters
+        matching_words = [word for word in english_dictionary if len(word) == n]
+        
+        if not matching_words:
+            print(f"\nNo words found with exactly {n} characters.")
+            return
+        
+        # Select up to 10 random words from the matching list
+        if len(matching_words) <= 10:
+            selected_words = matching_words
+        else:
+            selected_words = random.sample(matching_words, 10)
+        
+        # Display the results
+        print(f"\nFound {len(matching_words)} words with {n} characters.")
+        print(f"Here are {len(selected_words)} words:")
+        print("-" * 30)
+        
+        for i, word in enumerate(selected_words, 1):
+            print(f"{i}. {word}")
+            
+    except ValueError:
+        print("Please enter a valid number.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()

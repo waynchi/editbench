@@ -1,0 +1,41 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+def main():
+    try:
+        # Inicializar el modelo ChatOllama
+        chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+        # Cargar valores SHAP desde el archivo JSON
+        with open("Vuori_Final_Approval_2024_09_24.json", "r", encoding="utf-8") as file:
+            shap_data = json.load(file)
+        shap_values = shap_data.get("shap_values")
+        if shap_values is None:
+            raise ValueError("No se encontró la clave 'shap_values' en el JSON.")
+
+        # Cargar el mensaje del sistema desde el archivo
+        with open("system.prompt", "r", encoding="utf-8") as file:
+            system_prompt = file.read().strip()
+
+        # Preparar la plantilla de mensajes
+        template = ChatPromptTemplate([
+            ("system", system_prompt),
+            ("human", "{user_input}"),
+        ])
+
+        # Generar la entrada para el modelo usando la plantilla;
+        # Se utiliza el parámetro 'user_input' ya que es el marcador en la plantilla.
+        prompt_value = template.invoke(user_input=json.dumps(shap_values))
+
+        # Generar la respuesta del modelo directamente (se evita el uso del operador pipe)
+        respuesta = chat_model.invoke(prompt_value)
+
+        # Imprimir la respuesta
+        print(respuesta)
+
+    except Exception as e:
+        print("Se produjo un error:", e)
+
+if __name__ == "__main__":
+    main()

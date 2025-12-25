@@ -1,0 +1,27 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# The original code incorrectly set `options.binary_location` to the path
+# of chromedriver.exe. This option is meant for the browser's executable
+# (e.g., chrome.exe).
+#
+# The `SessionNotCreatedException` occurs because the driver starts but cannot
+# communicate with the browser instance it's supposed to launch.
+#
+# The most reliable way to use undetected-chromedriver is to let it handle
+# the driver and browser detection automatically. By removing the manual path
+# configuration, the library can find the installed Chrome browser and use the
+# corresponding driver, which is its main feature.
+#
+# The duplicated code block has also been removed for clarity and correctness.
+
+print("wde")
+# Initialize the driver without any specific options to allow automatic detection.
+# This is the recommended approach and fixes the session creation error.
+with uc.Chrome() as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # A pause to allow the page to load and to observe the result.
+    time.sleep(10)

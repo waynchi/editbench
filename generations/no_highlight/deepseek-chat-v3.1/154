@@ -1,0 +1,50 @@
+import nltk
+from nltk.corpus import words
+
+# Download the words corpus if not already available
+try:
+    nltk.data.find('corpora/words')
+except LookupError:
+    nltk.download('words')
+
+def find_words_by_length():
+    """
+    Find and display 10 words with the specified number of characters
+    """
+    try:
+        # Get user input for word length
+        n = int(input("Enter the number of characters for the words: "))
+        
+        if n <= 0:
+            print("Please enter a positive number.")
+            return
+        
+        # Get all English words from nltk corpus
+        english_words = words.words()
+        
+        # Filter words by length
+        matching_words = [word for word in english_words if len(word) == n]
+        
+        if not matching_words:
+            print(f"No words found with {n} characters.")
+            return
+        
+        # Display first 10 matching words
+        print(f"\n10 words with {n} characters:")
+        print("-" * 30)
+        
+        for i, word in enumerate(matching_words[:10], 1):
+            print(f"{i}. {word}")
+            
+        # Show total count if there are more words
+        if len(matching_words) > 10:
+            print(f"\n... and {len(matching_words) - 10} more words available.")
+            
+    except ValueError:
+        print("Please enter a valid number.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Run the program
+if __name__ == "__main__":
+    find_words_by_length()

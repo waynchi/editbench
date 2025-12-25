@@ -1,0 +1,183 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                              std=[0.229, 0.224, 0.225])
+        ])
+    
+    def create_unrelated_pairs(self, image_text_pairs):
+        """通过打乱文本描述来创建不相关的图像-文本对"""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """使用释义数据集创建语义相似的文本对"""
+        try:
+            dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+            textual_pairs = []
+            for item in dataset:
+                if item['is_duplicate'] == 1:
+                    pair = (item['question1'], item['question2'])
+                    textual_pairs.append(pair)
+            return textual_pairs[:self.sample_size]
+        except Exception as e:
+            print(f"Error loading {dataset_name} dataset: {e}")
+            # 返回一些示例文本对作为备用
+            return [
+                ("What is machine learning?", "Can you explain machine learning?"),
+                ("How does AI work?", "What is the working principle of artificial intelligence?"),
+                ("What is deep learning?", "Can you describe deep learning?")
+            ]
+    
+    def create_visual_pairs(self, image_text_pairs):
+        """创建增强的图像对，同时保持语义意义"""
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+        
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                augmented = augmentation_transforms(image)
+                visual_pairs.append((image, augmented))
+        return visual_pairs
+
+    def load_alternative_dataset(self):
+        """加载替代数据集，如 Conceptual Captions"""
+        try:
+            print("Trying to load Conceptual Captions dataset...")
+            dataset = load_dataset("conceptual_captions", split=f'train[:{self.sample_size}]')
+            
+            image_text_pairs = []
+            for item in dataset:
+                try:
+                    if item["image"] is not None and item["caption"] is not None:
+                        # 过滤掉过短的标题
+                        if len(item["caption"].split()) >= 5:
+                            image_text_pairs.append((item["image"], item["caption"]))
+                except Exception as e:
+                    print(f"Error processing item: {e}")
+                    continue
+                    
+            return image_text_pairs
+        except Exception as e:
+            print(f"Error loading Conceptual Captions: {e}")
+            return self.create_dummy_dataset()
+
+    def create_dummy_dataset(self):
+        """创建虚拟数据集用于测试"""
+        print("Creating dummy dataset for testing...")
+        
+        # 创建简单的彩色图像
+        dummy_pairs = []
+        colors = ['red', 'blue', 'green', 'yellow', 'purple']
+        
+        for i in range(min(self.sample_size, 20)):
+            # 创建一个简单的彩色图像
+            color_idx = i % len(colors)
+            color_name = colors[color_idx]
+            
+            # 创建 RGB 值
+            if color_name == 'red':
+                rgb = (255, 0, 0)
+            elif color_name == 'blue':
+                rgb = (0, 0, 255)
+            elif color_name == 'green':
+                rgb = (0, 255, 0)
+            elif color_name == 'yellow':
+                rgb = (255, 255, 0)
+            else:  # purple
+                rgb = (128, 0, 128)
+            
+            # 创建图像
+            image = Image.new('RGB', (224, 224), rgb)
+            caption = f"A {color_name} colored square image"
+            
+            dummy_pairs.append((image, caption))
+        
+        return dummy_pairs
+
+    def load_mscoco_dataset(self):
+        """加载和预处理 MSCOCO 数据集，并进行改进的过滤"""
+        try:
+            print("Attempting to load MSCOCO dataset...")
+            dataset = load_dataset(
+                "shunk031/MSCOCO",
+                year=2014,
+                coco_task="captions",
+                split='train',
+                streaming=True
+            )
+            dataset = dataset.take(self.sample_size)
+
+            image_text_pairs = []
+            for item in dataset:
+                try:
+                    # 根据长度选择最具描述性的标题
+                    best_caption = max(item["captions"], key=len)
+                    if len(best_caption.split()) >= 5:  # 过滤掉过短的标题
+                        image_text_pairs.append((item["image"], best_caption))
+                except Exception as e:
+                    print(f"Error processing MSCOCO item: {e}")
+                    continue
+                    
+            if len(image_text_pairs) == 0:
+                raise Exception("No valid image-text pairs found in MSCOCO")
+                
+            return image_text_pairs
+            
+        except Exception as e:
+            print(f"Error loading MSCOCO dataset: {e}")
+            print("Falling back to alternative dataset...")
+            return self.load_alternative_dataset()
+
+def main():
+    # 初始化数据集创建器
+    creator = AlignmentDatasetCreator(sample_size=100)
+    
+    # 加载和创建数据集
+    print("Loading dataset...")
+    image_text_pairs = creator.load_mscoco_dataset()
+    
+    if len(image_text_pairs) == 0:
+        print("No image-text pairs loaded. Exiting...")
+        return
+    
+    print(f"Successfully loaded {len(image_text_pairs)} image-text pairs")
+    
+    print("Creating unrelated pairs...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+    
+    print("Creating textual pairs...")
+    textual_pairs = creator.create_textual_pairs()
+    
+    print("Creating visual pairs...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+    
+    # 从每个数据集中打印样本
+    print("\nDataset Samples:")
+    if len(image_text_pairs) > 0:
+        print(f"Image-Text Pair: Image type: {type(image_text_pairs[0][0])}, Caption: {image_text_pairs[0][1]}")
+    if len(unrelated_pairs) > 0:
+        print(f"Unrelated Pair: Image type: {type(unrelated_pairs[0][0])}, Caption: {unrelated_pairs[0][1]}")
+    if len(textual_pairs) > 0:
+        print(f"Textual Pair: {textual_pairs[0]}")
+    if len(visual_pairs) > 0:
+        print(f"Visual Pair: Original type: {type(visual_pairs[0][0])}, Augmented type: {type(visual_pairs[0][1])}")
+
+if __name__ == "__main__":
+    main()

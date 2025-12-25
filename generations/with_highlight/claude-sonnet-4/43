@@ -1,0 +1,33 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Perform ANOVA analysis
+from scipy import stats
+
+# Get unique groups
+groups = [df[df['Brand'] == brand]['Cost'] for brand in df['Brand'].unique()]
+
+# Perform one-way ANOVA
+f_stat, p_value = stats.f_oneway(*groups)
+
+# Create ANOVA table manually
+anova_table = pd.DataFrame({
+    'sum_sq': [sum([(group.mean() - df['Cost'].mean())**2 * len(group) for group in groups]),
+               sum([sum((group - group.mean())**2) for group in groups])],
+    'df': [len(groups) - 1, len(df) - len(groups)],
+    'F': [f_stat, None],
+    'PR(>F)': [p_value, None]
+}, index=['Brand', 'Residual'])
+anova_table['mean_sq'] = anova_table['sum_sq'] / anova_table['df']
+
+# Print the ANOVA table
+print(anova_table)

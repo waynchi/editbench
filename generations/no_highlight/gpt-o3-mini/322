@@ -1,0 +1,250 @@
+import xml.etree.ElementTree
+import matplotlib.pyplot as plt  # для построения графиков
+import pandas as pd  # для создания датафрейма и разделения всех свечей на два типа: close и open
+import datetime  # для дат по оси x
+import pickle  # для хранения переменных в файле
+import json  # для работы с базой данных
+import requests  # для синхронных http-запросов
+from typing import List
+from matplotlib.axes import Axes  # для удобства отображения
+
+# Set the default technical analysis dictionary. We will use it to analyze callback requests in the chart building router.
+standart_tech_dict = {
+    "value": {"use": False, "has_periods": False, "need_graph_space": True},
+    "sma": {"use": False, "has_periods": True, "periods": [], "need_graph_space": False},
+    "ema": {"use": False, "has_periods": True, "periods": [], "need_graph_space": False}
+}
+
+# класс тикер, методы график и текущая цена
+class ticker():
+    """Тикер акции и всё с ним связанное, через MoexApi"""
+    
+    def __init__(self, name: str):
+        """self.name - имя тикера, self.tech_dict - словарь теханализа"""
+        self.name = name
+        # Задаем настройки по умолчанию
+        self.tech_dict = standart_tech_dict
+
+    def correct_name(self):
+        """Проверка имени тикера на наличие в множестве тикеров. Множество обновляется не чаще раза в день"""
+        # Открываем файл Info.json и считываем данные
+        with open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_file:
+            info = json.load(info_file)
+        # Проверяем, что последний раз список тикеров обновлялся более чем 1 день назад
+        last_check = datetime.datetime.strptime(info["last_day_check"]["ticker"], "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.datetime.now() - datetime.timedelta(days=1) > last_check:
+            set_tickers = set()
+            url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.xml?iss.meta=off"
+            response = requests.get(url)
+            root = xml.etree.ElementTree.fromstring(response.text)
+            for data in root.findall("data"):
+                if data.get("id") == "securities":
+                    rows = data.find("rows")
+                    for row in rows.findall("row"):
+                        set_tickers.add(row.get("SECID"))
+            # Сохраняем множество тикеров в файл
+            with open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "wb") as set_tickers_file:
+                pickle.dump(set_tickers, set_tickers_file)
+            # Обновляем время последнего обновления
+            info["last_day_check"]["ticker"] = str(datetime.datetime.now())
+            with open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_file:
+                json.dump(info, info_file, indent=3, ensure_ascii=False)
+        # Проверяем наличие тикера в сохраненном множестве
+        with open(r"D:\MoexAPI_bot_aiogram3\data_files\set_tickers.bin", "rb") as set_tickers_file:
+            set_tickers = pickle.load(set_tickers_file)
+        return self.name in set_tickers
+
+    def CurrentPrice(self):
+        """Текущая цена для этого тикера"""
+        url = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" + self.name + ".xml?iss.meta=off"
+        response = requests.get(url)
+        root = xml.etree.ElementTree.fromstring(response.text)
+        for data in root.findall("data"):
+            if data.get("id") == "marketdata":
+                rows = data.find("rows")
+                row = rows.find("row")
+                return row.get("LAST")
+        return None
+
+    def candles(self, candles_name: str, timeframe: str, start: str, end: str):
+        """
+        Лист свечей для этого тикера
+
+        candles_name - необходимая составляющая свечей:
+            open, close, high, low, value, volume, begin, end
+
+        timeframe - таймфрейм: 1 - 1 мин, 10 - 10 мин, 60 - 1ч, 24 - 1д, 7 - 1н, 31 - 1мес, 4 - 4мес
+
+        start, end - начало и конец периода, формат ГГГГ-ММ-ДД ЧЧ:ММ:СС
+        """
+        url = ("https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/" +
+               self.name + f"/candles.xml?iss.meta=off&interval={timeframe}&till={end}&from={start}")
+        response = requests.get(url)
+        root = xml.etree.ElementTree.fromstring(response.text)
+        candles_elem = root.find("data")
+        rows = candles_elem.find("rows")
+        listcandles = []
+        if candles_name in ["begin", "end"]:
+            for row in rows.findall("row"):
+                datetime_str = row.get(candles_name)
+                # Преобразуем строку в datetime
+                dt = datetime.datetime(int(datetime_str[0:4]), int(datetime_str[5:7]), 
+                                        int(datetime_str[8:10]), int(datetime_str[11:13]), 
+                                        int(datetime_str[14:16]), int(datetime_str[17:]))
+                listcandles.append(dt)
+        else:
+            for row in rows.findall("row"):
+                listcandles.append(float(row.get(candles_name)))
+        return listcandles
+
+    def setattr_candles_dataframe(self, timeframe="24", start="", end=""):
+        """
+        Создает датафрейм свечей с соответствующим timeframe, start и end 
+        и помещает его в self.candles_dataframe.
+        """
+        candles_dataframe = pd.DataFrame({
+            "open": self.candles("open", timeframe, start, end),
+            "close": self.candles("close", timeframe, start, end),
+            "high": self.candles("high", timeframe, start, end),
+            "low": self.candles("low", timeframe, start, end),
+            "value": self.candles("value", timeframe, start, end),
+            "begin": self.candles("begin", timeframe, start, end)
+        })
+        setattr(self, "candles_dataframe", candles_dataframe)
+
+    def graphic(self, timeframe="24", start="", end="", user_id=1124123332):
+        """
+        Возвращает построенный график свечей цены от времени.
+
+        timeframe - таймфрейм: 1 - 1 мин, 10 - 10 мин, 60 - 1ч, 24 - 1д, 7 - 1н, 31 - 1мес, 4 - 4мес
+        start, end - начало и конец периода, формат ГГГГ-ММ-ДД ЧЧ:ММ:СС
+        user_id - id пользователя, для которого будет сохранен файл с графиком
+        """
+        self.setattr_candles_dataframe(timeframe, start, end)
+        # Разделяем свечи на растущие (up) и падающие (down)
+        up = self.candles_dataframe[self.candles_dataframe.close >= self.candles_dataframe.open]
+        down = self.candles_dataframe[self.candles_dataframe.close < self.candles_dataframe.open]
+        setattr(self, "up", up)
+        setattr(self, "down", down)
+
+        # Определяем ширину свечей в зависимости от таймфрейма
+        if timeframe == "1":
+            width_big = 1/24/60
+        elif timeframe == "10":
+            width_big = 1/24/6
+        elif timeframe == "60":
+            width_big = 1/24
+        elif timeframe == "24":
+            width_big = 1
+        elif timeframe == "7":
+            width_big = 7
+        elif timeframe == "31":
+            width_big = 30
+        elif timeframe == "4":
+            width_big = 90
+        else:
+            width_big = 0
+        width_small = width_big / 10
+        setattr(self, "width_big", width_big)
+        setattr(self, "width_small", width_small)
+
+        # Определяем, сколько дополнительных графиков требуется для инструментов теханализа
+        number_of_additional_graphics = 0
+        for tech in self.tech_dict:
+            if self.tech_dict[tech]["use"] and self.tech_dict[tech]["need_graph_space"]:
+                number_of_additional_graphics += 1
+
+        if number_of_additional_graphics != 0:
+            height_ratios_list = [10 - number_of_additional_graphics] + [1] * number_of_additional_graphics
+            fig, axs = plt.subplots(nrows=1 + number_of_additional_graphics, ncols=1, sharex=True, height_ratios=height_ratios_list)
+            axs: List[Axes]
+            plt.suptitle(self.name, fontsize=15)
+            axs[0].grid(True)
+            # Строим график для up свечей
+            axs[0].bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            axs[0].bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            axs[0].bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            # Строим график для down свечей
+            axs[0].bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            axs[0].bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            axs[0].bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+
+            # Добавляем на график инструменты теханализа
+            add_graph_index = 0
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"]:
+                    tech_func = getattr(self, tech)
+                    if not self.tech_dict[tech]["need_graph_space"]:
+                        tech_func(axs[0])
+                    else:
+                        # Используем отдельный график для данного инструмента
+                        add_graph_index += 1
+                        axs[add_graph_index].grid(True)
+                        tech_func(axs[add_graph_index])
+        else:
+            fig = plt.figure()
+            plt.title(self.name, fontsize=15)
+            ax = fig.add_subplot()
+            ax.grid(True)
+            # Строим график для up свечей
+            ax.bar(x=up.begin, height=up.close - up.open, width=width_big, bottom=up.open, color="green")
+            ax.bar(x=up.begin, height=up.high - up.close, width=width_small, bottom=up.close, color="green")
+            ax.bar(x=up.begin, height=up.open - up.low, width=width_small, bottom=up.low, color="green")
+            # Строим график для down свечей
+            ax.bar(x=down.begin, height=down.open - down.close, width=width_big, bottom=down.close, color="red")
+            ax.bar(x=down.begin, height=down.high - down.open, width=width_small, bottom=down.open, color="red")
+            ax.bar(x=down.begin, height=down.close - down.low, width=width_small, bottom=down.low, color="red")
+            # Добавляем инструменты теханализа, не требующие дополнительного графика
+            for tech in self.tech_dict:
+                if self.tech_dict[tech]["use"] and not self.tech_dict[tech]["need_graph_space"]:
+                    tech_func = getattr(self, tech)
+                    tech_func(ax)
+        # Сохраняем график в файл
+        fig.savefig(r"D:\MoexAPI_bot_aiogram3\data_files\graph_for_" + str(user_id) + ".png")
+        plt.close(fig)
+        return True
+
+    # Функции теханализа. Названия функций должны соответствовать ключам словаря tech_dict.
+    def sma(self, ax):
+        for period in self.tech_dict["sma"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                sma_list = []
+                sma_list.append(sum(self.candles_dataframe.close[0: period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    sma_list.append(sma_list[i - period] + (self.candles_dataframe.close[i] - self.candles_dataframe.close[i - period]) / period)
+                ax.plot(self.candles_dataframe.begin[period - 1:], sma_list)
+
+    def ema(self, ax):
+        for period in self.tech_dict["ema"]["periods"]:
+            if period <= len(self.candles_dataframe.begin):
+                ema_list = []
+                ema_list.append(sum(self.candles_dataframe.close[0: period]) / period)
+                for i in range(period, len(self.candles_dataframe.begin)):
+                    ema_list.append(((period - 1) * ema_list[i - period] + 2 * self.candles_dataframe.close[i]) / (period + 1))
+                ax.plot(self.candles_dataframe.begin[period - 1:], ema_list)
+
+    def value(self, ax):
+        ax.bar(x=self.up.begin, height=self.up.value, width=self.width_big, color="green")
+        ax.bar(x=self.down.begin, height=self.down.value, width=self.width_big, color="red")
+        ax.set_title("Value", fontsize=7)
+
+"""
+Тесты
+"""
+
+# Пример использования:
+# beb = ticker("SBER")
+# beb.setattr_candles_dataframe("24", "2024-01-01", "2024-01-07")
+# print(beb.candles_dataframe)
+
+# beb.tech_dict["value"]["use"] = True
+# beb.graphic("24", "2024-01-01", "2024-10-01")
+# plt.show()
+
+# beb = ticker("SBER")
+# beb.tech_dict["sma"]["use"] = True
+# beb.tech_dict["sma"]["periods"] = [20, 10]
+# beb.tech_dict["ema"]["use"] = True
+# beb.tech_dict["ema"]["periods"] = [150, 250]
+# beb.tech_dict["value"]["use"] = True
+# beb.graphic("24", "2024-01-01", "2024-05-01")

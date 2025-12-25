@@ -1,0 +1,85 @@
+function createTurnState(allyStates, foeStates) {
+  let currentTurn = "player";
+  let turnNumber = 1;
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function hasUnitsThatCanAct(units) {
+    return units.some(unit => !unit.hasActed && unit.alive);
+  }
+
+  function findCurrentTurn() {
+    // If player units can act, it's player's turn
+    if (hasUnitsThatCanAct(allyStates)) {
+      return "player";
+    }
+    // If foe units can act, it's CPU's turn
+    if (hasUnitsThatCanAct(foeStates)) {
+      return "cpu";
+    }
+    // Default to player turn if no units can act
+    return "player";
+  }
+
+  function nextTurn() {
+    // Determine whose turn it currently is based on who has units that can act
+    currentTurn = findCurrentTurn();
+    
+    if (currentTurn === "player") {
+      // Reset player units' action status
+      allyStates.forEach(unit => {
+        if (unit.alive) {
+          unit.hasActed = false;
+        }
+      });
+      // Set CPU units as having acted
+      foeStates.forEach(unit => unit.hasActed = true);
+      
+      // Reset action availability for all units at the start of a new turn
+      // Player turn logic
+    } else {
+      // Reset CPU units' action status
+      foeStates.forEach(unit => {
+        if (unit.alive) {
+          unit.hasActed = false;
+        }
+      });
+      // Set player units as having acted
+      allyStates.forEach(unit => unit.hasActed = true);
+      
+      // Reset action availability for all units at the start of a new turn
+      // CPU turn logic
+      
+      // Increment turn number when CPU finishes their turn
+      turnNumber++;
+    }
+  }
+
+  function cpuTurn() {
+    // Example CPU behavior 
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed && cpuUnit.alive) {
+        // Perform CPU actions (e.g., movement, attack)
+        // ... your CPU AI logic here ...
+        cpuUnit.hasActed = true;
+      }
+    }
+    
+    // After all CPU units have acted, end the CPU turn
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

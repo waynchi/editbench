@@ -1,0 +1,690 @@
+import torch
+from transformers import TrainerCallback, Trainer
+import numpy as np
+import re
+from datasets import Dataset
+import os
+
+import json
+import time  # 导入时间模块以测量性能
+
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    get_linear_schedule_with_warmup,
+)
+from peft import (
+    get_peft_model,
+    LoraConfig,
+    PeftModel,
+    TaskType,
+)
+from trl.trainer import ConstantLengthDataset
+from trl import SFTConfig, SFTTrainer, DataCollatorForCompletionOnlyLM
+from torch.utils.data import DataLoader
+
+from my_eval import factual_score
+from my_datasets import gen_mod_dataset, format_and_load_mod_data, load_sample_data
+from utils import clear_directory, merge_lora_model
+
+from dotenv import load_dotenv
+
+
+import time
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# 模拟
+def factual_score_dataloader(*args):
+    pass
+
+batch_size = 16
+
+def default_data_collator(*args):
+    pass
+
+x = {}
+
+def initialize_model_and_tokenizer(
+    model_name_or_path,
+    tokenizer_name_or_path=None,
+    config=None,
+):
+    model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
+    if config:
+        model = get_peft_model(model, config)
+        # 模型.打印可训练参数()
+    if tokenizer_name_or_path is None:
+        tokenizer_name_or_path = model_name_or_path
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
+    return model, tokenizer
+
+
+def data_collator(batch):
+
+    inputs = {
+        # .to(device)，
+        "input_ids": torch.stack([item["input_ids"] for item in batch]),
+        # .to(device)，
+        "labels": torch.stack([item["labels"] for item in batch]),
+    }
+    return inputs
+
+
+def formatting_prompts_func(example):
+    output_texts = []
+    for i in range(len(example["instruction"])):
+        text = f"### Question: {x['question']} ### Answer: {x['answer']}"
+        output_texts.append(text)
+    return output_texts
+
+
+def train_model(
+    dataset, model, tokenizer, training_args, callbacks=None, verbose=False
+):
+    # 拆分数据集
+    train_test_split = dataset.train_test_split(test_size=0.2)
+
+    # 创建 ConstantLengthDataset 实例
+    train_dataset = ConstantLengthDataset(
+        tokenizer,
+        train_test_split["train"],
+        formatting_func=lambda x: f"### Question: {x['question']} ### Answer: {x['answer']}",
+        seq_length=18,
+        num_of_sequences=20,
+    )
+
+    eval_dataset = ConstantLengthDataset(
+        tokenizer,
+        train_test_split["test"],
+        formatting_func=lambda x: f"### Question: {x['question']} ### Answer: {x['answer']}",
+        seq_length=18,
+        num_of_sequences=20,
+    )
+
+    # 优化器 = AdamW(model.parameters(), lr=training_args.learning_rate)
+
+    # num_epochs = training_args.num_train_epochs
+    # num_warmup_steps = int(0.1 * len(train_dataset))  # 训练步骤的10%
+    # total_training_steps = len(train_dataset) * num_epochs
+    # # 设置调度器
+    # 调度器 = get_linear_schedule_with_warmup(
+    # 优化器，
+    # num_warmup_steps=num_warmup_steps,
+    # num_training_steps=total_training_steps,
+    # )
+
+    collator = DataCollatorForCompletionOnlyLM(
+        " ### Answer: ",
+        tokenizer=tokenizer,
+    )  # 必须匹配 formatting_func
+
+    trainer = SFTTrainer(
+        model=model,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        # 优化器=None,#(优化器, 调度器),
+        data_collator=data_collator,  # 使用您定义的collator
+        # formatting_func=格式化提示函数,
+        packing=False,
+        callbacks=callbacks,
+        args=SFTConfig(**training_args.to_dict()),
+    )
+
+    if verbose:
+        print("Training init done. Starting training...")
+        start_time = time.time()
+
+    trainer.train()
+
+    if verbose:
+        print(f"Training completed in {time.time() - start_time:.2f} seconds.")
+        print("Starting evaluation...")
+        start_time = time.time()
+
+    trainer.evaluate()
+
+    if verbose:
+        print(f"Evaluation completed in {time.time() - start_time:.2f} seconds.")
+
+    return trainer
+
+
+def setup_training_args(
+    save_path,
+    model_name,
+    learning_rate,
+    num_epochs,
+    total_train_examples,
+    batch_size=1024,
+    footer="",
+):
+    if len(footer) == 0:
+        checkpoint_dir = os.path.join(save_path, model_name + "_checkpoints")
+        logging_dir = os.path.join(save_path, model_name + "_logs")
+    else:
+        checkpoint_dir = os.path.join(save_path, model_name + f"_checkpoints_{footer}")
+        logging_dir = os.path.join(save_path, model_name + f"_logs_{footer}")
+
+    clear_directory(checkpoint_dir)
+
+    # 根据训练样本总数和批量大小计算每个epoch的步数
+    steps_per_epoch = total_train_examples // batch_size
+
+    # 根据每个epoch的步数计算eval_steps、save_steps和logging_steps
+    eval_steps = max(
+        1, steps_per_epoch // 10
+    )  # 每个epoch评估10次，至少评估一次
+    save_steps = steps_per_epoch  # 在每个周期结束时保存
+    logging_steps = max(
+        1, steps_per_epoch // 20
+    )  # 每个epoch记录20次，至少记录一次
+
+    # 协调步骤管理：确保save_steps是eval_steps的倍数
+    if eval_steps > 0 and save_steps % eval_steps != 0:
+        # 向下取整到最接近的eval_steps倍数
+        save_steps = (save_steps // eval_steps) * eval_steps
+        # 如果计算出的save_steps为0，则设置为eval_steps
+        if save_steps == 0:
+            save_steps = eval_steps
+
+    return TrainingArguments(
+        output_dir=checkpoint_dir,
+        learning_rate=learning_rate,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        num_train_epochs=num_epochs,
+        eval_steps=eval_steps,
+        save_steps=save_steps,
+        logging_steps=logging_steps,
+        save_total_limit=2,  # 仅保留最好的两个检查点
+        weight_decay=0.01,
+        evaluation_strategy="steps",  # 更改为步骤以利用 eval_steps
+        logging_strategy="steps",
+        save_strategy="steps",  # 更改为步骤以利用 save_steps
+        logging_dir=logging_dir,  # 如果您定义了一个日志目录，请取消注释此行
+        report_to="none",  # 报告到tensorboard进行可视化监控
+        load_best_model_at_end=True,
+        dataloader_pin_memory=False,
+    )
+
+
+
+class FactualAccuracyCallbackBETTER(TrainerCallback):
+    """在训练期间评估和记录模型事实准确性的回调。"""
+
+    def __init__(
+        self, model, tokenizer, dataset, verbose=False, output_format=False
+    ):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.n_samp = len(dataset)
+        self.verbose = verbose
+        self.output_format = output_format
+        self.dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            collate_fn=default_data_collator  # 用于填充和格式化的整理函数
+        )
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """在记录最后的日志后调用。"""
+        if model is not None:
+            self.model = model
+        elif self.model is None:
+            print("Model is not available.")
+            return
+
+        if (
+            state.is_local_process_zero
+        ):  # 仅从主进程每100步记录一次日志
+            start_time = time.time()
+            try:
+                if self.output_format:
+                    fact_results, format_hard_results, format_soft_results = (
+                        factual_score_dataloader(
+                            model=self.model,
+                            tokenizer=self.tokenizer,
+                            dataloader=self.dataloader,
+                            output_format=self.output_format,
+                        )
+                    )
+                    # 计算并记录格式化结果
+                    format_hard_avg = sum(format_hard_results) / self.n_samp
+                    format_soft_avg = sum(format_soft_results) / self.n_samp
+                else:
+                    fact_results = factual_score_dataloader(
+                        model=self.model,
+                        tokenizer=self.tokenizer,
+                        dataloader=self.dataloader,
+                        n_samples=self.n_samp,
+                    )
+                factual_accuracy_avg = sum(fact_results) / self.n_samp
+
+                if len(state.log_history) > 0:
+                    state.log_history[-1]["factual_accuracy"] = factual_accuracy_avg
+                    if self.output_format:
+                        state.log_history[-1]["format_hard"] = format_hard_avg
+                        state.log_history[-1]["format_soft"] = format_soft_avg
+                else:
+                    print("No log entries available to update.")
+
+                time_taken = time.time() - start_time
+                if self.verbose:
+                    print(
+                        f"[TIME] {time_taken:.2f} seconds: Model evaluated on FactualAccuracy."
+                    )
+            except Exception as e:
+                print(f"Error during factual accuracy evaluation: {e}")
+
+
+
+class FactualAccuracyCallback(TrainerCallback):
+    """在训练期间评估和记录模型事实准确性的回调。"""
+
+    def __init__(
+        self, model, tokenizer, df, n_samp=30, verbose=False, output_format=False
+    ):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.df = df
+        self.n_samp = n_samp
+        self.verbose = verbose
+        self.output_format = output_format
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """在记录最后的日志后调用。"""
+        if model is not None:
+            self.model = model
+        elif self.model is None:
+            print("Model is not available.")
+            return
+
+        if (
+            state.is_local_process_zero
+        ):  # 仅在每100步从主进程记录日志
+            start_time = time.time()
+            try:
+                with torch.no_grad():
+                    if self.output_format:
+                        fact_results, format_hard_results, format_soft_results = (
+                            factual_score(
+                                self.model,
+                                self.tokenizer,
+                                self.df,
+                                n_samples=self.n_samp,
+                                output_format=self.output_format,
+                            )
+                        )
+                        # 计算并记录格式化结果
+                        format_hard_avg = sum(format_hard_results) / self.n_samp
+                        format_soft_avg = sum(format_soft_results) / self.n_samp
+                    else:
+                        fact_results = factual_score(
+                            self.model,
+                            self.tokenizer,
+                            self.df,
+                            n_samples=self.n_samp,
+                            output_format=self.output_format,
+                        )
+                    factual_accuracy_avg = sum(fact_results) / self.n_samp
+
+                if len(state.log_history) > 0:
+                    state.log_history[-1]["factual_accuracy"] = factual_accuracy_avg
+                    if self.output_format:
+                        state.log_history[-1]["format_hard"] = format_hard_avg
+                        state.log_history[-1]["format_soft"] = format_soft_avg
+                else:
+                    print("No log entries available to update.")
+
+                time_taken = time.time() - start_time
+                if self.verbose:
+                    print(
+                        f"[TIME] {time_taken:.2f} seconds: Model evaluated on FactualAccuracy."
+                    )
+            except Exception as e:
+                print(f"Error during factual accuracy evaluation: {e}")
+
+
+def fine_tuned_specific_layers(
+    n_rows=1000,
+    mod=4,
+    model_name_or_path="EleutherAI/pythia-31M",
+    tokenizer_name_or_path=None,
+    learning_rate=5.0e-3,
+    num_epochs=15,
+    batch_size=32,
+    save_dir="",
+    verbose=True,  # 在这里添加详细参数
+    model_path=MODEL_PATH,
+    special_format=True,
+):
+    # 初始化一个变量以记录开始时间
+    start_time = time.time()
+
+    if verbose:
+        print("Starting the dataset generation process.")
+
+    gen_mod_dataset(
+        n_rows=n_rows,
+        mod=mod,
+        lower_bound_gen=0,
+        higher_bound_gen=100,
+        special_format=special_format,
+    )
+
+    if verbose:
+        print(
+            f"[TIME] {time.time() - start_time:>8.2f} seconds: Dataset generation completed."
+        )
+
+    start_time = time.time()
+    mod_dataset = format_and_load_mod_data(mod=mod)
+
+    if tokenizer_name_or_path is None:
+        tokenizer_name_or_path = model_name_or_path
+        if verbose:
+            print(
+                f"No tokenizer specified, using the model path for tokenizer: {tokenizer_name_or_path}"
+            )
+
+    start_time = time.time()
+    model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+    if verbose:
+        print(
+            f"[TIME] {time.time() - start_time:>8.2f} seconds: Loading model and tokenizer completed."
+        )
+
+    num_layers = model.config.num_hidden_layers
+
+    layers = list(
+        range(1, num_layers)
+    )  # TODO: 最后一层单独不能工作，但与其他层一起工作时可以。
+    layer_combinations = []
+
+    # 生成最多3层的连续组合
+    for i in range(len(layers)):
+        for j in range(1, 4):  # 1、2 或 3 层
+            if i + j <= len(layers):
+                layer_combinations.append(layers[i : i + j])
+    for layers in layer_combinations:
+        start_time = time.time()
+        footer = "layers_" + "_".join([str(x) for x in layers])
+
+        save_path = os.path.join(model_path, save_dir)
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+            if verbose:
+                print(f"Directory {save_path} created.")
+
+        if verbose:
+            print(f"Configuring fine-tuning for layer combination: {footer}")
+
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=32,
+            lora_alpha=32,
+            lora_dropout=0.1,
+            layers_to_transform=layers,
+        )
+
+        model, tokenizer = initialize_model_and_tokenizer(
+            model_name_or_path, tokenizer_name_or_path, config=peft_config
+        )
+
+        if verbose:
+            print(
+                f"[TIME] {time.time() - start_time:>8.2f} seconds: Model and tokenizer initialization completed."
+            )
+
+        start_time = time.time()
+        eval_df = load_sample_data(mod=mod, n_samples=100)
+        if verbose:
+            print(
+                f"[TIME] {time.time() - start_time:>8.2f} seconds: Evaluation sample data loaded."
+            )
+
+        model_name = model_name_or_path.split("/")[-1]
+        training_args = setup_training_args(
+            os.path.join(save_path, "checkpoints"),
+            model_name,
+            learning_rate=learning_rate,
+            num_epochs=num_epochs,
+            footer=footer,
+            batch_size=batch_size,
+            total_train_examples=n_rows,
+        )
+
+        start_time = time.time()
+        if verbose:
+            print("Starting model training.")
+        trainer = train_model(
+            mod_dataset,
+            model,
+            tokenizer,
+            training_args,
+            callbacks=[
+                FactualAccuracyCallback(
+                    model, tokenizer, eval_df, n_samp=100, output_format=True
+                )
+            ],
+            verbose=verbose,
+        )
+        if verbose:
+            print(
+                f"[TIME] {time.time() - start_time:>8.2f}: Model training completed in  seconds."
+            )
+
+        model_save_name = f"{model_name}_trained_{footer}"
+        save_path = os.path.join(save_path, model_save_name)
+        if verbose:
+            print(f"Saving model to {save_path}.")
+
+        start_time = time.time()
+        trainer.save_model(output_dir=save_path)
+        if verbose:
+            print(f"[TIME] {time.time() - start_time:>8.2f}: Model saved in  seconds.")
+
+        # 访问日志历史记录
+        log_history = trainer.state.log_history
+
+        # 保存训练日志
+        logs_save_path = os.path.join(save_path, "training_logs.json")
+        with open(logs_save_path, "w") as f:
+            json.dump(log_history, f, indent=4)
+
+        if verbose:
+            print(f"Training logs saved to {logs_save_path}.")
+
+    # 合并模型
+    to_merge = [
+        x
+        for x in os.listdir(os.path.join(model_path, save_dir))
+        if all([a not in x for a in ["_checkpoints", "merged"]])
+    ]
+    to_merge = [x for x in to_merge if "_trained_" in x]
+    for model_name in to_merge:
+        print("C", model_name)
+        merge_lora_model(
+            model_name=model_name,
+            model_load_path=os.path.join(model_path, save_dir),
+            model_save_path=os.path.join(model_path, save_dir),
+        )
+        print(model_name, "MERGED !")
+
+
+def fine_tuned_simple(
+    n_rows=1000,
+    mod=4,
+    model_name_or_path="EleutherAI/pythia-31M",
+    tokenizer_name_or_path=None,
+    learning_rate=5.0e-3,
+    num_epochs=15,
+    batch_size=32,
+    save_dir="",
+    verbose=True,
+    model_path=MODEL_PATH,
+    special_format=True,
+    layers=[2],
+):
+    # 初始化一个变量以记录开始时间
+
+    if verbose:
+        print("Starting the dataset generation process.")
+
+    gen_mod_dataset(
+        n_rows=n_rows,
+        mod=mod,
+        lower_bound_gen=0,
+        higher_bound_gen=100,
+        special_format=special_format,
+    )
+
+    mod_dataset = format_and_load_mod_data(mod=mod, dataset_type="train")
+
+    if tokenizer_name_or_path is None:
+        tokenizer_name_or_path = model_name_or_path
+        if verbose:
+            print(
+                f"No tokenizer specified, using the model path for tokenizer: {tokenizer_name_or_path}"
+            )
+
+    model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+
+    num_layers = model.config.num_hidden_layers
+
+    footer = "layers_" + "_".join([str(x) for x in layers])
+
+    save_path = os.path.join(model_path, save_dir)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        if verbose:
+            print(f"Directory {save_path} created.")
+
+    if verbose:
+        print(f"Configuring fine-tuning for layer combination: {footer}")
+
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=32,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        layers_to_transform=layers,
+    )
+
+    model, tokenizer = initialize_model_and_tokenizer(
+        model_name_or_path, tokenizer_name_or_path, config=peft_config
+    )
+
+    def tokenize_function(examples):
+        # 对输入提示进行分词
+        tokenized_input = tokenizer(
+            examples["question"],
+            padding="max_length",
+            truncation=True,
+            max_length=512,  # 根据模型的最大输入长度进行调整
+        )
+
+        # 将答案标记化以形成标签
+        tokenized_labels = tokenizer(
+            examples["answer"],
+            padding="max_length",
+            truncation=True,
+            max_length=128,  # 根据你的答案长度进行调整
+        )
+
+        # 分配标记化的标签
+        tokenized_input["labels"] = tokenized_labels["input_ids"]
+
+        return tokenized_input
+
+    tokenized_dataset = mod_dataset.map(tokenize_function, batched=True)
+    eval_dataset = format_and_load_mod_data(mod=mod, dataset_type="test", n_samples=100)
+    tokenized_eval_dataset = eval_dataset.map(tokenize_function, batched=True)
+
+    # 训练参数
+    model_name = model_name_or_path.split("/")[-1]
+    if len(footer) == 0:
+        checkpoint_dir = os.path.join(save_path, model_name + "_checkpoints")
+        logging_dir = os.path.join(save_path, model_name + "_logs")
+    else:
+        checkpoint_dir = os.path.join(save_path, model_name + f"_checkpoints_{footer}")
+        logging_dir = os.path.join(save_path, model_name + f"_logs_{footer}")
+    total_train_examples = n_rows
+    steps_per_epoch = total_train_examples // batch_size
+    eval_steps = max(1, steps_per_epoch // 10)
+    save_steps = steps_per_epoch
+    if save_steps % eval_steps != 0:
+        save_steps = (save_steps // eval_steps) * eval_steps  # 确保 save_steps 是 eval_steps 的倍数
+        if save_steps == 0:
+            save_steps = eval_steps # 如果计算结果为0，则回退到eval_steps
+
+    training_args = TrainingArguments(
+        output_dir=checkpoint_dir,
+        learning_rate=learning_rate,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        num_train_epochs=num_epochs,
+        eval_steps=eval_steps,
+        save_steps=save_steps,
+        logging_steps=max(1, steps_per_epoch // 20),
+        save_total_limit=2,
+        weight_decay=0.01,
+        evaluation_strategy="steps",
+        logging_strategy="steps",
+        save_strategy="steps",
+        logging_dir=logging_dir,
+        report_to="none",
+        load_best_model_at_end=True,
+    )
+
+    start_time = time.time()
+    if verbose:
+        print("Starting model training.")
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset,
+        eval_dataset=tokenized_eval_dataset,
+        callbacks=[
+            FactualAccuracyCallbackBETTER(
+                model, tokenizer, eval_dataset, output_format=True
+            )
+        ],
+    )
+    trainer.train()
+    if verbose:
+        print(
+            f"[TIME] {time.time() - start_time:>8.2f}: Model training completed in  seconds."
+        )
+
+    model_save_name = f"{model_name}_trained_{footer}"
+    save_path = os.path.join(save_path, model_save_name)
+    if verbose:
+        print(f"Saving model to {save_path}.")
+
+    trainer.save_model(output_dir=save_path)
+    # 访问日志历史记录
+    log_history = trainer.state.log_history
+
+    # 保存训练日志
+    logs_save_path = os.path.join(save_path, "training_logs.json")
+    with open(logs_save_path, "w") as f:
+        json.dump(log_history, f, indent=4)
+
+    if verbose:
+        print(f"Training logs saved to {logs_save_path}.")

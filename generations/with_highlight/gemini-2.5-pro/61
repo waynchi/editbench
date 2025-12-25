@@ -1,0 +1,124 @@
+import os
+import json
+import sys
+import re
+from   tkinter import *
+from   tkinter import filedialog
+from   tkinter import messagebox as mb
+import eel
+import tasks
+from datetime import datetime
+
+@eel.expose
+def loadJSONFile(initialdir):
+    root = Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    file_path = filedialog.askopenfilename(title="Выберите JSON файл для загрузки",filetypes=[("JSON files", "*.json"), ("All files", "*.*")],initialdir=initialdir)
+    if file_path:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+            return data
+        except Exception as e:
+            print(f"Ошибка при загрузке JSON файла: {e}")
+            return None
+    else:
+        print("Файл не выбран.")
+        return None
+
+@eel.expose
+def saveJSONFile(json_data):
+    root = Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    file_path = filedialog.asksaveasfilename(title="Сохранить JSON файл как",defaultextension=".json",filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
+    if file_path:
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(json_data, file, ensure_ascii=False, indent=4)
+            print(f"JSON файл успешно сохранен: {file_path}")
+        except Exception as e:
+            print(f"Ошибка при сохранении JSON файла: {e}")
+    else:
+        print("Файл не выбран.")
+
+@eel.expose
+def select_file(title,patterns,initialdir):
+    patterns=patterns or ['*.*']
+    filetypes = [ [p,p.split('/')[-1]] for p in patterns]
+    regex     = [ p.split('/')[0] for p in patterns if len(p.split('/'))==2 ]
+    root = Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    while  True:
+        file     = filedialog.askopenfilename(filetypes=filetypes,title=title,initialdir=initialdir)
+        if not file or not regex: break
+        folder=file.replace('\\','/').split('/')[-2]
+        for r in regex:
+            if re.match(r, folder):
+                return file
+        mb.showerror("Ошибка",f"Папка не соответствует паттерну {','.join(regex)}. \nПовторите выбор файла")
+    return file
+
+@eel.expose
+def save_task(taskData,taskName,settings):
+    try:
+        return tasks.save_task(taskData,taskName,settings),0
+    except Exception as e:
+        return  0,str(e)
+
+# Напиши get_task_list для получения списка имен *.xml файлов из папки settings['taskPath']. 
+# В первой строке каждого файла опционально записана строка : <!-- comment -->
+# Ответ представь в формате списка объектов {fileName, comment, file_date_str}
+@eel.expose
+def get_task_list(settings):
+    path = settings.get('taskPath')
+    if not path or not os.path.isdir(path):
+        print(f"Error: taskPath '{path}' is not a valid directory.")
+        return []
+
+    results = []
+    try:
+        # Get a list of files ending with .xml in the specified path
+        files = [f for f in os.listdir(path) if f.endswith('.xml') and os.path.isfile(os.path.join(path, f))]
+        
+        for filename in files:
+            full_path = os.path.join(path, filename)
+            comment = ""
+            
+            try:
+                # Read the first line to get the optional comment
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    first_line = f.readline().strip()
+                    if first_line.startswith('<!--') and first_line.endswith('-->'):
+                        comment = first_line[4:-3].strip()  # Extract comment text
+                
+                # Get the file modification time and format it
+                mtime = os.path.getmtime(full_path)
+                date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+                
+                # Append the result object to the list
+                results.append({
+                    'fileName': filename,
+                    'comment': comment,
+                    'file_date_str': date_str
+                })
+            except Exception as file_error:
+                print(f"Could not process file {filename}: {file_error}")
+
+    except Exception as e:
+        print(f"Error reading task directory '{path}': {e}")
+        return []
+        
+    return results
+
+
+if __name__ == "__main__":
+    options={'mode':'chrome'}
+    for i in range(2,len(sys.argv),2):
+        if sys.argv[i-1]=='mode':  options['mode']=sys.argv[i]
+
+    eel.init('web')
+    eel.start('index.html', **options) #, host='localhost', port=8000,size=(1280,800),cmdline_args=['--start-fullscreen'])
+    #eel.start('index.html', mode='chrome-app', host='localhost', port=8000,cmdline_args=['--start-fullscreen'])

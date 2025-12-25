@@ -1,0 +1,70 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+# 配置 token 和目标聊天 ID
+TOKEN = "TOKEN"
+CHAT_ID = 111111111
+TIME_INTERVAL = 5
+
+# 全局状态变量
+should_continue = True
+
+# 初始化 Bot 和 Dispatcher
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+# /start 命令处理器
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Да", callback_data="stop"),
+                InlineKeyboardButton(text="Нет", callback_data="continue")
+            ]
+        ]
+    )
+    await bot.send_message(chat_id=CHAT_ID, text="Ты робот?", reply_markup=markup)
+
+# 回调查询处理器：当 callback_data 为 "stop" 时
+@dp.callback_query(lambda callback: callback.data == "stop")
+async def stop_callback(call: types.CallbackQuery):
+    global should_continue
+    # 这里可以设置 should_continue = False 来停止周期性消息任务
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+    # 回复回调以移除加载状态
+    await call.answer()
+
+# 回调查询处理器：当 callback_data 为 "continue" 时
+@dp.callback_query(lambda callback: callback.data == "continue")
+async def continue_callback(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+    await call.answer()
+
+# 文本消息处理器：发送视频消息
+@dp.message()
+async def handle_all_messages(message: types.Message):
+    # 发送 GIF 视频
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as vid:
+        await bot.send_video(chat_id=CHAT_ID, video=vid, caption="Го <censor> ёр селф")
+
+# 周期性任务：定时发送消息和视频
+async def send_periodic_messages():
+    while should_continue:
+        await bot.send_message(chat_id=CHAT_ID, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as vid:
+            await bot.send_video(chat_id=CHAT_ID, video=vid, caption="Ты проиграл")
+        await asyncio.sleep(TIME_INTERVAL)
+
+# 主入口，不再使用 executor
+async def main():
+    print("Бот запущен!")
+    # 开始周期性任务
+    asyncio.create_task(send_periodic_messages())
+    # 启动长轮询
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""
+This script finds and lists all numbers up to a given maximum value that can be
+expressed as the sum of four nonzero squares. In other words, it finds all numbers n ≤ MAX_N
+such that
+
+    n = a^2 + b^2 + c^2 + d^2
+
+with a, b, c, d being nonzero (i.e. at least 1).
+"""
+
+import math
+
+def numbers_expressible_as_four_nonzero_squares(max_n):
+    """
+    Returns a sorted list of numbers up to max_n that can be written as the sum
+    of four nonzero squares.
+    
+    The function iterates over all quadruple combinations (a, b, c, d) with a, b, c, d >= 1.
+    Note: The maximum candidate used for each square is determined by the condition
+    that a^2 <= max_n. This candidate is int(sqrt(max_n)). We still check if the total sum
+    is within the bounds.
+    """
+    representable = set()
+    
+    # The maximum value for each term a such that a^2 <= max_n
+    a_max = int(math.sqrt(max_n))
+    
+    # Iterate over all four numbers a, b, c, d (each from 1 to a_max inclusive)
+    for a in range(1, a_max + 1):
+        a_sq = a * a
+        for b in range(1, a_max + 1):
+            b_sq = b * b
+            for c in range(1, a_max + 1):
+                c_sq = c * c
+                for d in range(1, a_max + 1):
+                    s = a_sq + b_sq + c_sq + d * d
+                    if s <= max_n:
+                        representable.add(s)
+    return sorted(representable)
+
+def main():
+    # User input for the maximum bound.
+    # Numbers below 4 cannot be represented as the sum of four nonzero squares 
+    # since 1^2+1^2+1^2+1^2 = 4 is the minimum.
+    try:
+        max_n = int(input("Enter the maximum value to check (>=4): "))
+    except ValueError:
+        print("Invalid input. Please enter an integer.")
+        return
+    
+    if max_n < 4:
+        print("There are no numbers less than 4 that can be represented as a sum of four nonzero squares!")
+        return
+    
+    numbers = numbers_expressible_as_four_nonzero_squares(max_n)
+    print(f"\nNumbers ≤ {max_n} that can be expressed as the sum of four nonzero squares:")
+    print(numbers)
+    
+    # Optionally, also show one representation for each number:
+    print("\nOne representation per number (if available):")
+    # Precompute representations (one example for each number)
+    representation = {}
+    a_max = int(math.sqrt(max_n))
+    for a in range(1, a_max + 1):
+        a_sq = a * a
+        for b in range(1, a_max + 1):
+            b_sq = b * b
+            for c in range(1, a_max + 1):
+                c_sq = c * c
+                for d in range(1, a_max + 1):
+                    s = a_sq + b_sq + c_sq + d * d
+                    if s <= max_n and s not in representation:
+                        representation[s] = (a, b, c, d)
+    for n in numbers:
+        if n in representation:
+            a, b, c, d = representation[n]
+            print(f"{n} = {a}² + {b}² + {c}² + {d}²")
+
+if __name__ == "__main__":
+    main()

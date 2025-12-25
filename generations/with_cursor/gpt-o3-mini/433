@@ -1,0 +1,60 @@
+import numpy as np
+
+# Set the input file path. You can change this as needed.
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file():
+    """
+    Reads the input file and returns a list of non-empty, stripped lines.
+    """
+    with open(INPUT_FILE_PATH, 'r') as f:
+        # Remove any potential empty lines and whitespace
+        lines = [line.strip() for line in f if line.strip()]
+    return lines
+
+def main():
+    lines = parse_input_file()
+    
+    # Convert each string line into a list of its characters to form a 2D grid.
+    # This avoids issues with np.array(list_of_strings) treating the whole string as one element.
+    grid = np.array([list(line) for line in lines])
+    
+    print("Grid:")
+    print(grid)
+    
+    # The string we are searching for in the grid.
+    str_to_match = "XMAS"
+    
+    # Counter for the total occurrences
+    count = 0
+
+    # Check horizontally in each row.
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Check vertically in each column.
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col])
+        count += col_str.count(str_to_match)
+
+    # Check diagonally from top-left to bottom-right.
+    rows, cols = grid.shape
+    for offset in range(-rows + 1, cols):
+        diag = grid.diagonal(offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Check diagonally from top-right to bottom-left.
+    # This is done by flipping the grid left-to-right.
+    flipped_grid = np.fliplr(grid)
+    for offset in range(-rows + 1, cols):
+        diag = flipped_grid.diagonal(offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+if __name__ == "__main__":
+    main()

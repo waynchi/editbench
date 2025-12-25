@@ -1,0 +1,62 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # Filter out empty lines
+    lines = [line for line in lines if line.strip()]
+    
+    if not lines:
+        print("No valid lines found in input file")
+        return
+    
+    # Convert lines to list of lists of characters
+    grid_list = [list(line) for line in lines]
+    grid = np.array(grid_list)
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+    
+    # Sprawdź poziomo (forward and backward)
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+        count += row_str[::-1].count(str_to_match)
+
+    # Sprawdź pionowo (forward and backward)
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:,col])
+        count += col_str.count(str_to_match)
+        count += col_str[::-1].count(str_to_match)
+
+    # Sprawdź po przekątnej (z lewego górnego do prawego dolnego)
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+        count += diag_str[::-1].count(str_to_match)
+
+    # Sprawdź po przekątnej (z góry-prawo do dołu-lewo)
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+        count += diag_str[::-1].count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            lines = f.read().strip().split("\n")
+        return lines
+    except FileNotFoundError:
+        print(f"File {INPUT_FILE_PATH} not found")
+        return []
+
+if __name__ == "__main__":
+    main()

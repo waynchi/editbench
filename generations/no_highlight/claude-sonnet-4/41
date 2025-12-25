@@ -1,0 +1,132 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("AnalisisYEscrituraParquetADL2").getOrCreate()
+
+# Configuración de la API (reemplazar con tu API real)
+api_url = "<your_api_url>"  # Reemplazar con la URL de tu API
+api_headers = {
+    "Content-Type": "application/json",
+    # Agregar headers adicionales si son necesarios (autenticación, etc.)
+    # "Authorization": "Bearer <your_token>"
+}
+
+try:
+    # Obtener datos de la API
+    print("Obteniendo datos de la API...")
+    response = requests.get(api_url, headers=api_headers)
+    response.raise_for_status()  # Lanza excepción si hay error HTTP
+    
+    # Convertir respuesta a JSON
+    api_data = response.json()
+    
+    # Analizar la estructura de los datos
+    print("=== ANÁLISIS DE DATOS DE LA API ===")
+    print(f"Tipo de datos recibidos: {type(api_data)}")
+    print(f"Cantidad de registros: {len(api_data) if isinstance(api_data, list) else 'No es una lista'}")
+    
+    # Mostrar una muestra de los datos
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print("\nPrimer registro de ejemplo:")
+        print(json.dumps(api_data[0], indent=2, ensure_ascii=False))
+        
+        print(f"\nCampos disponibles en el primer registro:")
+        if isinstance(api_data[0], dict):
+            for key, value in api_data[0].items():
+                print(f"  - {key}: {type(value).__name__} = {value}")
+    elif isinstance(api_data, dict):
+        print("\nEstructura del objeto recibido:")
+        print(json.dumps(api_data, indent=2, ensure_ascii=False))
+    
+    # Crear DataFrame a partir de los datos de la API
+    print("\n=== CREANDO DATAFRAME ===")
+    
+    # Si los datos son una lista de diccionarios
+    if isinstance(api_data, list):
+        df = spark.createDataFrame(api_data)
+    # Si los datos son un diccionario que contiene una lista
+    elif isinstance(api_data, dict):
+        # Buscar la clave que contiene los datos (puede variar según la API)
+        data_keys = ['data', 'results', 'items', 'records']
+        data_list = None
+        
+        for key in data_keys:
+            if key in api_data and isinstance(api_data[key], list):
+                data_list = api_data[key]
+                print(f"Datos encontrados en la clave: '{key}'")
+                break
+        
+        if data_list:
+            df = spark.createDataFrame(data_list)
+        else:
+            # Si no se encuentra una lista, usar el diccionario completo
+            df = spark.createDataFrame([api_data])
+    else:
+        raise ValueError("Formato de datos no soportado")
+    
+    # Analizar el esquema del DataFrame
+    print("\n=== ESQUEMA DEL DATAFRAME ===")
+    df.printSchema()
+    
+    print(f"\nNúmero total de filas: {df.count()}")
+    print(f"Número de columnas: {len(df.columns)}")
+    
+    # Mostrar una muestra de los datos en el DataFrame
+    print("\n=== MUESTRA DE DATOS ===")
+    df.show(5, truncate=False)
+    
+    # Análisis estadístico básico para columnas numéricas
+    print("\n=== ESTADÍSTICAS DESCRIPTIVAS ===")
+    numeric_columns = [field.name for field in df.schema.fields 
+                      if field.dataType.typeName() in ['integer', 'long', 'float', 'double']]
+    
+    if numeric_columns:
+        print("Columnas numéricas encontradas:", numeric_columns)
+        df.select(numeric_columns).describe().show()
+    else:
+        print("No se encontraron columnas numéricas")
+    
+    # Verificar valores nulos
+    print("\n=== ANÁLISIS DE VALORES NULOS ===")
+    for column in df.columns:
+        null_count = df.filter(col(column).isNull()).count()
+        total_count = df.count()
+        null_percentage = (null_count / total_count) * 100 if total_count > 0 else 0
+        print(f"{column}: {null_count} nulos ({null_percentage:.2f}%)")
+    
+    # Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+    print("\n=== CONFIGURANDO ESCRITURA A ADL2 ===")
+    container_name = "<your_container_name>"  # Reemplazar con el nombre de tu contenedor
+    folder_path = "<your_folder_path>"  # Reemplazar con la ruta a la carpeta dentro del contenedor
+    storage_account_name = "<your_storage_account_name>"  # Reemplazar con el nombre de tu cuenta de almacenamiento
+    adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+    
+    # Escribir el DataFrame en formato parquet en ADL2
+    print(f"Escribiendo datos a: {adl2_path}")
+    df.write.mode("overwrite").parquet(adl2_path)
+    
+    print("✅ Datos escritos exitosamente en ADL2")
+    
+    # Opcional: leer el archivo parquet para verificar
+    print("\n=== VERIFICACIÓN DE ESCRITURA ===")
+    df_leido = spark.read.parquet(adl2_path)
+    print("Datos leídos desde ADL2:")
+    df_leido.show(5)
+    
+    print(f"Verificación exitosa - Filas escritas: {df_leido.count()}")
+
+except requests.exceptions.RequestException as e:
+    print(f"❌ Error al obtener datos de la API: {e}")
+except json.JSONDecodeError as e:
+    print(f"❌ Error al decodificar JSON: {e}")
+except Exception as e:
+    print(f"❌ Error inesperado: {e}")
+    print("Tipo de error:", type(e).__name__)
+
+finally:
+    # Detener la sesión Spark
+    spark.stop()
+    print("\n🔚 Sesión Spark finalizada")

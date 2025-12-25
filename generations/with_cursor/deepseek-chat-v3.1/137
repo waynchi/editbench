@@ -1,0 +1,31 @@
+# 编写二分查找
+def binary_search(arr, target):
+    """
+    在已排序的数组arr中查找目标值target
+    如果找到则返回其索引，否则返回-1
+    """
+    left, right = 0, len(arr) - 1
+    
+    while left <= right:
+        mid = (left + right) // 2
+        
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    
+    return -1
+
+# 测试示例
+if __name__ == "__main__":
+    # 测试用例
+    test_arr = [1, 3, 5, 7, 9, 11, 13, 15]
+    target = 7
+    
+    result = binary_search(test_arr, target)
+    if result != -1:
+        print(f"元素 {target} 在数组中的索引为: {result}")
+    else:
+        print(f"元素 {target} 不在数组中")

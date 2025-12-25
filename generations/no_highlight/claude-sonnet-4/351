@@ -1,0 +1,106 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+EXAMPLE_FILE_PATH = './example_in.txt'
+
+def parse_input_file(file_path: str) -> List[str]:
+    """Parse input file and return list of lines."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+        return lines
+    except FileNotFoundError:
+        print(f"Error: File {file_path} not found.")
+        return []
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return []
+
+def parse_columns(lines: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+    """Parse lines into two columns of integers."""
+    try:
+        # Split lines and convert to numpy array
+        cols = [line.split() for line in lines]
+        cols_array = np.array(cols, dtype=int).T
+        
+        if cols_array.shape[0] != 2:
+            raise ValueError("Expected exactly 2 columns in input data")
+            
+        return cols_array[0], cols_array[1]
+    except ValueError as e:
+        print(f"Error parsing columns: {e}")
+        return np.array([]), np.array([])
+
+def calculate_total_distance_optimized(col1: np.ndarray, col2: np.ndarray) -> int:
+    """Calculate total distance using optimized numpy operations."""
+    if len(col1) == 0 or len(col2) == 0:
+        return 0
+    
+    # Sort both arrays and calculate distances in one operation
+    sorted_col1 = np.sort(col1)
+    sorted_col2 = np.sort(col2)
+    
+    # Calculate all distances at once
+    distances = np.abs(sorted_col1 - sorted_col2)
+    
+    return int(np.sum(distances))
+
+def calculate_total_distance_original(col1: np.ndarray, col2: np.ndarray) -> int:
+    """Calculate total distance using original method (for comparison)."""
+    if len(col1) == 0 or len(col2) == 0:
+        return 0
+    
+    list_1 = col1.tolist()
+    list_2 = col2.tolist()
+    
+    all_dists = []
+    while len(list_1) > 0:
+        argmin_1 = np.argmin(list_1)
+        min_1 = list_1.pop(argmin_1)
+        
+        argmin_2 = np.argmin(list_2)
+        min_2 = list_2.pop(argmin_2)
+        
+        dist = abs(min_1 - min_2)
+        all_dists.append(dist)
+    
+    return sum(all_dists)
+
+def main():
+    """Main function to process input and calculate distances."""
+    # Try to use input file first, fall back to example if not found
+    file_path = INPUT_FILE_PATH if Path(INPUT_FILE_PATH).exists() else EXAMPLE_FILE_PATH
+    
+    print(f"Using file: {file_path}")
+    
+    # Parse input
+    lines = parse_input_file(file_path)
+    if not lines:
+        print("No valid input data found.")
+        return
+    
+    print(f"Parsed {len(lines)} lines")
+    
+    # Parse columns
+    col1, col2 = parse_columns(lines)
+    if len(col1) == 0 or len(col2) == 0:
+        print("Failed to parse columns.")
+        return
+    
+    print(f"Column 1: {len(col1)} elements")
+    print(f"Column 2: {len(col2)} elements")
+    
+    # Calculate total distance using optimized method
+    total_distance = calculate_total_distance_optimized(col1, col2)
+    print(f"Total distance (optimized): {total_distance}")
+    
+    # Optionally verify with original method for small datasets
+    if len(col1) <= 1000:  # Only for small datasets to avoid performance issues
+        total_distance_original = calculate_total_distance_original(col1.copy(), col2.copy())
+        print(f"Total distance (original): {total_distance_original}")
+        print(f"Results match: {total_distance == total_distance_original}")
+
+if __name__ == "__main__":
+    main()

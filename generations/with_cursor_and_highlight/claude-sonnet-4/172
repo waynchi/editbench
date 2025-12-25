@@ -1,0 +1,81 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# 从API获取数据并分析
+api_url = "<your_api_endpoint>"  # 替换为你的API端点
+response = requests.get(api_url)
+
+if response.status_code == 200:
+    api_data = response.json()
+    
+    # 分析API数据结构
+    print("API数据结构分析:")
+    print(f"数据类型: {type(api_data)}")
+    
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print(f"数据条数: {len(api_data)}")
+        print("第一条记录的字段:")
+        for key, value in api_data[0].items():
+            print(f"  {key}: {type(value).__name__} = {value}")
+        data = api_data
+    elif isinstance(api_data, dict):
+        print("字段结构:")
+        for key, value in api_data.items():
+            print(f"  {key}: {type(value).__name__}")
+            if isinstance(value, list) and len(value) > 0:
+                print(f"    包含 {len(value)} 个元素")
+                if isinstance(value[0], dict):
+                    print("    第一个元素的字段:")
+                    for subkey, subvalue in value[0].items():
+                        print(f"      {subkey}: {type(subvalue).__name__} = {subvalue}")
+        
+        # 如果数据在某个字段中，需要提取
+        # 假设数据在 'data' 或 'results' 字段中，根据实际情况调整
+        if 'data' in api_data:
+            data = api_data['data']
+        elif 'results' in api_data:
+            data = api_data['results']
+        else:
+            # 如果结构不明确，使用整个响应
+            data = [api_data]
+else:
+    print(f"API请求失败，状态码: {response.status_code}")
+    # 使用示例数据作为备用
+    data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+
+# 从数据创建一个DataFrame
+df = spark.createDataFrame(data)
+
+# 显示DataFrame结构和内容进行进一步分析
+print("\nDataFrame结构:")
+df.printSchema()
+print("\nDataFrame内容预览:")
+df.show()
+
+# 配置与ADL2的连接使用Microsoft ID身份
+# 在Synapse的笔记本中不需要显式提供凭据
+# Spark将使用notebook的托管身份进行身份验证。
+
+# 指定ADL2中容器和文件夹的路径
+container_name = "<your_container_name>"  # 用你的容器名称替换
+folder_path = "<your_folder_path>"  # 替换为容器内文件夹的路径
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# 将DataFrame以parquet格式写入ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# 可选：读取parquet文件进行验证
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# 停止 Spark 会话
+spark.stop()

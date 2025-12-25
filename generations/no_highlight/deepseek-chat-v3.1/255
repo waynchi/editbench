@@ -1,0 +1,91 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+#INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Основная функция программы для обработки пар чисел из файла
+    и вычисления суммы абсолютных разностей между отсортированными элементами.
+    """
+    try:
+        # Чтение и парсинг входного файла
+        lines = parse_input_file()
+        
+        # Проверка на пустой файл
+        if not lines:
+            print("Файл пуст")
+            return
+            
+        print(f"Прочитано строк: {len(lines)}")
+        
+        # Разделение данных на столбцы с обработкой ошибок
+        try:
+            cols = [line.split() for line in lines if line.strip()]
+            cols_array = np.array(cols).astype(int)
+            
+            # Проверка корректности размерности
+            if cols_array.ndim != 2 or cols_array.shape[1] != 2:
+                print(f"Ошибка: ожидались 2 столбца, получено {cols_array.shape[1]}")
+                return
+                
+        except ValueError as e:
+            print(f"Ошибка преобразования данных: {e}")
+            return
+            
+        # Транспонирование для получения двух списков
+        list_1, list_2 = cols_array.T
+        
+        # Создание копий для работы
+        list_1_copy = list_1.copy()
+        list_2_copy = list_2.copy()
+        
+        # Расчет суммы абсолютных разностей между отсортированными элементами
+        total_distance = calculate_sorted_distance(list_1_copy, list_2_copy)
+        
+        print(f"Сумма минимальных расстояний: {total_distance}")
+        
+    except FileNotFoundError:
+        print(f"Файл {INPUT_FILE_PATH} не найден")
+    except Exception as e:
+        print(f"Неожиданная ошибка: {e}")
+
+def calculate_sorted_distance(list_1, list_2):
+    """
+    Вычисляет сумму абсолютных разностей между отсортированными элементами двух списков.
+    
+    Args:
+        list_1: первый список чисел
+        list_2: второй список чисел
+    
+    Returns:
+        Сумма абсолютных разностей
+    """
+    # Эффективный способ: сортировка обоих списков и прямое сравнение
+    sorted_1 = sorted(list_1)
+    sorted_2 = sorted(list_2)
+    
+    # Проверка одинаковой длины
+    if len(sorted_1) != len(sorted_2):
+        print("Предупреждение: списки разной длины, будут использованы минимальные элементы")
+        min_length = min(len(sorted_1), len(sorted_2))
+        sorted_1 = sorted_1[:min_length]
+        sorted_2 = sorted_2[:min_length]
+    
+    # Вычисление суммы разностей
+    distances = [abs(a - b) for a, b in zip(sorted_1, sorted_2)]
+    return sum(distances)
+
+def parse_input_file():
+    """
+    Чтение и парсинг входного файла.
+    
+    Returns:
+        Список строк файла без пустых строк
+    """
+    with open(INPUT_FILE_PATH, 'r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f.readlines() if line.strip()]
+    return lines
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,25 @@
+import pandas as pd
+import statsmodels.api as sm
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Prepare data for Python-style API
+# y is the dependent variable
+y = df['Cost']
+# X is the independent variable, converted to dummy variables
+X = pd.get_dummies(df['Brand'], drop_first=True)
+# Add a constant (intercept) to the model
+X = sm.add_constant(X)
+
+# Perform ANOVA analysis using OLS
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Print the ANOVA table
+print(anova_table)

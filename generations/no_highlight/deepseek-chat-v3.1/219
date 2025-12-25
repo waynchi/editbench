@@ -1,0 +1,125 @@
+import random
+import torch
+from torchvision import transforms
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+import os
+import tempfile
+
+class AlignmentDatasetCreator:
+    def __init__(self, sample_size=1000):
+        self.sample_size = sample_size
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                              std=[0.229, 0.224, 0.225])
+        ])
+        
+    def create_unrelated_pairs(self, image_text_pairs):
+        """通过打乱文本描述来创建不相关的图像-文本对"""
+        images, texts = zip(*image_text_pairs)
+        shuffled_texts = list(texts)
+        random.shuffle(shuffled_texts)
+        return list(zip(images, shuffled_texts))
+
+    def create_textual_pairs(self, dataset_name='quora'):
+        """使用释义数据集创建语义相似的文本对"""
+        dataset = load_dataset(dataset_name, split=f'train[:{self.sample_size}]')
+        textual_pairs = []
+        for item in dataset:
+            if item['is_duplicate'] == 1:
+                pair = (item['question1'], item['question2'])
+                textual_pairs.append(pair)
+        return textual_pairs[:self.sample_size]
+        
+    def create_visual_pairs(self, image_text_pairs):
+        """创建增强的图像对，同时保持语义意义"""
+        augmentation_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(15)
+        ])
+        
+        visual_pairs = []
+        for image, _ in image_text_pairs:
+            if isinstance(image, Image.Image):
+                augmented = augmentation_transforms(image)
+                visual_pairs.append((image, augmented))
+        return visual_pairs
+
+    def load_mscoco_dataset(self):
+        """加载和预处理 MSCOCO 数据集，使用本地可用的数据集"""
+        try:
+            # 尝试使用本地可用的 coco 数据集
+            dataset = load_dataset("HuggingFaceM4/COCO", split='train', streaming=True)
+        except:
+            # 如果失败，使用更小的测试数据集
+            dataset = load_dataset("HuggingFaceM4/COCO", split='validation', streaming=True)
+            
+        dataset = dataset.take(self.sample_size)
+
+        image_text_pairs = []
+        for item in dataset:
+            # 处理不同的数据集格式
+            if "captions" in item:
+                best_caption = max(item["captions"], key=lambda x: len(x) if isinstance(x, str) else 0)
+            elif "caption" in item:
+                best_caption = item["caption"]
+            elif "text" in item:
+                best_caption = item["text"]
+            else:
+                # 如果都没有，使用第一个可用的文本字段
+                text_fields = [v for k, v in item.items() if isinstance(v, str)]
+                best_caption = text_fields[0] if text_fields else ""
+            
+            if len(best_caption.split()) >= 3:  # 降低过滤阈值
+                image_text_pairs.append((item["image"], best_caption))
+                
+        return image_text_pairs
+
+def main():
+    # 初始化数据集创建器
+    creator = AlignmentDatasetCreator(sample_size=50)  # 减小样本大小以便更快测试
+    
+    # 加载和创建数据集
+    print("Loading MSCOCO dataset...")
+    try:
+        image_text_pairs = creator.load_mscoco_dataset()
+        print(f"Successfully loaded {len(image_text_pairs)} image-text pairs")
+    except Exception as e:
+        print(f"Error loading MSCOCO dataset: {e}")
+        print("Using stub data for demonstration...")
+        # 创建存根数据用于演示
+        image_text_pairs = [
+            (Image.new('RGB', (224, 224), color='red'), "A red image"), 
+            (Image.new('RGB', (224, 224), color='blue'), "A blue image")
+        ]
+    
+    print("Creating unrelated pairs...")
+    unrelated_pairs = creator.create_unrelated_pairs(image_text_pairs)
+    
+    print("Creating textual pairs...")
+    try:
+        textual_pairs = creator.create_textual_pairs()
+    except Exception as e:
+        print(f"Error creating textual pairs: {e}")
+        textual_pairs = [("Text 1", "Similar text 1"), ("Text 2", "Similar text 2")]
+    
+    print("Creating visual pairs...")
+    visual_pairs = creator.create_visual_pairs(image_text_pairs)
+    
+    # 从每个数据集中打印样本
+    print("\nDataset Samples:")
+    if image_text_pairs:
+        print(f"Image-Text Pair: {('Image', image_text_pairs[0][1])}")
+    if unrelated_pairs:
+        print(f"Unrelated Pair: {('Image', unrelated_pairs[0][1])}")
+    if textual_pairs:
+        print(f"Textual Pair: {textual_pairs[0]}")
+    if visual_pairs:
+        print(f"Visual Pair: {('Original Image', 'Augmented Image')}")
+
+if __name__ == "__main__":
+    main()

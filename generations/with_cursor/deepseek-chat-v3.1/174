@@ -1,0 +1,22 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+# 假设 brand_A, brand_B, brand_C 和 all_data 已经定义
+# data = {
+#     'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+#     'Cost': all_data
+# }
+
+# df = pd.DataFrame(data)
+
+# 执行ANOVA分析 - Python风格
+X = pd.get_dummies(df['Brand'], drop_first=True)  # 创建虚拟变量
+X = sm.add_constant(X)  # 添加截距项
+y = df['Cost']
+
+model = sm.OLS(y, X).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# 打印 ANOVA 表格
+print(anova_table)

@@ -1,0 +1,95 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-10, max_iter=None):
+    """
+    Implementation of the Conjugate Gradient method for solving Ax = b
+    
+    Parameters:
+    A : numpy.ndarray
+        Symmetric positive definite matrix
+    b : numpy.ndarray
+        Right-hand side vector
+    x0 : numpy.ndarray, optional
+        Initial guess (default: zeros)
+    tol : float
+        Tolerance for convergence
+    max_iter : int, optional
+        Maximum number of iterations
+    
+    Returns:
+    x : numpy.ndarray
+        Solution vector
+    info : dict
+        Information about the solution process
+    """
+    
+    # Initialize
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    if max_iter is None:
+        max_iter = n
+    
+    # Initial residual
+    r = b - A @ x
+    p = r.copy()
+    
+    # Store initial residual norm
+    r_norm_squared = np.dot(r, r)
+    
+    # Check if already converged
+    if r_norm_squared < tol**2:
+        return x, {'iterations': 0, 'residual_norm': np.sqrt(r_norm_squared)}
+    
+    # Main iteration loop
+    for i in range(max_iter):
+        # Compute Ap
+        Ap = A @ p
+        
+        # Compute step size alpha
+        alpha = r_norm_squared / np.dot(p, Ap)
+        
+        # Update solution
+        x += alpha * p
+        
+        # Update residual
+        r -= alpha * Ap
+        
+        # Compute new residual norm squared
+        r_new_norm_squared = np.dot(r, r)
+        
+        # Check convergence
+        if r_new_norm_squared < tol**2:
+            return x, {'iterations': i + 1, 'residual_norm': np.sqrt(r_new_norm_squared)}
+        
+        # Compute beta
+        beta = r_new_norm_squared / r_norm_squared
+        
+        # Update search direction
+        p = r + beta * p
+        
+        # Update residual norm for next iteration
+        r_norm_squared = r_new_norm_squared
+    
+    # Return solution and information
+    return x, {'iterations': max_iter, 'residual_norm': np.sqrt(r_norm_squared)}
+
+# Example usage:
+if __name__ == "__main__":
+    # Create a test system
+    n = 100
+    A = np.random.rand(n, n)
+    A = A.T @ A + np.eye(n)  # Make it symmetric positive definite
+    x_true = np.random.rand(n)
+    b = A @ x_true
+    
+    # Solve using conjugate gradient
+    x_sol, info = conjugate_gradient(A, b, tol=1e-12)
+    
+    print(f"Number of iterations: {info['iterations']}")
+    print(f"Final residual norm: {info['residual_norm']:.2e}")
+    print(f"Error: {np.linalg.norm(x_sol - x_true):.2e}")

@@ -1,0 +1,78 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_explanation(
+    shap_values_file="Vuori_Final_Approval_2024_09_24.json",
+    system_prompt_file="system.prompt",
+    model="llama3.2",
+    base_url="http://localhost:11434",
+    client_kwargs=None
+):
+    """
+    Genera una explicación basada en valores SHAP usando ChatOllama.
+    
+    Args:
+        shap_values_file (str): Ruta al archivo JSON con valores SHAP
+        system_prompt_file (str): Ruta al archivo con el prompt del sistema
+        model (str): Nombre del modelo a utilizar
+        base_url (str): URL base del servidor Ollama
+        client_kwargs (dict): Argumentos adicionales para el cliente (headers, etc.)
+    
+    Returns:
+        str: Respuesta generada por el modelo
+    """
+    
+    # Inicializar el modelo ChatOllama
+    if client_kwargs:
+        chat_model = ChatOllama(
+            model=model,
+            base_url=base_url,
+            client_kwargs=client_kwargs
+        )
+    else:
+        chat_model = ChatOllama(model=model, base_url=base_url)
+    
+    # Cargar valores SHAP desde archivo JSON
+    with open(shap_values_file, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+    
+    # Cargar el mensaje del sistema desde el archivo
+    with open(system_prompt_file, "r") as file:
+        sys_prompt = file.read().strip()
+    
+    # Preparar los mensajes
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+    
+    # Generar la respuesta
+    user_input = json.dumps(shap_values_json)
+    chain = prompt | chat_model
+    response = chain.invoke({"user_input": user_input})
+    
+    return response.content
+
+def main():
+    """Función principal para ejecutar el código original"""
+    
+    # Configuración por defecto (equivalente al código original)
+    response = generate_shap_explanation()
+    print(response)
+    
+    # Ejemplo de uso con configuración personalizada (comentado)
+    # custom_client_kwargs = {
+    #     "headers": {"authorization": "Bearer <OCULTO>"}
+    # }
+    # response_custom = generate_shap_explanation(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs=custom_client_kwargs
+    # )
+    # print(response_custom)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,26 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Выполнить анализ ANOVA
+# Определяем зависимую (y) и независимые (X) переменные
+y = df['Cost']
+# Преобразуем категориальную переменную 'Brand' в фиктивные (dummy) переменные
+# и добавляем константу (intercept) для модели
+X = sm.add_constant(pd.get_dummies(df['Brand'], drop_first=True))
+
+# Создаем и обучаем модель OLS (Ordinary Least Squares)
+model = sm.OLS(y, X).fit()
+# Получаем таблицу ANOVA из результатов модели
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Вывести таблицу ANOVA
+print(anova_table)

@@ -1,0 +1,49 @@
+# Carpeta con todas las fotos / carpeta con fotos para entrenamiento
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Leemos los nombres de los directorios, que son el tipo de eclipse
+ECLIPSE_LIST = {i:name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+
+# Carpeta con fotos para validación
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Carpeta con fotos para prueba
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+
+# Proporción de imágenes en la validación
+VAL_FRAC = 0.3
+
+
+# Fijamos una semilla para que la división aleatoria sea reproducible
+random.seed(42)
+
+# Dividimos las imágenes de cada clase en train y val
+for eclipse in ECLIPSE_LIST.values():
+    # Directorio de origen para la clase actual
+    source_class_dir = os.path.join(TRAIN_DIR, eclipse)
+    
+    # Creamos el directorio de destino para la clase en el conjunto de validación
+    val_class_dir = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(val_class_dir, exist_ok=True)
+
+    # Obtenemos la lista de todas las imágenes de la clase
+    images = os.listdir(source_class_dir)
+    
+    # Mezclamos la lista de imágenes de forma aleatoria
+    random.shuffle(images)
+    
+    # Calculamos el número de imágenes para mover a validación
+    split_index = int(len(images) * VAL_FRAC)
+    
+    # Separamos la lista en imágenes para validación y las que se quedan en train
+    val_images_to_move = images[:split_index]
+    
+    print(f'{eclipse} | imágenes de train = {len(images) - len(val_images_to_move)} | imágenes de val = {len(val_images_to_move)}')
+    
+    # Movemos las imágenes seleccionadas al directorio de validación
+    for image_file in val_images_to_move:
+        source_path = os.path.join(source_class_dir, image_file)
+        destination_path = os.path.join(val_class_dir, image_file)
+        shutil.move(source_path, destination_path)

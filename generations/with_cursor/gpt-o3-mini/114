@@ -1,0 +1,18 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Construct the relative path to the ChromeDriver binary
+relative_driver_path = os.path.join("chromedriver-win64", "chromedriver.exe")
+# Build the absolute path relative to this file's directory
+driver_path = os.path.join(os.path.dirname(__file__), relative_driver_path)
+
+options = uc.ChromeOptions()
+options.binary_location = driver_path
+
+print("wde")
+with uc.Chrome(use_subprocess=True, options=options) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)

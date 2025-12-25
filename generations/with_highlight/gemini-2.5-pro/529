@@ -1,0 +1,81 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_shap_explanation(model_name, base_url, json_filepath, prompt_filepath, client_kwargs=None):
+    """
+    Genera una explicación basada en valores SHAP utilizando un modelo ChatOllama.
+
+    Args:
+        model_name (str): El nombre del modelo a usar (ej. "llama3.2").
+        base_url (str): La URL base del servidor Ollama.
+        json_filepath (str): La ruta al archivo JSON que contiene los valores SHAP.
+        prompt_filepath (str): La ruta al archivo que contiene el prompt del sistema.
+        client_kwargs (dict, optional): Argumentos adicionales para el cliente, como headers.
+
+    Returns:
+        str: El contenido de la respuesta generada por el modelo.
+    """
+    # Inicializar el modelo ChatOllama
+    chat_model = ChatOllama(
+        model=model_name,
+        base_url=base_url,
+        client_kwargs=client_kwargs or {},
+    )
+
+    # Cargar valores SHAP desde archivo JSON
+    with open(json_filepath, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Cargar el mensaje del sistema desde el archivo
+    with open(prompt_filepath, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Prepara los mensajes
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Preparar la entrada del usuario
+    user_input = json.dumps(shap_values_json)
+
+    # Construir la cadena de ejecución
+    chain = prompt | chat_model
+
+    # Generar la respuesta
+    response = chain.invoke({"user_input": user_input})
+    
+    return response.content
+
+# El código se ejecutará solo si este script es el punto de entrada principal.
+if __name__ == "__main__":
+    # --- Configuración para el modelo local ---
+    MODEL = "llama3.2"
+    BASE_URL = "http://localhost:11434"
+    JSON_FILE = "Vuori_Final_Approval_2024_09_24.json"
+    PROMPT_FILE = "system.prompt"
+    CLIENT_KWARGS = None
+
+    # --- Configuración para el modelo remoto (ejemplo comentado) ---
+    # MODEL = "llama3.1:70b"
+    # BASE_URL = "http://ada-open-webui.serveo.net/ollama"
+    # CLIENT_KWARGS = {
+    #     "headers": {"authorization": "Bearer <OCULTO>"}
+    # }
+    # JSON_FILE = "Vuori_Final_Approval_2024_09_24.json"
+    # PROMPT_FILE = "system.prompt"
+    
+    # Llamar a la función refactorizada para obtener la respuesta
+    explanation = generate_shap_explanation(
+        model_name=MODEL,
+        base_url=BASE_URL,
+        json_filepath=JSON_FILE,
+        prompt_filepath=PROMPT_FILE,
+        client_kwargs=CLIENT_KWARGS
+    )
+    
+    # Imprimir la respuesta
+    print(explanation)

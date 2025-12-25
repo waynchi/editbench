@@ -1,0 +1,54 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """使用 Ollama API 与本地 LLM 交互。
+
+    :param prompt: LLM 的输入提示。
+    :param base_url: Ollama API 的基础 URL。
+    :return: 来自 LLM 的响应，如果发生错误则返回 None。
+    """
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # 替换为您的模型名称
+        "prompt": prompt,
+        "max_tokens": 2048  # 根据需要调整
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"请求错误: {e}")
+        return None
+
+    # 尝试解析 JSON 响应，如果遇到额外数据错误则尝试只解析有效部分
+    try:
+        # 默认尝试使用 response.json()
+        return response.json().get('response', '')
+    except json.JSONDecodeError as e:
+        # 捕获 JSON 解码错误，例如“额外数据：第2行第1列（字符101）”
+        print(f"初始 JSON 解码错误: {e}")
+        try:
+            # 尝试通过 raw_decode 只解析第一个 JSON 对象，忽略后续可能附加的数据
+            response_text = response.text.strip()
+            decoder = json.JSONDecoder()
+            parsed_obj, index = decoder.raw_decode(response_text)
+            if index != len(response_text):
+                print("警告：响应中存在额外数据，已忽略。")
+            return parsed_obj.get('response', '')
+        except json.JSONDecodeError as e2:
+            print(f"修正后的 JSON 解码错误: {e2}")
+            return None
+
+# 示例用法
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")
+    else:
+        print("未能获取 LLM 的响应。")

@@ -1,0 +1,46 @@
+import os
+import shutil
+import numpy as np
+
+# Base data directory containing the "train" folder.
+DATA_PATH = "path/to/your/data"  # Update this path as needed
+
+# Original training dataset directory.
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+
+# New validation dataset directory.
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Fraction of images to be used for validation.
+VAL_FRAC = 0.3
+
+# Determine the eclipse categories from the subdirectories in the train folder.
+# Sorting the directory list to ensure deterministic order.
+ECLIPSE_LIST = {i: category for i, category in enumerate(sorted(os.listdir(TRAIN_DIR)))}
+
+# Process each eclipse category.
+for eclipse in ECLIPSE_LIST.values():
+    train_eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    val_eclipse_path = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(val_eclipse_path, exist_ok=True)
+
+    # List and sort the images for deterministic behavior.
+    images_filename = sorted(os.listdir(train_eclipse_path))
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+
+    # Use numpy's random generator with a fixed seed for reproducibility.
+    rng = np.random.default_rng(42)
+    indices = rng.choice(np.arange(num_images), size=num_val, replace=False)
+
+    # Select the images for validation.
+    val_images = [images_filename[i] for i in indices]
+    print(f"{eclipse} | train images = {num_images - num_val} | val images = {num_val}")
+
+    # Move the selected validation images from the train directory to the val directory.
+    for image_filename in val_images:
+        source = os.path.join(train_eclipse_path, image_filename)
+        destination = os.path.join(val_eclipse_path, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

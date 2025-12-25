@@ -1,0 +1,62 @@
+from flask import Flask
+import datetime
+
+# 创建一个Flask应用实例
+app = Flask(__name__)
+
+# 定义根URL的路由和视图函数
+@app.route('/')
+def show_current_time():
+    """
+    获取当前时间并以HTML格式返回。
+    """
+    # 获取当前的日期和时间
+    now = datetime.datetime.now()
+    # 将日期和时间格式化为字符串
+    time_string = now.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 返回一个包含当前时间的HTML响应
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>当前时间</title>
+        <style>
+            body {{
+                font-family: sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background-color: #f0f2f5;
+            }}
+            .time-container {{
+                text-align: center;
+                padding: 40px;
+                border-radius: 10px;
+                background-color: white;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }}
+            h1 {{
+                color: #333;
+            }}
+            p {{
+                font-size: 1.5em;
+                color: #555;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="time-container">
+            <h1>当前日期和时间</h1>
+            <p>{time_string}</p>
+        </div>
+    </body>
+    </html>
+    """
+
+# 如果这个脚本是主程序，则运行Flask应用
+if __name__ == '__main__':
+    # 开启调试模式，这样在代码更改后服务器会自动重启
+    app.run(debug=True)

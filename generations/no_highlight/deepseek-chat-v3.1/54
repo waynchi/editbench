@@ -1,0 +1,7 @@
+import os
+from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility
+
+# 记录当前路径为cwd
+cwd = os.getcwd()
+# 创建Milvus数据库连接
+connections.connect(host='localhost', port='19530')

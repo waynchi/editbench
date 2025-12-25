@@ -1,0 +1,61 @@
+def evaluate_image_maps(similarity_map, real_image):
+    """
+    Evaluates the quality of similarity maps by comparing them to a real image.
+
+    Args:
+        similarity_map (torch.Tensor): The similarity map to evaluate.
+        real_image (PIL.Image.Image): The corresponding real image.
+
+    Returns:
+        dict: A dictionary containing the calculated metrics: accuracy, score, and rank.
+    """
+    # Convert the real image to a binary array (1 - normalized grayscale)
+    image_array = 1 - np.array(real_image.convert("L"),
+                               dtype=np.float32) / 255.0
+
+    # Ensure similarity_map is float32 and on the CPU before using numpy operations
+    if isinstance(similarity_map, torch.Tensor):
+        similarity_map_cpu = similarity_map.to(dtype=torch.float32).cpu().numpy()
+    else:
+        similarity_map_cpu = similarity_map.astype(np.float32)
+
+    # Create a mask for the maximum values in the similarity map
+    acc_visual_map = np.where(
+        similarity_map_cpu == similarity_map_cpu.max(), similarity_map_cpu, 0
+    )
+
+    # Check if scaling is necessary
+    if image_array.shape != similarity_map_cpu.shape:
+        scale_factor = image_array.shape[0] // similarity_map_cpu.shape[0]
+        scaled_visual_map = np.kron(
+            np.abs(similarity_map_cpu), np.ones((scale_factor, scale_factor))
+        )
+        rank_map = np.kron(
+            np.abs(similarity_map_cpu), np.ones((scale_factor, scale_factor))
+        )
+        acc_visual_map = np.kron(
+            np.abs(acc_visual_map), np.ones((scale_factor, scale_factor))
+        )
+    else:
+        scaled_visual_map = similarity_map_cpu
+        rank_map = similarity_map_cpu  # Add this to avoid missing variable
+
+    # Calculate accuracy and score
+    accuracy = np.any(image_array * acc_visual_map)
+    score = np.sum(image_array * scaled_visual_map) / (
+        np.sum(image_array) + 1e-8
+    )  # Avoid division by zero
+
+    # Calculate rank
+    bin_image = (image_array != 0).astype(int)
+    rank_value = np.sum(bin_image * rank_map) / np.sum(
+        bin_image
+    )  # Avoid division by zero
+    sorted_values = sorted(np.abs(similarity_map_cpu.ravel()))[::-1]
+    rank = np.where(np.isclose(sorted_values, rank_value))[0][0]
+
+    return {
+        "accuracy": accuracy,
+        "score": score,
+        "rank": rank,
+    }

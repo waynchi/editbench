@@ -1,0 +1,45 @@
+import time
+import torch
+import numpy as np
+from torch.utils.data import DataLoader
+from transformers import TrainerCallback, default_data_collator
+
+# Definir la clase FactualAccuracyCallbackBETTER (según lo proporcionado)
+class FactualAccuracyCallbackBETTER(TrainerCallback):
+    """Un callback para evaluar y registrar la precisión factual del modelo durante el entrenamiento."""
+
+    def __init__(
+        self, model, tokenizer, dataset, batch_size, verbose=False, output_format=False
+    ):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.n_samp = len(dataset)
+        self.verbose = verbose
+        self.output_format = output_format
+        tokenized_questions = dataset.map(
+                lambda examples: tokenizer(examples["question"], padding="max_length", truncation=True, max_length=512,),
+                batched=True,
+            )
+        self.batched_tokenized_questions = DataLoader(tokenized_questions, batch_size=batch_size, shuffle=False, collate_fn=default_data_collator)
+        self.batched_expected_answers = DataLoader(dataset['answer'], batch_size=batch_size, shuffle=False)
+
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """Llamado después de registrar los últimos registros."""
+        if model is not None:
+            self.model = model
+        elif self.model is None:
+            return
+
+        if not state.is_local_process_zero:
+            return
+
+        start_time = time.time()
+        try:
+            with torch.no_grad():
+                results = factual_score_dataloader(
+                            model=model,
+                            tokenizer=self.tokenizer,
+                            dataset=self.batched_tokenized_questions,
+                            expected_answers=self.batched_expected_answe

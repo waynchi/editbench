@@ -1,0 +1,55 @@
+import json
+import requests
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """
+    Interact with a local LLM using the Ollama API.
+
+    This version includes improved error handling for JSON parsing. If the
+    response contains extra data that causes a JSONDecodeError (e.g., extra
+    data after the valid JSON), it attempts to extract and parse only the first
+    valid JSON object.
+
+    :param prompt: The input prompt for the LLM.
+    :param base_url: The base URL of the Ollama API.
+    :return: The response from the LLM (or an empty string if none).
+    """
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # Replace with your model name if needed
+        "prompt": prompt,
+        "max_tokens": 2048         # Adjust as needed
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        # Try to parse the response JSON normally
+        try:
+            data = response.json()
+        except json.JSONDecodeError as json_err:
+            # If there's extra data after valid JSON, parse only the first line.
+            # This is a workaround for errors like:
+            # "Extra data: line 2 column 1 (char 101)"
+            first_line = response.text.splitlines()[0]
+            data = json.loads(first_line)
+        
+        return data.get('response', '')
+    except requests.exceptions.RequestException as req_err:
+        print(f"Request error: {req_err}")
+        return None
+    except json.JSONDecodeError as json_err:
+        print(f"JSON parsing error: {json_err}")
+        return None
+
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print(f"LLM Response: {response}")
+    else:
+        print("Failed to get a valid response from the LLM.")

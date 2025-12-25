@@ -1,0 +1,67 @@
+import random
+
+def load_dictionary():
+    """Load a sample dictionary - in a real implementation, this would load from a file"""
+    # This is a simplified dictionary for demonstration purposes
+    # In practice, you'd load from a proper dictionary file
+    dictionary = [
+        "apple", "banana", "cherry", "date", "elder", "fig", "grape", "house",
+        "igloo", "juice", "kitchen", "lemon", "mango", "nut", "orange", "pear",
+        "quilt", "river", "sun", "tree", "umbrella", "violin", "window", "xylophone",
+        "yellow", "zebra", "computer", "science", "python", "programming", "hello",
+        "world", "test", "example", "sample", "word", "dictionary", "lookup", "search",
+        "character", "length", "random", "generate", "output", "print", "input", "function"
+    ]
+    return dictionary
+
+def find_words_by_length(dictionary, n):
+    """Find all words in the dictionary with exactly n characters"""
+    return [word for word in dictionary if len(word) == n]
+
+def main():
+    # Load the dictionary
+    dictionary = load_dictionary()
+    
+    print("Dictionary Word Finder")
+    print("======================")
+    
+    while True:
+        try:
+            # Get user input
+            n = int(input("\nEnter the number of characters (or 0 to exit): "))
+            
+            if n == 0:
+                print("Goodbye!")
+                break
+            elif n < 0:
+                print("Please enter a positive number.")
+                continue
+            
+            # Find words with the specified number of characters
+            words = find_words_by_length(dictionary, n)
+            
+            if not words:
+                print(f"No words found with exactly {n} characters.")
+            else:
+                # Display up to 10 words
+                print(f"\nWords with exactly {n} characters:")
+                print("-" * 30)
+                
+                # Take first 10 words or all if less than 10
+                display_words = words[:10]
+                
+                for i, word in enumerate(display_words, 1):
+                    print(f"{i:2d}. {word}")
+                
+                # If there are more words, inform the user
+                if len(words) > 10:
+                    print(f"\n(... and {len(words) - 10} more words)")
+                    
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\n\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

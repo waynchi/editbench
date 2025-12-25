@@ -1,0 +1,65 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Получить каталог текущего скрипта
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Построить относительный путь к chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+options = uc.ChromeOptions()
+# Исправлено: binary_location должен указывать на Chrome браузер, а не на chromedriver
+# options.binary_location = chromedriver_path
+
+# Добавляем дополнительные опции для стабильности
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--remote-debugging-port=9222")
+
+print("wde")
+try:
+    # Указываем путь к chromedriver через driver_executable_path
+    driver = uc.Chrome(
+        use_subprocess=True, 
+        options=options,
+        driver_executable_path=chromedriver_path
+    )
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    # создать экземпляр ChromeOptions для undetected_chromedriver
+    # инициализировать незамеченный Chrome драйвер с указанными опциями
+    time.sleep(10)
+    driver.quit()
+except Exception as e:
+    print(f"Ошибка: {e}")
+
+# Второй блок кода с исправлениями
+options2 = uc.ChromeOptions()
+# Исправлено: убираем неправильную binary_location
+# options2.binary_location = r"C:\Programming\Test\IP_Test\chromedriver-win64\chromedriver.exe"
+
+# Добавляем те же опции для стабильности
+options2.add_argument("--no-sandbox")
+options2.add_argument("--disable-dev-shm-usage")
+options2.add_argument("--disable-gpu")
+options2.add_argument("--remote-debugging-port=9223")
+
+print("wde")
+try:
+    driver2 = uc.Chrome(
+        use_subprocess=True, 
+        options=options2,
+        driver_executable_path=r"C:\Programming\Test\IP_Test\chromedriver-win64\chromedriver.exe"
+    )
+    print("wde")
+    driver2.get("https://lmarena.ai/")
+    print("wde")
+    # создать экземпляр ChromeOptions для undetected_chromedriver
+    # инициализировать незамеченный Chrome драйвер с указанными опциями
+    time.sleep(10)
+    driver2.quit()
+except Exception as e:
+    print(f"Ошибка во втором блоке: {e}")

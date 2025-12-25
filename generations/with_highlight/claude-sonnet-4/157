@@ -1,0 +1,130 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    共轭梯度法求解线性方程组 Ax = b
+    
+    参数:
+    A: 系数矩阵 (n x n)，必须是对称正定矩阵
+    b: 右端向量 (n x 1)
+    x0: 初始解向量 (n x 1)，默认为零向量
+    tol: 收敛容差
+    max_iter: 最大迭代次数
+    
+    返回:
+    x: 解向量
+    residual_history: 残差历史
+    """
+    n = len(b)
+    
+    # 初始化
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    # 计算初始残差
+    r = b - A @ x
+    p = r.copy()
+    
+    residual_history = []
+    
+    for i in range(max_iter):
+        # 计算残差的二范数
+        r_norm = np.linalg.norm(r)
+        residual_history.append(r_norm)
+        
+        # 检查收敛性
+        if r_norm < tol:
+            print(f"在第 {i} 次迭代后收敛")
+            break
+        
+        # 计算步长 alpha
+        Ap = A @ p
+        alpha = (r.T @ r) / (p.T @ Ap)
+        
+        # 更新解
+        x = x + alpha * p
+        
+        # 计算新的残差
+        r_new = r - alpha * Ap
+        
+        # 计算共轭方向的系数 beta
+        beta = (r_new.T @ r_new) / (r.T @ r)
+        
+        # 更新搜索方向
+        p = r_new + beta * p
+        
+        # 更新残差
+        r = r_new
+    
+    return x, residual_history
+
+def preconditioned_conjugate_gradient(A, b, M_inv, x0=None, tol=1e-6, max_iter=1000):
+    """
+    预条件共轭梯度法求解线性方程组 Ax = b
+    
+    参数:
+    A: 系数矩阵 (n x n)
+    b: 右端向量 (n x 1)
+    M_inv: 预条件矩阵的逆
+    x0: 初始解向量 (n x 1)
+    tol: 收敛容差
+    max_iter: 最大迭代次数
+    
+    返回:
+    x: 解向量
+    residual_history: 残差历史
+    """
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x
+    z = M_inv @ r
+    p = z.copy()
+    
+    residual_history = []
+    
+    for i in range(max_iter):
+        r_norm = np.linalg.norm(r)
+        residual_history.append(r_norm)
+        
+        if r_norm < tol:
+            print(f"预条件CG在第 {i} 次迭代后收敛")
+            break
+        
+        Ap = A @ p
+        alpha = (r.T @ z) / (p.T @ Ap)
+        
+        x = x + alpha * p
+        r_new = r - alpha * Ap
+        z_new = M_inv @ r_new
+        
+        beta = (r_new.T @ z_new) / (r.T @ z)
+        p = z_new + beta * p
+        
+        r = r_new
+        z = z_new
+    
+    return x, residual_history
+
+# 示例使用
+if __name__ == "__main__":
+    # 创建一个测试问题
+    n = 5
+    A = np.random.rand(n, n)
+    A = A.T @ A + np.eye(n)  # 确保A是对称正定的
+    x_true = np.random.rand(n)
+    b = A @ x_true
+    
+    # 使用共轭梯度法求解
+    x_cg, residuals = conjugate_gradient(A, b)
+    
+    print("真实解:", x_true)
+    print("CG解:", x_cg)
+    print("误差:", np.linalg.norm(x_true - x_cg))
+    print("迭代次数:", len(residuals))

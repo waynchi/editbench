@@ -1,0 +1,96 @@
+import math
+
+
+def is_sum_of_four_nonzero_squares(n):
+    """
+    Checks if a number n can be expressed as the sum of four non-zero squares.
+
+    A number can be expressed as the sum of four non-zero squares if there exist
+    four positive integers a, b, c, d such that:
+    n = a**2 + b**2 + c**2 + d**2
+
+    Args:
+        n (int): The number to check.
+
+    Returns:
+        bool: True if n can be expressed as the sum of four non-zero squares,
+              False otherwise.
+    """
+    # The number must be a positive integer.
+    # The smallest sum of four non-zero squares is 1**2 + 1**2 + 1**2 + 1**2 = 4.
+    if not isinstance(n, int) or n < 4:
+        return False
+
+    # We can use a brute-force search. To optimize, we can assume an order
+    # for the integers, e.g., a >= b >= c >= d >= 1. This avoids redundant
+    # checks of permutations and reduces the search space.
+
+    # Outer loop for 'a'.
+    # From a>=b>=c>=d>=1, we have n = a^2+b^2+c^2+d^2 >= a^2+1+1+1.
+    # So, a^2 <= n - 3.
+    limit_a = int(math.sqrt(n - 3))
+    for a in range(1, limit_a + 1):
+        n_after_a = n - a*a
+        # Remainder must be at least 1^2+1^2+1^2 = 3.
+        if n_after_a < 3:
+            continue
+
+        # Second loop for 'b', with the constraint b <= a.
+        # From b>=c>=d>=1, we have n_after_a = b^2+c^2+d^2 >= b^2+1+1.
+        # So, b^2 <= n_after_a - 2.
+        limit_b = int(math.sqrt(n_after_a - 2))
+        for b in range(1, min(a, limit_b) + 1):
+            n_after_b = n_after_a - b*b
+            # Remainder must be at least 1^2+1^2 = 2.
+            if n_after_b < 2:
+                continue
+
+            # Third loop for 'c', with the constraint c <= b.
+            # From c>=d>=1, we have n_after_b = c^2+d^2 >= c^2+1.
+            # So, c^2 <= n_after_b - 1.
+            limit_c = int(math.sqrt(n_after_b - 1))
+            for c in range(1, min(b, limit_c) + 1):
+                d_squared = n_after_b - c*c
+                # Remainder for d^2 must be at least 1^2 = 1.
+                if d_squared < 1:
+                    continue
+
+                # Check if d_squared is a perfect square.
+                d = math.sqrt(d_squared)
+
+                # d must be an integer, and we must also satisfy d <= c.
+                # (We already know d >= 1 since d_squared >= 1).
+                if d == int(d) and d <= c:
+                    # A valid combination has been found.
+                    return True
+
+    # If the loops complete without finding a solution, none exists.
+    return False
+
+
+if __name__ == "__main__":
+    limit = 100
+    print(f"Numbers up to {limit} that can be expressed as a sum of four non-zero squares:")
+    
+    found_numbers = [i for i in range(1, limit + 1) if is_sum_of_four_nonzero_squares(i)]
+    print(found_numbers)
+    
+    print("\n" + "="*40)
+    
+    # Check a number known to NOT be a sum of four non-zero squares.
+    # The set of such exceptions is finite: 1, 2, 3, 5, 6, 8, 9, 11, 14, 17, 24, 29, 32, 41, 56, 96, 128.
+    num_to_check_fail = 29
+    print(f"\nChecking number: {num_to_check_fail}")
+    if is_sum_of_four_nonzero_squares(num_to_check_fail):
+        print(f"Result: {num_to_check_fail} CAN be expressed as the sum of four non-zero squares.")
+    else:
+        print(f"Result: {num_to_check_fail} CANNOT be expressed as the sum of four non-zero squares.")
+
+    # Check a number that can be expressed in this form.
+    # Example: 30 = 4^2 + 3^2 + 2^2 + 1^2 = 16 + 9 + 4 + 1
+    num_to_check_pass = 30
+    print(f"\nChecking number: {num_to_check_pass}")
+    if is_sum_of_four_nonzero_squares(num_to_check_pass):
+        print(f"Result: {num_to_check_pass} CAN be expressed as the sum of four non-zero squares.")
+    else:
+        print(f"Result: {num_to_check_pass} CANNOT be expressed as the sum of four non-zero squares.")

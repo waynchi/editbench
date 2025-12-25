@@ -1,0 +1,54 @@
+import os
+import shutil
+import random
+
+# Предпологается, что переменная DATA_PATH определена где-то выше в коде.
+# Например: DATA_PATH = 'path/to/data'
+
+# Папка со всеми фотографиями / папка с фотографиями для тренировки
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Считываем названия директорий, которые и являются видом затмения
+# Используем sorted для получения предсказуемого порядка классов
+ECLIPSE_LIST = {i: name for i, name in enumerate(sorted(os.listdir(TRAIN_DIR)))}
+
+# Папка с фотографиями для валидации
+VAL_DIR = os.path.join(DATA_PATH, "val")
+
+# Папка с фотографиями для теста
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Доля изображений в валидации
+VAL_FRAC = 0.3
+
+# Устанавливаем seed для воспроизводимости случайных операций
+random.seed(42)
+
+# Создаем директорию с валидационной выборкой для каждого вида затмения.
+for eclipse in ECLIPSE_LIST.values():
+    # Путь к директории класса в обучающей выборке
+    train_eclipse_path = os.path.join(TRAIN_DIR, eclipse)
+    # Путь к директории класса в валидационной выборке
+    val_eclipse_path = os.path.join(VAL_DIR, eclipse)
+    
+    # Создаем директорию для валидационной выборки, если она не существует
+    os.makedirs(val_eclipse_path, exist_ok=True)
+
+    # Считываем и сортируем изображения для детерминированности
+    images_filename = sorted(os.listdir(train_eclipse_path))
+    
+    # Перемешиваем список изображений случайным образом
+    random.shuffle(images_filename)
+
+    # Выделяем часть изображений для валидации
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+    val_images = images_filename[:num_val]
+
+    print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+    
+    # Перемещаем валидационную выборку
+    for image_filename in val_images:
+        source = os.path.join(train_eclipse_path, image_filename)
+        destination = os.path.join(val_eclipse_path, image_filename)
+        # shutil.move более эффективен, чем копирование с последующим удалением
+        shutil.move(source, destination)

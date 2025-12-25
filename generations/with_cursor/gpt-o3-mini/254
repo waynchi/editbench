@@ -1,0 +1,111 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+
+def czyPoprawny(obrazek):
+    for wiersz in obrazek[:-1]:  # первые 20 строк — данные + бит четности строки
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20):  # первые 20 столбцов
+        kolumna = ""
+        for j in range(21):  # 20 строк с данными плюс строка битов для столбцов
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]:
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20):
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """
+    Функция получает изображение, представленное в виде списка строк.
+    Структура изображения:
+      - Первые 20 строк: каждая строка содержит 20 бит данных и 1 бит четности в конце.
+      - 21-я строка: содержит 20 бит четности для столбцов и, возможно, один дополнительный бит,
+        который не используется при проверке.
+    
+    Бит четности для строки (или столбца) должен быть равен 0, если число единиц в соответствующих
+    данных четное, и 1, если нечетное.
+    
+    Если изображение исправимо — то есть имеется не более одной строки и не более одного столбца с ошибкой,
+    функция исправляет ошибку, изменяя бит на пересечении ошибочной строки и столбца.
+    
+    Результат возвращается в виде списка из двух изображений:
+      [исходное (ошибочное, но исправимое) изображение, исправленное изображение]
+    """
+    # Преобразуем изображение в список списков для удобной мутации
+    image_matrix = [list(row) for row in obrazek]
+
+    # Определяем номер строки с ошибкой (проверяем только первые 20 строк)
+    row_error = -1
+    for i in range(20):
+        row_data = image_matrix[i][:20]  # данные строки без бита четности
+        parity_bit = int(image_matrix[i][20])
+        if (row_data.count('1') % 2) != parity_bit:
+            row_error = i
+            break
+
+    # Определяем номер столбца с ошибкой (проверяем только первые 20 столбцов)
+    col_error = -1
+    for j in range(20):
+        col_data = [image_matrix[i][j] for i in range(20)]  # данные столбца из 20 строк
+        parity_bit = int(image_matrix[20][j])
+        if (col_data.count('1') % 2) != parity_bit:
+            col_error = j
+            break
+
+    # Сохраняем исходное (ошибочное) изображение
+    erroneous = obrazek.copy()
+
+    # Делаем копию для исправления
+    corrected_matrix = [row.copy() for row in image_matrix]
+    if row_error != -1 and col_error != -1:
+        # Меняем бит на пересечении ошибочной строки и столбца
+        corrected_matrix[row_error][col_error] = '1' if corrected_matrix[row_error][col_error] == '0' else '0'
+
+    # Преобразуем матрицы обратно в список строк
+    corrected = ["".join(row) for row in corrected_matrix]
+    
+    return [erroneous, corrected]
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+
+for linia in plik:
+    wiersz = linia.strip()
+    obrazek.append(wiersz)
+    if len(obrazek) == 21:
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+            # Здесь можно, например, записать исправленное изображение или выполнить иные действия
+    if len(obrazek) == 22:
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

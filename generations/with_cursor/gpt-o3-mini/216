@@ -1,0 +1,75 @@
+import tkinter as tk
+import random
+
+def random_color():
+    # 生成一个随机的颜色字符串
+    return "#" + "".join(random.choices("0123456789ABCDEF", k=6))
+
+class Square:
+    def __init__(self, canvas, size, x, y, color=None):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+        # 如果没有指定颜色，则随机选择一种颜色
+        self.color = color if color else random_color()
+        # 设置速度，随机左右移动
+        self.dx = random.choice([-2, 2])
+        self.dy = random.choice([-2, 2])
+        self.square = canvas.create_rectangle(
+            x, y, x + size, y + size, fill=self.color, outline=""
+        )
+
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.canvas.move(self.square, self.dx, self.dy)
+
+        # 使用canvas的配置宽高而不是winfo_width/winfo_height，
+        # 这样可以确保我们获取到的是我们设置的数值 (600x600)
+        canvas_width = int(self.canvas.cget("width"))
+        canvas_height = int(self.canvas.cget("height"))
+
+        # 检查是否触碰边界
+        if self.x <= 0 or self.x + self.size >= canvas_width or self.y <= 0 or self.y + self.size >= canvas_height:
+            # 删除当前方块
+            self.canvas.delete(self.square)
+            # 如果方块足够大，则分裂成两个新方块
+            if self.size > 10:
+                new_size = self.size / 2
+                # 创建两个新方块，颜色随机
+                squares.append(Square(
+                    self.canvas, new_size,
+                    canvas_width/2 - new_size - 5,
+                    canvas_height/2 - new_size - 5
+                ))
+                squares.append(Square(
+                    self.canvas, new_size,
+                    canvas_width/2 + 5,
+                    canvas_height/2 + 5
+                ))
+            return False
+        return True
+
+def update():
+    global squares
+    # 移动所有方块，并过滤掉已经被删除的方块
+    squares = [square for square in squares if square.move()]
+    root.after(20, update)  # 每20毫秒更新一次
+
+# 创建主窗口
+root = tk.Tk()
+root.title("Splitting Squares")
+
+# 创建画布（指定宽高和背景色，背景色为白色）
+canvas = tk.Canvas(root, width=600, height=600, bg="white")
+canvas.pack(expand=True, fill="both")
+
+# 创建初始的方块，使用指定的颜色，也可以使用默认随机颜色
+squares = [Square(canvas, 100, 250, 250, color="blue")]
+
+# 开始动画更新
+update()
+
+# 进入主循环
+root.mainloop()

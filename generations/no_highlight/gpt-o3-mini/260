@@ -1,0 +1,71 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-8, max_iter=None):
+    """
+    Решает систему линейных уравнений Ax = b с использованием метода сопряжённых градиентов.
+    A должна быть симметричной и положительно определённой.
+
+    Параметры:
+        A : numpy.ndarray
+            Матрица коэффициентов размером (n, n).
+        b : numpy.ndarray
+            Вектор правой части размером (n,).
+        x0 : numpy.ndarray, необязательный параметр
+            Начальное приближение для решения (по умолчанию нулевой вектор).
+        tol : float, необязательный параметр
+            Точность, необходимая для сходимости (по умолчанию 1e-8).
+        max_iter : int, необязательный параметр
+            Максимальное количество итераций (по умолчанию равен размерности системы).
+
+    Возвращает:
+        x : numpy.ndarray
+            Приближённое решение системы Ax = b.
+        num_iter : int
+            Фактическое количество выполненных итераций.
+    """
+    n = len(b)
+    if max_iter is None:
+        max_iter = n
+
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+
+    r = b - A @ x
+    p = r.copy()
+    rsold = np.dot(r, r)
+
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rsnew = np.dot(r, r)
+        
+        if np.sqrt(rsnew) < tol:
+            return x, i + 1
+
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+
+    return x, max_iter
+
+if __name__ == '__main__':
+    # Пример использования:
+    # Решим систему Ax = b, где A симметричная и положительно определённая.
+    np.random.seed(0)
+    n = 5
+    # Создадим случайную симметричную положительно определённую матрицу A.
+    M = np.random.randn(n, n)
+    A = M.T @ M + np.eye(n) * 1e-3  # добавляем небольшое значение к диагонали для устойчивости
+    b = np.random.randn(n)
+    
+    x, iterations = conjugate_gradient(A, b)
+    print("Решение x:", x)
+    print("Число итераций:", iterations)
+    
+    # Для проверки решения воспользуемся прямым методом.
+    x_direct = np.linalg.solve(A, b)
+    print("Прямое решение x:", x_direct)
+    print("Норма ошибки:", np.linalg.norm(x - x_direct))

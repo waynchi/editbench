@@ -1,0 +1,42 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def mostrar_fecha_hora():
+    fecha_hora_actual = datetime.now()
+    fecha_formateada = fecha_hora_actual.strftime("%Y-%m-%d %H:%M:%S")
+    return f"""
+    <html>
+        <head>
+            <title>Fecha y Hora Actual</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    margin-top: 100px;
+                }}
+                .datetime {{
+                    font-size: 24px;
+                    color: #333;
+                    background-color: #f0f0f0;
+                    padding: 20px;
+                    border-radius: 10px;
+                    display: inline-block;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>Aplicación Flask - Fecha y Hora</h1>
+            <div class="datetime">
+                <p>Fecha y hora actual:</p>
+                <p><strong>{fecha_formateada}</strong></p>
+            </div>
+            <p><a href="/">Actualizar</a></p>
+        </body>
+    </html>
+    """
+
+if __name__ == '__main__':
+    app.run(debug=True)

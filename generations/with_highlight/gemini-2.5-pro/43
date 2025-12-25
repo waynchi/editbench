@@ -1,0 +1,33 @@
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Perform ANOVA analysis
+# Prepare the data for the model in a Pythonic way (without R-style formulas)
+y = df['Cost']
+X = pd.get_dummies(df['Brand'], drop_first=True, dtype=float)
+X = sm.add_constant(X)
+
+# Fit the Ordinary Least Squares model using the array-based API
+model = sm.OLS(y, X).fit()
+
+# Manually construct the ANOVA table from the model's results
+# This replicates the output of anova_lm for a one-way ANOVA
+anova_table = pd.DataFrame({
+    'df': [model.df_model, model.df_resid],
+    'sum_sq': [model.ess, model.ssr],
+    'mean_sq': [model.mse_model, model.mse_resid],
+    'F': [model.fvalue, float('nan')],
+    'PR(>F)': [model.f_pvalue, float('nan')]
+}, index=['Brand', 'Residual'])
+
+# Print the ANOVA table
+print(anova_table)

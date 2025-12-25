@@ -1,0 +1,32 @@
+# Napisz wyszukiwanie binarne
+def binary_search(arr, item):
+    """
+    Wykonuje wyszukiwanie binarne na posortowanej liście, aby znaleźć indeks elementu.
+
+    Args:
+        arr: Posortowana lista elementów.
+        item: Element do wyszukania.
+
+    Returns:
+        Indeks elementu, jeśli został znaleziony, w przeciwnym razie None.
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        # Znajdź środek listy
+        mid = (low + high) // 2
+        guess = arr[mid]
+        
+        # Sprawdź, czy środkowy element jest tym, którego szukamy
+        if guess == item:
+            return mid
+        # Jeśli 'guess' jest za duży, zmniejsz górną granicę
+        if guess > item:
+            high = mid - 1
+        # Jeśli 'guess' jest za mały, zwiększ dolną granicę
+        else:
+            low = mid + 1
+            
+    # Jeśli elementu nie ma na liście
+    return None

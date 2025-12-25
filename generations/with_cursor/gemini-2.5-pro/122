@@ -1,0 +1,41 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Define the full list of columns that the models expect, in the correct order.
+# This is crucial for ensuring the input to the model is consistent.
+model_columns = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare',
+                 'Embarked_C', 'Embarked_Q', 'Embarked_S']
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create a dictionary for the single data point
+            data = {
+                "Pclass": pclass,
+                "Name": 24,
+                "Sex": 0,
+                "Age": 19,
+                "SibSp": 0,
+                "Parch": 0,
+                "Fare": fare,
+                "Embarked": embarked
+            }
+            # Create a single-row DataFrame from the dictionary
+            my_df = pd.DataFrame([data])
+
+            # Perform one-hot encoding. This will create one of the Embarked_* columns.
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+            # Align the DataFrame's columns with the model's expected columns.
+            # This adds any missing 'Embarked_*' columns and fills them with 0,
+            # and ensures the column order is correct.
+            df_for_pred = my_df.reindex(columns=model_columns, fill_value=0)
+
+            # Make predictions using the correctly formatted DataFrame
+            knn_prediction = knn.predict(df_for_pred)
+            mlp_prediction = mlp.predict(df_for_pred)
+
+            print(f"""-------------------------------------------------------
+                  Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+                  По knn: {knn_prediction}
+                  По mlp: {mlp_prediction}""")

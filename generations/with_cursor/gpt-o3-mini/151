@@ -1,0 +1,72 @@
+import numpy as np
+
+INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file(file_path):
+    """
+    Reads the input file and returns a list of non-empty stripped lines.
+    Raises a FileNotFoundError if the file does not exist.
+    """
+    try:
+        with open(file_path, 'r') as f:
+            # Remove any empty lines and strip whitespace
+            lines = [line.strip() for line in f if line.strip()]
+        return lines
+    except FileNotFoundError:
+        print(f"Error: File {file_path} not found.")
+        return []
+
+def compute_total_distance(list1, list2):
+    """
+    Given two lists of integers, computes the sum of absolute differences pairing
+    the smallest element in one with the smallest in the other, then the second smallest, etc.
+    
+    Instead of repeatedly finding and removing the minimum element (which is inefficient),
+    we sort both lists and then aggregate the absolute differences.
+    
+    Raises ValueError if the lists are not of equal length.
+    """
+    if len(list1) != len(list2):
+        raise ValueError("Both lists must be of the same length.")
+    
+    sorted1 = sorted(list1)
+    sorted2 = sorted(list2)
+    
+    distances = [abs(a - b) for a, b in zip(sorted1, sorted2)]
+    return sum(distances)
+
+def main():
+    lines = parse_input_file(INPUT_FILE_PATH)
+    if not lines:
+        return
+
+    # Parse each line. The expected format is two integers separated by three spaces.
+    data = []
+    for line in lines:
+        # Split using the literal "   " (three spaces) as a delimiter.
+        parts = line.split("   ")
+        if len(parts) != 2:
+            print(f"Warning: Unexpected format in line: {line}")
+            continue
+        try:
+            num1 = int(parts[0])
+            num2 = int(parts[1])
+            data.append((num1, num2))
+        except ValueError:
+            print(f"Warning: Non-integer value found in line: {line}")
+            continue
+
+    if not data:
+        print("No valid data to process.")
+        return
+    
+    # Separate the tuples into two lists of integers.
+    col1, col2 = zip(*data)
+    list1 = list(col1)
+    list2 = list(col2)
+
+    total_distance = compute_total_distance(list1, list2)
+    print(f"Sum of distances: {total_distance}")
+
+if __name__ == "__main__":
+    main()

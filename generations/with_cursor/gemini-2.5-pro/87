@@ -1,0 +1,86 @@
+import tkinter as tk
+import random
+
+class Square:
+    def __init__(self, canvas, size, x, y):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+        self.dx = random.choice([-2, 2])
+        self.dy = random.choice([-2, 2])
+        # Each square gets a random color
+        color = f'#{random.randint(0, 0xFFFFFF):06x}'
+        self.square = canvas.create_rectangle(x, y, x + size, y + size, fill=color)
+
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.canvas.move(self.square, self.dx, self.dy)
+        
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Check if the square hits the boundaries
+        if (self.x <= 0 or self.x + self.size >= canvas_width or 
+            self.y <= 0 or self.y + self.size >= canvas_height):
+            
+            # Delete the current square's graphic
+            self.canvas.delete(self.square)
+            
+            new_squares_to_add = []
+            # If the square is big enough, create two new smaller squares
+            if self.size > 10:
+                new_size = self.size / 2
+                # The new squares are created near the center of the canvas
+                new_squares_to_add.append(Square(self.canvas, new_size, 
+                                                 canvas_width/2 - new_size/2, 
+                                                 canvas_height/2 - new_size/2))
+                new_squares_to_add.append(Square(self.canvas, new_size, 
+                                                 canvas_width/2 + new_size/2, 
+                                                 canvas_height/2 + new_size/2))
+            # Return False to indicate this square should be removed, and provide the list of new squares
+            return False, new_squares_to_add
+        
+        # Return True to indicate this square should be kept, and no new squares were created
+        return True, []
+
+def update():
+    global squares
+    
+    next_generation_squares = []
+    # Iterate through all current squares
+    for square in squares:
+        # Move the square and check its status
+        should_keep, new_squares = square.move()
+        
+        # If the square is still in bounds, keep it
+        if should_keep:
+            next_generation_squares.append(square)
+        # Add any newly created squares to the list for the next frame
+        next_generation_squares.extend(new_squares)
+    
+    # Replace the old list of squares with the new one
+    squares = next_generation_squares
+    
+    # Schedule the next update
+    root.after(20, update)
+
+# Create the main application window
+root = tk.Tk()
+root.title("Splitting Squares")
+
+# Create a canvas widget for drawing
+canvas = tk.Canvas(root, width=600, height=600, bg="white")
+canvas.pack(expand=True, fill="both")
+
+# This list will hold all the square objects
+squares = [Square(canvas, 100, 250, 250)]
+
+# Start the animation loop after a short delay.
+# This ensures the canvas has its correct dimensions before the animation starts,
+# fixing the issue where the square would disappear immediately.
+root.after(100, update)
+
+# Start the Tkinter event loop
+root.mainloop()

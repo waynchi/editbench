@@ -1,0 +1,38 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Comment out instead of overwriting
+
+def main():
+    lines = parse_input_file()
+    # Filter out empty lines
+    lines = [line for line in lines if line.strip()]
+    
+    # Parse input more efficiently
+    cols = np.array([line.split() for line in lines], dtype=int).T
+    list_1 = cols[0]
+    list_2 = cols[1]
+    
+    # Sort both lists directly instead of repeatedly finding minimum
+    list_1_sorted = np.sort(list_1)
+    list_2_sorted = np.sort(list_2)
+    
+    # Calculate distances vectorized
+    all_dists = np.abs(list_1_sorted - list_2_sorted)
+    
+    print(f"Total distance: {np.sum(all_dists)}")
+
+def parse_input_file():
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            lines = f.read().strip().split("\n")
+        return lines
+    except FileNotFoundError:
+        print(f"Error: File {INPUT_FILE_PATH} not found")
+        return []
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return []
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,102 @@
+import random
+import sys
+
+def load_words(path='/usr/share/dict/words'):
+    """
+    Loads a list of words from a dictionary file.
+
+    Args:
+        path (str): The path to the dictionary file.
+
+    Returns:
+        list: A list of words, or None if the file cannot be found.
+    """
+    try:
+        with open(path, 'r') as f:
+            # Read all lines from the file
+            lines = f.readlines()
+            # Clean up each word: remove leading/trailing whitespace,
+            # convert to lowercase, and filter for alphabetic-only words.
+            words = [
+                line.strip().lower()
+                for line in lines
+                if line.strip().isalpha()
+            ]
+            return words
+    except FileNotFoundError:
+        print(f"Error: Dictionary file not found at '{path}'.")
+        print("On Debian/Ubuntu, you can install one with: sudo apt-get install wamerican")
+        print("On macOS, this file should exist by default.")
+        print("Alternatively, create your own 'words.txt' file and update the path in the script.")
+        return None
+
+def find_words_by_length(all_words, length):
+    """
+    Finds all words of a specific length from a given list of words.
+
+    Args:
+        all_words (list): The list of all words to search through.
+        length (int): The desired length of the words.
+
+    Returns:
+        list: A list of words that match the specified length.
+    """
+    return [word for word in all_words if len(word) == length]
+
+def main():
+    """
+    Main function to run the word finder program.
+    """
+    print("--- English Dictionary Word Finder ---")
+    
+    # Load the dictionary
+    all_words = load_words()
+
+    # If the dictionary could not be loaded, exit the program
+    if not all_words:
+        sys.exit("Exiting: No word list available.")
+
+    print(f"Loaded {len(all_words)} words from the dictionary.")
+
+    while True:
+        # Get user input
+        user_input = input("\nEnter the desired word length (or 'q' to quit): ").strip()
+
+        # Check if the user wants to quit
+        if user_input.lower() in ('q', 'quit', 'exit'):
+            print("Goodbye!")
+            break
+
+        # Validate the input
+        try:
+            num_chars = int(user_input)
+            if num_chars <= 0:
+                print("Please enter a positive number.")
+                continue
+        except ValueError:
+            print("Invalid input. Please enter a whole number.")
+            continue
+
+        # Find words with the specified length
+        matching_words = find_words_by_length(all_words, num_chars)
+
+        # Display the results
+        if not matching_words:
+            print(f"\nNo words found with {num_chars} characters.")
+        else:
+            count = len(matching_words)
+            print(f"\nFound {count} word(s) with {num_chars} characters.")
+            
+            # Determine how many words to display (up to 10)
+            num_to_display = min(count, 10)
+            print(f"Here are {num_to_display} random examples:")
+
+            # Get a random sample of words
+            sample_words = random.sample(matching_words, num_to_display)
+
+            # Print the sample, sorted for readability
+            for word in sorted(sample_words):
+                print(f"  - {word}")
+
+if __name__ == "__main__":
+    main()

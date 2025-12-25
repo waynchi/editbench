@@ -1,0 +1,69 @@
+import math
+
+def obter_somas_de_quatro_quadrados_nao_nulos(limite: int) -> list[int]:
+    """
+    Gera uma lista ordenada de números até um determinado limite que podem ser
+    expressos como a soma de quatro quadrados não nulos.
+
+    Um número n é gerado se n = a² + b² + c² + d² onde a, b, c, d
+    são inteiros positivos e n <= limite.
+
+    Args:
+        limite: O limite superior (inclusive) para os números a serem gerados.
+
+    Returns:
+        Uma lista ordenada de números únicos que são somas de quatro
+        quadrados não nulos.
+    """
+    if not isinstance(limite, int) or limite < 4:
+        return []
+
+    conjunto_somas = set()
+    # O valor máximo para a, b, c ou d é sqrt(limite).
+    # Como a, b, c, d >= 1, a soma mínima é 1²+1²+1²+1² = 4.
+    base_maxima = int(math.sqrt(limite))
+
+    # Para evitar permutações como (1,1,1,2), (1,1,2,1), etc., e para
+    # melhorar a eficiência, impomos a condição 1 <= a <= b <= c <= d.
+    for a in range(1, base_maxima + 1):
+        a_quad = a * a
+        # Otimização: se a menor soma possível com este 'a' já for > limite,
+        # podemos parar. A menor soma é a²+a²+a²+a² = 4*a².
+        if 4 * a_quad > limite:
+            break
+        for b in range(a, base_maxima + 1):
+            b_quad = b * b
+            soma_ab = a_quad + b_quad
+            # Otimização: a menor soma com este a,b é a²+b²+b²+b²
+            if soma_ab + 2 * b_quad > limite:
+                break
+            for c in range(b, base_maxima + 1):
+                c_quad = c * c
+                soma_abc = soma_ab + c_quad
+                # Otimização: a menor soma com este a,b,c é a²+b²+c²+c²
+                if soma_abc + c_quad > limite:
+                    break
+                for d in range(c, base_maxima + 1):
+                    d_quad = d * d
+                    soma_total = soma_abc + d_quad
+
+                    if soma_total <= limite:
+                        conjunto_somas.add(soma_total)
+                    else:
+                        # Como d está aumentando, as somas subsequentes também serão > limite.
+                        break
+    
+    return sorted(list(conjunto_somas))
+
+# --- Bloco de execução principal para demonstração ---
+if __name__ == '__main__':
+    # Define um limite para a geração dos números.
+    # Você pode alterar este valor para gerar números até um limite diferente.
+    LIMITE_SUPERIOR = 100
+
+    # Gera a lista de números
+    numeros_gerados = obter_somas_de_quatro_quadrados_nao_nulos(LIMITE_SUPERIOR)
+
+    # Imprime o resultado
+    print(f"Números até {LIMITE_SUPERIOR} que podem ser expressos como a soma de quatro quadrados não nulos:")
+    print(numeros_gerados)

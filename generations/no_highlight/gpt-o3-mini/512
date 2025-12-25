@@ -1,0 +1,45 @@
+import { messages } from "./messages.js";
+
+$(document).ready(() => {
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+    const $loadMessages = $('#loading-messages');
+
+    // Recuperar valores de localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Usa los datos recuperados según sea necesario
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $('#generateTaxButton').on('click', () => {
+        // Oculta la sección principal con un efecto de fade out
+        $main.fadeOut(500, () => {
+            // Muestra la animación de carga
+            setTimeout(() => {
+                $loading.css('display', 'flex');
+    
+                let totalDelay = 0;
+    
+                // Itera sobre cada mensaje para actualizar el contenido según su tiempo
+                messages.forEach(message => {
+                    totalDelay += message.time;
+                    setTimeout(() => {
+                        $loadMessages.text(message.text);
+                    }, totalDelay);
+                });
+    
+                // Después de que se hayan mostrado todos los mensajes, cambia de sección
+                setTimeout(() => {
+                    console.log('Cambiando a la sección de pago');
+                    $loading.css('display', 'none');
+                    $payment.css('display', 'block');
+                    $info.css('display', 'block');
+                }, totalDelay + 500);
+            }, 200);
+        });
+    });
+});

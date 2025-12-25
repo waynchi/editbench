@@ -1,0 +1,57 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+
+# Configuración del bot
+TOKEN = "TOKEN"
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+CHAT_ID = 111111111
+TIME_INTERVAL = 5
+continue_flag = True
+
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(text="Да", callback_data="stop"),
+            types.InlineKeyboardButton(text="Нет", callback_data="continue")
+        ]
+    ])
+    # Enviamos el mensaje al chat especificado
+    await bot.send_message(chat_id=CHAT_ID, text="Ты робот?", reply_markup=markup)
+
+@dp.callback_query_handler(text="stop")
+async def handle_stop(call: types.CallbackQuery):
+    global continue_flag
+    # Si fuese necesario cambiar el flag, se podría hacer aquí:
+    # continue_flag = False
+    await bot.send_message(chat_id=call.message.chat.id, text="<obscene message>!")
+
+@dp.callback_query_handler(text="continue")
+async def handle_continue(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text="Лох^лох, лох")
+
+@dp.message_handler(content_types=['text'])
+async def handle_all_messages(message: types.Message):
+    # Enviar un video (GIF) en respuesta a cualquier mensaje de texto
+    with open(r"D:\Python files\!MoexApiBot\censored.gif", "rb") as video_file:
+        await bot.send_video(chat_id=CHAT_ID, video=video_file, caption="Го <censor> ёр селф")
+
+async def send_periodic_messages():
+    # Envía mensajes de forma periódica mientras continue_flag sea True
+    while continue_flag:
+        await bot.send_message(chat_id=CHAT_ID, text="Лох лох")
+        with open(r"D:\Python files\!MoexApiBot\Shocked13.mp4", "rb") as video_file:
+            await bot.send_video(chat_id=CHAT_ID, video=video_file, caption="Ты проиграл")
+        await asyncio.sleep(TIME_INTERVAL)
+
+async def main():
+    print("Бот запущен!")
+    # Iniciamos la tarea periódica
+    asyncio.create_task(send_periodic_messages())
+    # Inicia el polling sin usar executor.start_polling
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())

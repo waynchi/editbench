@@ -1,0 +1,53 @@
+import numpy as np
+
+# Define the input file path. Using a single, clear definition is good practice.
+# The second definition in the original code was redundant and has been removed.
+INPUT_FILE_PATH = './example_in.txt'
+# INPUT_FILE_PATH = './input.txt'
+
+def main():
+    """
+    Reads two columns of numbers from a file, sorts each column independently,
+    and calculates the sum of the absolute differences between the paired
+    sorted elements.
+    """
+    try:
+        # np.loadtxt is the idiomatic and efficient way to read whitespace-separated
+        # numerical data. `ndmin=2` ensures the output is always a 2D array, even
+        # for a single row or column. The result is transposed (.T) to easily access columns.
+        cols = np.loadtxt(INPUT_FILE_PATH, dtype=int, ndmin=2).T
+
+        # Ensure we have at least two columns to work with.
+        if cols.shape[0] < 2:
+            print("Error: Input data must have at least two columns.")
+            return
+
+    except FileNotFoundError:
+        print(f"Error: Could not find or read the file at '{INPUT_FILE_PATH}'.")
+        return
+    except ValueError:
+        print(f"Error: The file '{INPUT_FILE_PATH}' contains non-integer data or has an inconsistent number of columns.")
+        return
+
+    # The original implementation repeatedly found the minimum element from each list.
+    # This is functionally equivalent to sorting both lists and then comparing the
+    # elements at each corresponding index.
+    # This new approach is much more performant (O(N log N) for sorting) than the
+    # original O(N^2) loop, which used a costly list.pop() operation.
+
+    # Sort each column independently using the highly optimized np.sort.
+    col1_sorted = np.sort(cols[0])
+    col2_sorted = np.sort(cols[1])
+
+    # Use fast, vectorized NumPy operations to get the sum of absolute differences.
+    # This avoids slow Python loops and is significantly more efficient.
+    total_distance = np.sum(np.abs(col1_sorted - col2_sorted))
+
+    print(total_distance)
+
+# The original parse_input_file function is no longer needed, as np.loadtxt
+# provides a more robust and direct way to load the data. Removing unused code
+# improves clarity and maintainability.
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,119 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+def czyPoprawny(obrazek): # The image contains a list of character strings and you can use the bitwise operator
+                            # image[i][j]
+    for wiersz in obrazek[:-1]: # we do not count from the last row, there are parity bits there
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]: # do not count from the last row, there are parity bits there
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20): # i = 0,1,2,3,4,5,6,7..19
+        kolumna = ""
+        for j in range(21):  # j = 0,1,2,3,4,5,..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+           bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """The input is a text file containing data of a black and white image encoded as pixels.
+    0 - white pixel, 1 - black pixel. Each row and column ends with a parity bit.
+    The parity bit is 0 if the number of ones in the row (or in the column for columns) is even,
+    and 1 if it is odd.
+    This function finds damaged images and repairs them.
+    A repairable image has at most one incorrect row parity bit and at most one incorrect column parity bit.
+    The repair is done by flipping the faulty bit.
+    If only the row parity is wrong, the parity bit at that row is flipped.
+    If only the column parity is wrong, then the parity bit in the last (parity) row for that column is flipped.
+    If both a row and a column are erroneous, then it is assumed that a single data pixel error occurred at the
+    intersection of the bad row and column; that pixel is flipped.
+    The function returns a list containing the original (incorrect) image and the corrected image.
+    """
+    # Make a deep copy of the image as a list of lists so that we can modify it.
+    # Note: The image consists of 21 rows. The first 20 rows have 21 characters (20 data bits + row parity)
+    # and the 21st row has 20 characters (column parity bits).
+    corrected = [list(r) for r in obrazek]  # mutable copy
+
+    # Identify the row with a parity error (if any) among the 20 data rows.
+    row_error_index = None
+    for idx in range(20):
+        row_data = obrazek[idx][:-1]
+        parity_bit = obrazek[idx][-1]
+        if row_data.count('1') % 2 != int(parity_bit):
+            row_error_index = idx
+            break
+
+    # Identify the column with a parity error (if any) among the 20 columns.
+    col_error_index = None
+    for col in range(20):
+        col_bits = ""
+        for row in range(21):
+            col_bits += obrazek[row][col]
+        # In the column string, data bits are all except the last one and the parity bit is the last.
+        if col_bits[:-1].count('1') % 2 != int(col_bits[-1]):
+            col_error_index = col
+            break
+
+    # Repair according to which error(s) we found.
+    if (row_error_index is not None) and (col_error_index is not None):
+        # Both row and column error: flip the data pixel at their intersection (in one of the first 20 rows, and columns 0-19)
+        current = corrected[row_error_index][col_error_index]
+        corrected[row_error_index][col_error_index] = '0' if current == '1' else '1'
+    elif row_error_index is not None:
+        # Only row parity error: fix the parity bit of the faulty row.
+        current = corrected[row_error_index][-1]
+        corrected[row_error_index][-1] = '0' if current == '1' else '1'
+    elif col_error_index is not None:
+        # Only column parity error: fix the parity bit of the faulty column, which is in the last row.
+        current = corrected[-1][col_error_index]
+        corrected[-1][col_error_index] = '0' if current == '1' else '1'
+    # If no error detected (should not happen in a repairable image), do nothing.
+
+    # Convert the corrected image back to a list of strings
+    corrected_image = ["".join(row) for row in corrected]
+
+    # Return a list containing the incorrect image and the corrected image.
+    wynik = [obrazek, corrected_image]
+    return wynik
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip() # cut off white spaces like enter
+   # row = row[:-1]  # only image data without the parity bit, now we read the entire row of data
+    obrazek.append(wiersz)
+    if len(obrazek) == 21: # we have 21 lines, meaning the entire image along with the parity bit rows
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+    if len(obrazek) == 22:  # after line 22 we clear the image to read the rows of the next image
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

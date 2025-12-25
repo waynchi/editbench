@@ -1,0 +1,27 @@
+def main():
+    # Загружаем английский словарь из файла
+    try:
+        with open('/usr/share/dict/words', 'r') as f:
+            words = f.read().splitlines()
+    except Exception as e:
+        print("Ошибка при чтении словаря:", e)
+        return
+
+    # Запрашиваем у пользователя количество символов
+    try:
+        n = int(input("Введите количество символов: "))
+    except ValueError:
+        print("Некорректное число!")
+        return
+
+    # Ищем 10 слов с указанным количеством символов
+    matching_words = [word for word in words if len(word) == n and word.isalpha()]
+    if matching_words:
+        print("Найденные слова:")
+        for word in matching_words[:10]:
+            print(word)
+    else:
+        print("Нет слов с таким количеством символов.")
+
+if __name__ == "__main__":
+    main()

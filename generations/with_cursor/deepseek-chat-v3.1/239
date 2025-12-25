@@ -1,0 +1,82 @@
+# создать модуль полусумматора на Verilog с помощью Python
+
+# код на verilog
+verilog_code = """
+module half_adder(a, b, c, d, e, sum, carry);
+    input a, b, c, d, e;
+    output sum, carry;
+    wire temp_sum1, temp_sum2, temp_sum3;
+    
+    // Первый уровень сложения
+    assign temp_sum1 = a ^ b;
+    assign temp_carry1 = a & b;
+    
+    // Второй уровень сложения
+    assign temp_sum2 = temp_sum1 ^ c;
+    assign temp_carry2 = temp_sum1 & c;
+    
+    // Третий уровень сложения
+    assign temp_sum3 = temp_sum2 ^ d;
+    assign temp_carry3 = temp_sum2 & d;
+    
+    // Четвертый уровень сложения
+    assign sum = temp_sum3 ^ e;
+    assign temp_carry4 = temp_sum3 & e;
+    
+    // Расчет итогового переноса
+    assign carry = temp_carry1 | temp_carry2 | temp_carry3 | temp_carry4;
+endmodule
+"""
+
+# имя модуля verilog
+module_name = "half_adder"
+
+# входные и выходные порты модуля verilog
+input_ports = ["a", "b", "c", "d", "e"]
+output_ports = ["sum", "carry"]
+
+# параметры модуля verilog
+parameters = ["WIDTH"]
+
+# значение параметров модуля verilog
+parameter_values = ["8"]
+
+# тело модуля verilog
+module_body = """
+    input a, b, c, d, e;
+    output sum, carry;
+    wire temp_sum1, temp_sum2, temp_sum3;
+    
+    // Первый уровень сложения
+    assign temp_sum1 = a ^ b;
+    assign temp_carry1 = a & b;
+    
+    // Второй уровень сложения
+    assign temp_sum2 = temp_sum1 ^ c;
+    assign temp_carry2 = temp_sum1 & c;
+    
+    // Третий уровень сложения
+    assign temp_sum3 = temp_sum2 ^ d;
+    assign temp_carry3 = temp_sum2 & d;
+    
+    // Четвертый уровень сложения
+    assign sum = temp_sum3 ^ e;
+    assign temp_carry4 = temp_sum3 & e;
+    
+    // Расчет итогового переноса
+    assign carry = temp_carry1 | temp_carry2 | temp_carry3 | temp_carry4;
+endmodule
+"""
+
+# инстанцирование модуля verilog
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .c(c),
+    .d(d),
+    .e(e),
+    .sum(sum),
+    .carry(carry)
+);
+"""

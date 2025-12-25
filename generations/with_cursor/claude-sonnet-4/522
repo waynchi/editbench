@@ -1,0 +1,160 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+from tkinter import messagebox
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    try:
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        logging.basicConfig(
+            level=logging.INFO,
+            format=log_format,
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('app.log', encoding='utf-8')
+            ]
+        )
+    except Exception as e:
+        print(f"Error setting up logging: {e}")
+        # Fallback to basic logging
+        logging.basicConfig(level=logging.INFO)
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Ejecutándose como ejecutable compilado
+            return os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # Ejecutando como script
+            return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+    except Exception as e:
+        logging.error(f"Error getting resource path: {e}")
+        # Fallback to current directory
+        return os.path.join(os.getcwd(), 'resources')
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+        
+        # Verificar si el directorio de recursos existe
+        if not os.path.exists(resource_dir):
+            logging.error(f"Resource directory does not exist: {resource_dir}")
+            return False
+        
+        # Verificar si cada archivo requerido existe
+        missing_files = []
+        for file in required_files:
+            file_path = os.path.join(resource_dir, file)
+            if not os.path.exists(file_path):
+                missing_files.append(file)
+        
+        # Si faltan archivos requeridos, devolver False
+        if missing_files:
+            logging.error(f"Missing resource files: {', '.join(missing_files)}")
+            return False
+        return True
+    except Exception as e:
+        logging.error(f"Error checking resources: {e}")
+        return False
+
+def show_error_dialog(title, message):
+    """
+    Show error dialog to user.
+    
+    Args:
+        title (str): Dialog title
+        message (str): Error message
+    """
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        messagebox.showerror(title, message)
+        root.destroy()
+    except Exception as e:
+        print(f"Error showing dialog: {e}")
+        print(f"{title}: {message}")
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Configurar el registro de eventos
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Verificar recursos
+        if not check_resources():
+            error_msg = "Required resource files are missing. Application cannot start."
+            logging.error(error_msg)
+            show_error_dialog("Resource Error", error_msg)
+            sys.exit(1)
+
+        # Inicializar la ventana principal con soporte de arrastrar y soltar
+        try:
+            root = tkinterdnd2.TkinterDnD.Tk()
+        except Exception as e:
+            logging.error(f"Error initializing TkinterDnD: {e}")
+            # Fallback to regular Tkinter
+            root = tk.Tk()
+        
+        # Importar aquí para evitar importaciones circulares
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as e:
+            error_msg = f"Error importing main window module: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Import Error", error_msg)
+            sys.exit(1)
+        
+        # Crear la instancia de la aplicación
+        try:
+            app = AudioTranscriberApp(root)
+        except Exception as e:
+            error_msg = f"Error creating application instance: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Application Error", error_msg)
+            sys.exit(1)
+        
+        # Iniciar el bucle principal de eventos
+        try:
+            root.mainloop()
+        except KeyboardInterrupt:
+            logging.info("Application interrupted by user")
+        except Exception as e:
+            error_msg = f"Error in main loop: {e}"
+            logging.error(error_msg)
+            show_error_dialog("Runtime Error", error_msg)
+        
+    except Exception as e:
+        error_msg = f"Critical application error: {e}"
+        logging.error(error_msg)
+        show_error_dialog("Critical Error", error_msg)
+        sys.exit(1)
+    finally:
+        logging.info("Application shutting down")
+
+if __name__ == "__main__":
+    main()

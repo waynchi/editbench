@@ -1,0 +1,72 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Ścieżka do pliku JSON do przechowywania danych
+const DB_FILE = path.join(__dirname, "database.json");
+
+// Zainicjuj plik JSON, jeśli nie istnieje
+if (!fs.existsSync(DB_FILE)) {
+  fs.writeFileSync(DB_FILE, JSON.stringify({ appointments: [], reminders: [] }, null, 2));
+}
+
+// Funkcja pomocnicza do odczytywania danych z pliku JSON
+const readDatabase = () => {
+  const data = fs.readFileSync(DB_FILE, "utf-8");
+  return JSON.parse(data);
+};
+
+// Funkcja pomocnicza do zapisywania danych do pliku JSON
+const writeDatabase = (data) => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+};
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// // Trasy
+
+// Sprawdzenie stanu zdrowia
+app.get("/", (req, res) => {
+  res.status(200).send("API is working!");
+});
+
+// Middleware do okresowego czyszczenia wygasłych tokenów
+const tokenStore = {};
+setInterval(() => {
+  const now = Date.now();
+  for (const token in tokenStore) {
+    if (tokenStore[token].expiresAt < now) {
+      delete tokenStore[token]; // Usuń wygasły token
+    }
+  }
+}, 60000); // Uruchom czyszczenie co minutę
+
+// Funkcja pomocnicza do generowania 8-znakowego losowego tokena alfanumerycznego
+function generateSimpleToken() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  for (let i = 0; i < 8; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+// Zaktualizowano /generate-token
+app.get("/generate-token", (req, res) => {
+  const { phone, name, chat } = req.query;
+  if (!phone || !name || !chat) {
+    return res.status(400).json({ error: "Phone, Name, and Chatbot are required" });
+  }
+
+  try {
+    const token = generateSimpleToken(); // Wygeneruj token
+    const expiresAt = Date.now() + 15 * 60 * 1000; // Ustaw czas wygaśnięcia na

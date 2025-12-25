@@ -1,0 +1,112 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=1000):
+    """
+    Решает систему линейных уравнений Ax = b с помощью метода сопряжённых градиентов.
+
+    Этот метод является итерационным и особенно эффективен для больших разреженных систем,
+    где матрица A является симметричной и положительно-определённой.
+
+    Args:
+        A (np.ndarray): Симметричная положительно-определённая матрица размером (n, n).
+        b (np.ndarray): Вектор правой части системы, размер (n,).
+        x0 (np.ndarray, optional): Начальное приближение решения. Если None, используется нулевой вектор. Defaults to None.
+        tol (float, optional): Точность (допуск) для условия остановки. Итерации прекращаются, когда норма невязки становится меньше tol. Defaults to 1e-5.
+        max_iter (int, optional): Максимальное количество итераций. Defaults to 1000.
+
+    Returns:
+        np.ndarray: Найденное решение системы уравнений x.
+    """
+    n = len(b)
+
+    # Если начальное приближение не задано, используем нулевой вектор
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+
+    # Начальные вычисления
+    r = b - A @ x  # Вектор невязки (residual)
+    p = r.copy()   # Начальное направление поиска (search direction)
+    rs_old = np.dot(r, r)
+
+    if np.sqrt(rs_old) < tol:
+        print("Начальное приближение уже является решением.")
+        return x
+
+    # Итерационный процесс
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / np.dot(p, Ap)  # Длина шага
+
+        # Обновление решения и невязки
+        x = x + alpha * p
+        r = r - alpha * Ap
+
+        rs_new = np.dot(r, r)
+
+        # Проверка условия сходимости
+        if np.sqrt(rs_new) < tol:
+            # print(f"Сходимость достигнута за {i+1} итераций.")
+            break
+
+        # Обновление направления поиска
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    else: # Выполняется, если цикл завершился без break
+        print(f"Метод не сошёлся за {max_iter} итераций.")
+
+    return x
+
+if __name__ == '__main__':
+    # Пример использования метода сопряжённых градиентов
+
+    # Определяем симметричную положительно-определённую матрицу A
+    A = np.array([[4.0, 1.0],
+                  [1.0, 3.0]])
+
+    # Определяем вектор b
+    b = np.array([1.0, 2.0])
+
+    # Начальное приближение (можно не указывать)
+    x0 = np.array([0.0, 0.0])
+
+    print("Матрица A:")
+    print(A)
+    print("\nВектор b:")
+    print(b)
+
+    # Находим решение с помощью нашей функции
+    solution_cg = conjugate_gradient(A, b, x0=x0)
+    print("\nРешение, найденное методом сопряжённых градиентов:")
+    print(solution_cg)
+
+    # Для проверки найдем точное решение с помощью numpy
+    exact_solution = np.linalg.solve(A, b)
+    print("\nТочное решение (np.linalg.solve):")
+    print(exact_solution)
+
+    # Проверим невязку для нашего решения
+    residual = b - A @ solution_cg
+    print("\nНевязка для найденного решения (b - A*x):")
+    print(residual)
+    print("Норма невязки:", np.linalg.norm(residual))
+
+    # Пример с большей матрицей
+    print("\n--- Пример с матрицей 5x5 ---")
+    A_large = np.array([
+        [10, 1, 2, 3, 4],
+        [1, 9, -1, 2, -3],
+        [2, -1, 7, 3, -5],
+        [3, 2, 3, 12, -1],
+        [4, -3, -5, -1, 15]
+    ])
+    b_large = np.array([12, -27, -5, 14, 18])
+
+    solution_large_cg = conjugate_gradient(A_large, b_large)
+    print("\nРешение, найденное методом сопряжённых градиентов:")
+    print(solution_large_cg)
+
+    exact_solution_large = np.linalg.solve(A_large, b_large)
+    print("\nТочное решение (np.linalg.solve):")
+    print(exact_solution_large)

@@ -1,0 +1,69 @@
+import tkinter as tk
+import random
+
+def random_color():
+    return "#%06x" % random.randint(0, 0xFFFFFF)
+
+class Square:
+    def __init__(self, canvas, size, x, y):
+        self.canvas = canvas
+        self.size = size
+        self.x = x
+        self.y = y
+        self.dx = random.choice([-2, 2])
+        self.dy = random.choice([-2, 2])
+        self.color = random_color()
+        self.square = canvas.create_rectangle(x, y, x + size, y + size, fill=self.color)
+    
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.canvas.move(self.square, self.dx, self.dy)
+        
+        # Update geometry info to get the correct dimensions.
+        self.canvas.update_idletasks()
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # Check if the square has reached or exceeded the boundary.
+        if (self.x <= 0 or self.x + self.size >= canvas_width or 
+            self.y <= 0 or self.y + self.size >= canvas_height):
+            # Delete the current square from the canvas.
+            self.canvas.delete(self.square)
+            # Split the square if it's large enough.
+            if self.size > 10:
+                new_size = self.size / 2
+                # Create two new squares with random colors, emerging near the center of the canvas.
+                new_square1 = Square(self.canvas, new_size, 
+                                     canvas_width / 2 - new_size / 2, 
+                                     canvas_height / 2 - new_size / 2)
+                new_square2 = Square(self.canvas, new_size, 
+                                     canvas_width / 2 + new_size / 2, 
+                                     canvas_height / 2 + new_size / 2)
+                squares.append(new_square1)
+                squares.append(new_square2)
+            return False
+        return True
+
+def update():
+    global squares
+    # Move all squares and remove any that have hit the boundaries.
+    squares = [square for square in squares if square.move()]
+    root.after(20, update)  # Update every 20 milliseconds
+
+# Create the main window.
+root = tk.Tk()
+root.title("Splitting Squares")
+
+# Create the canvas.
+canvas = tk.Canvas(root, width=600, height=600, bg="white")
+canvas.pack(expand=True, fill="both")
+
+# Create the initial square.
+squares = [Square(canvas, 100, 250, 250)]
+
+# Start the animation.
+update()
+
+# Start the main event loop.
+root.mainloop()

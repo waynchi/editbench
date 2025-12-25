@@ -1,0 +1,48 @@
+import pandas as pd
+from main13 import knn, mlp
+
+def main():
+    # Loop through each combination of parameters.
+    for pclass in [1, 2, 3]:
+        for fare in range(10, 200, 10):
+            for embarked in ["S", "Q", "C"]:
+                # Create a DataFrame with a single row.
+                # Note: Changed the value of "Name" from a numeric constant (24)
+                # to a string ("Unknown") because names are typically strings.
+                data = {
+                    "Pclass": [pclass],
+                    "Name": ["Unknown"],
+                    "Sex": [0],
+                    "Age": [19],
+                    "SibSp": [0],
+                    "Parch": [0],
+                    "Fare": [fare],
+                    "Embarked": [embarked]
+                }
+                my_df = pd.DataFrame(data)
+
+                # Use one-hot encoding for the 'Embarked' column.
+                my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+                # Ensure that all expected one-hot columns are present,
+                # even if a particular category wasn't triggered from the current row.
+                for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+                    if col not in my_df.columns:
+                        my_df[col] = 0
+
+                # If needed, reorder the one-hot columns (optional, depending on your model input expectations)
+                my_df = my_df[["Pclass", "Name", "Sex", "Age", "SibSp", "Parch", "Fare",
+                               "Embarked_C", "Embarked_Q", "Embarked_S"]]
+
+                # Get prediction results from both models.
+                knn_result = knn.predict(my_df)
+                mlp_result = mlp.predict(my_df)
+
+                # Print the results.
+                print("-------------------------------------------------------")
+                print(f"Parameters: Pclass {pclass}, Fare {fare}, Embarked {embarked}")
+                print(f"By knn: {knn_result}")
+                print(f"By mlp: {mlp_result}")
+
+if __name__ == "__main__":
+    main()

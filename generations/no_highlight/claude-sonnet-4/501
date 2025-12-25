@@ -1,0 +1,59 @@
+# Importar Pymapdl
+# desde ansys.mapdl.core importar launch_mapdl
+
+# Crear instancia de MAPDL
+# mapdl = launch_mapdl(override=True)
+
+# Definir una función para ajustar una línea recta a un array def fit_line(x, y):
+import numpy as np
+
+def fit_line(x, y, max_deviation_factor=2.0):
+    """Función para ajustar una línea recta a un conjunto de datos con control de desviación máxima"""
+    # Calcular el valor medio de x e y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Calcular la desviación de x e y
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # Aumentar el valor de desviación máxima aplicando un factor
+    x_dev = x_dev * max_deviation_factor
+    y_dev = y_dev * max_deviation_factor
+    
+    # Calcular el producto de las desviaciones de x e y
+    xy_dev = x_dev * y_dev
+    
+    # Calcular el cuadrado de la desviación de x
+    x_dev_squared = x_dev ** 2
+    
+    # Calcular la pendiente y la intersección de la línea recta
+    slope = np.sum(xy_dev) / np.sum(x_dev_squared)
+    intercept = y_mean - slope * x_mean
+    
+    # Calcular la desviación máxima actual
+    fitted_y = slope * x + intercept
+    max_deviation = np.max(np.abs(y - fitted_y))
+    
+    return slope, intercept, max_deviation
+
+# Definir una función para el ajuste de curva cuadrática de un array xy
+def fit_quadratic(x, y, max_deviation_factor=2.0):
+    """Función para el ajuste de curva cuadrática de un arreglo con control de desviación máxima"""
+    # Calcular desviaciones con factor de aumento
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    x_adjusted = x_mean + (x - x_mean) * max_deviation_factor
+    y_adjusted = y_mean + (y - y_mean) * max_deviation_factor
+    
+    # Crear una matriz de Vandermonde con valores ajustados
+    A = np.vstack([x_adjusted**2, x_adjusted, np.ones(len(x_adjusted))]).T
+    
+    # Usar el método de mínimos cuadrados para resolver los coeficientes
+    coeffs = np.linalg.lstsq(A, y_adjusted, rcond=None)[0]
+    
+    # Calcular la desviación máxima
+    fitted_y = coeffs[0] * x**2 + coeffs[1] * x + coeffs[2]
+    max_deviation = np.max(np.abs(y - fitted_y))
+    
+    return coeffs, max_deviation

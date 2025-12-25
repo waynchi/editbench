@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""
+This script reads an input file containing two columns of integers separated by whitespace.
+It then computes the sum of absolute differences between the paired elements when both lists
+are sorted in ascending order.
+
+Improvements implemented:
+1. Removed redundant reassignments of the input file path.
+2. Added error handling for file operations.
+3. Used robust splitting (any whitespace) to handle input formatting flexibly.
+4. Replaced the iterative pop approach with a more efficient sorted pairing method.
+5. Added type hints and docstrings for better code clarity.
+"""
+
+import os
+import sys
+from typing import List
+import numpy as np
+
+INPUT_FILE_PATH = './example_in.txt'
+
+def parse_input_file(file_path: str) -> List[str]:
+    """
+    Parse the input file and return non-empty lines.
+
+    :param file_path: Path to the input file.
+    :return: A list of stripped, non-empty lines.
+    """
+    if not os.path.exists(file_path):
+        print(f"Error: The file '{file_path}' does not exist.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        with open(file_path, 'r') as f:
+            # Split the file content into lines and filter out empty lines
+            lines = [line.strip() for line in f.read().splitlines() if line.strip()]
+        return lines
+    except Exception as e:
+        print(f"Error reading file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def calculate_sum_of_absolute_differences(col1: List[int], col2: List[int]) -> int:
+    """
+    Calculate the sum of absolute differences between elements when both lists are sorted.
+
+    :param col1: List of integers from first column.
+    :param col2: List of integers from second column.
+    :return: Sum of absolute differences.
+    """
+    # Sort both lists
+    sorted_col1 = sorted(col1)
+    sorted_col2 = sorted(col2)
+    # Sum of absolute differences between corresponding elements
+    total_diff = sum(abs(a - b) for a, b in zip(sorted_col1, sorted_col2))
+    return total_diff
+
+def main() -> None:
+    """
+    Main function to read input, process the data, and print the results.
+    """
+    # Read input file and split lines into columns using any whitespace as separator.
+    lines = parse_input_file(INPUT_FILE_PATH)
+    print("Input Lines:")
+    print(lines)
+
+    # Convert each line into a list of integers
+    try:
+        # Using numpy for easier transpose operation; split on whitespace
+        # Each line is expected to have two integer values separated by whitespace.
+        data = [list(map(int, line.split())) for line in lines]
+    except ValueError as ve:
+        print(f"Error converting input data to integers: {ve}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Convert data into a numpy array and transpose
+    try:
+        data_array = np.array(data)
+    except Exception as e:
+        print(f"Error converting data to a numpy array: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if data_array.shape[1] < 2:
+        print("Error: Each line in the input file must contain at least two numbers.", file=sys.stderr)
+        sys.exit(1)
+        
+    # Extract columns
+    col1 = list(data_array[:, 0])
+    col2 = list(data_array[:, 1])
+
+    # Calculate the sum of absolute differences using sorted pairing
+    total_difference = calculate_sum_of_absolute_differences(col1, col2)
+    print("Sum of absolute differences:", total_difference)
+
+if __name__ == "__main__":
+    main()

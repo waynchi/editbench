@@ -1,0 +1,58 @@
+from pathlib import Path
+import shutil
+
+target_folder = 'F:/Maverick/desktop/Windows/temp/'
+
+def get_content_delivery_path():
+    """
+    Get the path of Windows Content Delivery
+    """
+    # Use expanduser to find the user's home directory dynamically
+    home_dir = Path.home()
+    path = home_dir / 'AppData/Local/Packages/'
+    
+    # Use next with a default value to safely get the first match or None
+    matched_iterator = path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    result = next(matched_iterator, None)
+    
+    if result:
+        suffix = 'LocalState/Assets/'
+        return result / suffix
+    else:
+        raise FileNotFoundError('ContentDeliveryManager Not Found')
+    
+
+def jpeg(source_folder: Path, target_folder: str):
+    """
+    Copy files from source folder to target folder and add .jpeg suffix.
+    Filters for files that are likely to be wallpapers (e.g., > 100KB).
+    """
+    target_path = Path(target_folder)
+    # Create the target directory if it doesn't exist
+    target_path.mkdir(parents=True, exist_ok=True)
+    
+    copied_count = 0
+    print(f"Searching for images in {source_folder}...")
+
+    for source_file in source_folder.iterdir():
+        # Check if it's a file and larger than 100KB to filter out icons/thumbnails
+        if source_file.is_file() and source_file.stat().st_size > 100 * 1024:
+            destination_file = target_path / (source_file.name + '.jpeg')
+            
+            # Copy the file, preserving metadata
+            shutil.copy2(source_file, destination_file)
+            copied_count += 1
+            print(f"  Copied: {destination_file.name}")
+            
+    print(f"\nFinished. Copied {copied_count} files to {target_path}")
+
+
+    
+if __name__ == '__main__':
+    try:
+        source_folder = get_content_delivery_path()
+        print(f"Windows Content Delivery path: {source_folder}")
+        print(f"Target folder: {target_folder}\n")
+        jpeg(source_folder, target_folder)
+    except Exception as e:
+        print(f"An error occurred: {e}")

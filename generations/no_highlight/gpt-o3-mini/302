@@ -1,0 +1,44 @@
+import { messages } from "./messages.js";
+
+$(document).ready(function() {
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+
+    // Извлечь значения из localStorage
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    // Используйте полученные данные по мере необходимости
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    $('#generateTaxButton').on('click', function() {
+        $main.fadeOut(500, function() {
+            setTimeout(function() {
+                $loading.css('display', 'flex');
+
+                let totalDelay = 0;
+                $.each(messages, function(index, message) {
+                    totalDelay += message.time;
+                });
+                console.log(`Общее время: ${totalDelay}`);
+
+                const $loadMessages = $('#loading-messages');
+                $.each(messages, function(index, element) {
+                    setTimeout(function() {
+                        $loadMessages.text(element.text);
+                    }, element.time);
+                });
+
+                setTimeout(function() {
+                    console.log('Переход к оплате');
+                    $loading.hide();
+                    $payment.show();
+                    $info.show();
+                }, totalDelay + 500);
+            }, 200);
+        });
+    });
+});

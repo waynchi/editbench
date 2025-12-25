@@ -1,0 +1,51 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # Remove any accidental empty lines
+    lines = [line for line in lines if line]
+    # Convert each input line into a list of characters so that we obtain a 2D grid.
+    grid = np.array([list(line) for line in lines])
+    print("Grid:")
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+
+    # Horizontal check: For every row, join the characters into a string and count occurrences.
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Vertical check: For every column, join the characters into a string and count occurrences.
+    # Since our grid is 2D (rows x columns), grid.shape[1] is defined.
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col])
+        count += col_str.count(str_to_match)
+
+    # Diagonal checks (top-left to bottom-right)
+    for offset in range(-(grid.shape[0]-1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Diagonal checks (top-right to bottom-left)
+    flipped_grid = np.fliplr(grid)
+    for offset in range(-(flipped_grid.shape[0]-1), flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=offset)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of '{str_to_match}'")
+
+def parse_input_file():
+    # Read the file and split into lines without retaining newline characters.
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().splitlines()
+    return lines
+
+if __name__ == "__main__":
+    main()

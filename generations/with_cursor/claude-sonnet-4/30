@@ -1,0 +1,65 @@
+def can_be_expressed_as_sum_of_four_squares(n):
+    """
+    Verifica se um número pode ser expresso como a soma de quatro quadrados não nulos.
+    Retorna True se possível, False caso contrário.
+    """
+    # Verifica todas as combinações possíveis de quatro quadrados
+    for a in range(1, int(n**0.5) + 1):
+        a_squared = a * a
+        if a_squared >= n:
+            break
+        for b in range(1, int((n - a_squared)**0.5) + 1):
+            b_squared = b * b
+            if a_squared + b_squared >= n:
+                break
+            for c in range(1, int((n - a_squared - b_squared)**0.5) + 1):
+                c_squared = c * c
+                if a_squared + b_squared + c_squared >= n:
+                    break
+                d_squared = n - a_squared - b_squared - c_squared
+                d = int(d_squared**0.5)
+                if d > 0 and d * d == d_squared:
+                    return True, (a, b, c, d)
+    return False, None
+
+def find_sum_of_four_squares(n):
+    """
+    Encontra uma representação de n como soma de quatro quadrados não nulos.
+    """
+    result, squares = can_be_expressed_as_sum_of_four_squares(n)
+    if result:
+        a, b, c, d = squares
+        return f"{n} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}"
+    else:
+        return f"{n} não pode ser expresso como soma de quatro quadrados não nulos"
+
+def list_numbers_with_four_squares(start, end):
+    """
+    Lista todos os números em um intervalo que podem ser expressos 
+    como soma de quatro quadrados não nulos.
+    """
+    results = []
+    for num in range(start, end + 1):
+        can_express, squares = can_be_expressed_as_sum_of_four_squares(num)
+        if can_express:
+            results.append((num, squares))
+    return results
+
+# Exemplo de uso
+if __name__ == "__main__":
+    # Testa alguns números
+    test_numbers = [10, 15, 20, 25, 30, 50]
+    
+    print("Números que podem ser expressos como soma de quatro quadrados não nulos:")
+    print("=" * 70)
+    
+    for num in test_numbers:
+        print(find_sum_of_four_squares(num))
+    
+    print("\n" + "=" * 70)
+    print("Listando números de 10 a 30 que podem ser expressos como soma de quatro quadrados:")
+    
+    valid_numbers = list_numbers_with_four_squares(10, 30)
+    for num, squares in valid_numbers:
+        a, b, c, d = squares
+        print(f"{num} = {a}² + {b}² + {c}² + {d}²")

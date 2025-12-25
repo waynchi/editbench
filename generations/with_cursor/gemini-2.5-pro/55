@@ -1,0 +1,314 @@
+import os
+import shutil
+import json
+import pickle
+import logging
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+import torch
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+
+# --- Configuration ---
+
+# It's good practice to configure logging at the start of your application.
+# This ensures that log messages from all modules are captured.
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+load_dotenv()
+
+# Using pathlib.Path for object-oriented filesystem paths is more robust and readable.
+DATA_SAVE_PATH = Path(os.getenv("DATA_SAVE_PATH", "./data"))
+MODEL_PATH = Path(os.getenv("MODEL_PATH", "./models"))
+
+
+# --- Optimized Functions ---
+
+
+def save_log_to_file(
+    log_history: List[Dict[str, Any]],
+    file_path: Path,
+    append_latest_only: bool = False,
+):
+    """
+    Saves log history to a file using the JSON Lines format (.jsonl).
+
+    This format is optimized for appending, as each line is a self-contained
+    JSON object. This avoids reading the entire file into memory before writing.
+
+    Parameters:
+    - log_history: List of log entries (dictionaries).
+    - file_path: Path to the .jsonl file where logs will be saved.
+    - append_latest_only: If True, only the latest log entry is appended.
+    """
+    # --- OPTIMIZATION 1: Use JSON Lines for Append-Only Logging ---
+    #
+    # Explanation: The original implementation read the entire JSON file into memory,
+    # appended new data, and then rewrote the entire file. This is inefficient for
+    # large log files, consuming significant memory and I/O.
+    #
+    # Improvement: By switching to the JSON Lines format (where each line is a
+    # separate JSON object), we can simply open the file in append mode ('a') and
+    # write new entries. This is significantly faster and uses constant memory,
+    # regardless of the log file's size.
+    #
+    # Trade-offs: The output file is no longer a single, pretty-printed JSON array.
+    # It's a `.jsonl` file that must be read line-by-line. This is a standard and
+    # more robust format for logging, but requires consumers of the file to adapt.
+
+    entries_to_write = []
+    if append_latest_only and log_history:
+        entries_to_write.append(log_history[-1])
+    else:
+        entries_to_write.extend(log_history)
+
+    try:
+        with open(file_path, "a") as f:
+            for entry in entries_to_write:
+                f.write(json.dumps(entry) + "\n")
+    except IOError as e:
+        logging.error(f"An error occurred while writing to {file_path}: {e}")
+
+
+def clear_directory(directory: Path, delete_directory: bool = False):
+    """
+    Clears all contents of a directory. Optionally deletes the directory itself.
+
+    Creates the directory if it doesn't exist and is not being deleted.
+
+    Args:
+        directory (Path): The path to the directory to clear.
+        delete_directory (bool): If True, deletes the directory itself.
+    """
+    # --- OPTIMIZATION 2: Simplify Directory Clearing with shutil.rmtree ---
+    #
+    # Explanation: The original function iterated through every file and subdirectory
+    # to delete them one by one, printing a message for each. This is verbose and
+    # less efficient than using a single, powerful standard library function.
+    #
+    # Improvement: This implementation uses `shutil.rmtree()` to delete the entire
+    # directory tree in one highly optimized operation. It then re-creates the
+    # directory if needed. This is cleaner, more readable, and significantly faster,
+    # especially for directories with many files, as it reduces Python-level loops
+    # and system calls. Console I/O from excessive printing is also eliminated.
+    #
+    # Trade-offs: The granular logging for each deleted file/folder is lost. This
+    # is generally a positive trade-off, as such verbose output is rarely needed
+    # and can slow down execution.
+
+    if directory.exists():
+        try:
+            shutil.rmtree(directory)
+            logging.info(f"Successfully cleared directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete directory '{directory}'. Reason: {e}")
+            raise  # Re-raise to halt execution on failure
+
+    if delete_directory:
+        logging.info(f"Directory '{directory}' and its contents have been deleted.")
+    else:
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Directory '{directory}' is ready (created or was already clear).")
+        except OSError as e:
+            logging.error(f"Failed to create directory '{directory}'. Reason: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name: str = "pythia-31M",
+    base_model_repo_name: str = "EleutherAI/",
+    model_load_path: Path = MODEL_PATH,
+    model_save_path: Path = MODEL_PATH,
+):
+    """
+    Merges a LoRA adapter with its base model and saves the result.
+
+    This version is optimized for memory usage during model loading.
+    """
+    # --- OPTIMIZATION 3: Use bfloat16 for Reduced Memory Footprint ---
+    #
+    # Explanation: Loading full-precision (float32) models is memory-intensive.
+    # For tasks like merging or inference, lower precision is often sufficient.
+    #
+    # Improvement: By specifying `torch_dtype=torch.bfloat16`, we load the model
+    # weights in a 16-bit floating-point format. This nearly halves the GPU/CPU
+    # memory required to load the model, significantly reducing the risk of
+    # out-of-memory errors and speeding up the loading process.
+    #
+    # Trade-offs: There is a minor loss of numerical precision. However, `bfloat16`
+    # maintains the same dynamic range as `float32` and is the standard for
+    # training and inference with modern large models, making the trade-off
+    # almost always worthwhile.
+    #
+    # Note: For very large models that still don't fit, consider adding the argument
+    # `device_map="auto"` to `from_pretrained` to distribute layers across devices.
+
+    my_model_path = model_load_path / model_name
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model_id = f"{base_model_repo_name.strip('/')}/pythia-{param_count}M"
+
+    logging.info(f"Loading base model: {base_model_id}")
+    base_model = AutoModelForCausalLM.from_pretrained(
+        base_model_id, torch_dtype=torch.bfloat16
+    )
+
+    logging.info(f"Loading LoRA adapter from: {my_model_path}")
+    model = PeftModel.from_pretrained(base_model, my_model_path)
+
+    logging.info("Merging model and unloading adapter...")
+    merged_model = model.merge_and_unload()
+
+    my_model_save_path = model_save_path / f"{model_name}_merged"
+    logging.info(f"Saving merged model to: {my_model_save_path}")
+    merged_model.save_pretrained(my_model_save_path)
+    logging.info("Model saved successfully.")
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """Removes the question if it appears as a prefix in the answer."""
+    # --- OPTIMIZATION 4: Use `removeprefix` for Correctness and Clarity ---
+    #
+    # Explanation: The original `answer.replace(question, "")` would remove all
+    # occurrences of the question string from the answer, which is likely not the
+    # intended behavior. The goal is usually to clean up model outputs where the
+    # input prompt is repeated at the beginning of the generation.
+    #
+    # Improvement: `str.removeprefix()` (Python 3.9+) is semantically correct for
+    # this task. It only removes the substring if it's a prefix, making the code's
+    # intent clearer and preventing accidental data removal from the middle of the
+    # answer. It can also be slightly more performant as it doesn't need to scan
+    # the entire string.
+    #
+    # Trade-offs: This function requires Python 3.9 or newer. Given the dependencies
+    # like `transformers` and `torch`, this is a reasonable requirement.
+    if answer.startswith(question):
+        return answer.removeprefix(question).strip()
+    return answer
+
+
+def load_model(
+    model_type: str,
+    model_path: Path = MODEL_PATH,
+    blocks_str: Optional[str] = None,
+    vanilla_model_name: Optional[str] = None,
+    host_model_name: Optional[str] = None,
+) -> Any:
+    """
+    Loads different types of models based on the model_type parameter.
+
+    This version includes memory optimizations and security warnings.
+    """
+    # --- OPTIMIZATION 5: Security Warning for `pickle` ---
+    #
+    # Explanation: The original code used `pickle.load()` to load 'Transformed'
+    # and 'Final' models. Loading pickle files from untrusted sources is a major
+    # security risk, as it can execute arbitrary code. It's also brittle, as
+    # saved pickles can break with changes to code or library versions.
+    #
+    # Improvement: While the logic is kept for compatibility, a strong warning is
+    # added. The recommended, secure, and portable method in PyTorch is to save
+    # and load the model's `state_dict` (`torch.save(model.state_dict(), path)`),
+    # not the entire object.
+    #
+    # Trade-offs: No direct performance trade-off, but a critical improvement in
+    # security and code robustness.
+
+    hf_model_types = ("Tuned Model", "Vanilla Model", "Host Model")
+    pickle_model_types = ("Transformed Model", "Final Model")
+
+    if model_type in hf_model_types:
+        model_id = None
+        if model_type == "Tuned Model":
+            if not vanilla_model_name or not blocks_str:
+                raise ValueError("'vanilla_model_name' and 'blocks_str' are required for 'Tuned Model'")
+            model_name = Path(vanilla_model_name).name
+            model_id = model_path / f"{model_name}_trained_layers_{blocks_str}_merged"
+        elif model_type == "Vanilla Model":
+            model_id = vanilla_model_name
+        elif model_type == "Host Model":
+            model_id = host_model_name
+
+        if not model_id:
+            raise ValueError(f"Could not determine model ID for type: {model_type}")
+
+        logging.info(f"Loading Hugging Face model: {model_id}")
+        # Apply the same memory optimization as in merge_lora_model
+        return AutoModelForCausalLM.from_pretrained(
+            model_id, torch_dtype=torch.bfloat16
+        )
+
+    elif model_type in pickle_model_types:
+        logging.warning(
+            "SECURITY WARNING: Loading model from a pickle file. "
+            "This is not secure and can execute arbitrary code. "
+            "Only load pickles from a trusted source. "
+            "Consider switching to saving/loading model.state_dict() instead."
+        )
+        if not host_model_name or not blocks_str:
+            raise ValueError("'host_model_name' and 'blocks_str' are required for this model type")
+
+        name = Path(host_model_name).name
+        if model_type == "Transformed Model":
+            file_name = f"{name}_preGRAFTED_{blocks_str}.pkl"
+        else:  # Final Model
+            file_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+
+        load_path = model_path / file_name
+        logging.info(f"Loading pickled model from: {load_path}")
+        try:
+            with open(load_path, "rb") as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            logging.error(f"Pickle file not found at: {load_path}")
+            raise
+        except Exception as e:
+            logging.error(f"Failed to load pickle file {load_path}: {e}")
+            raise
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+def load_batch_losses(file_path: Path) -> Optional[List[float]]:
+    """
+    Loads batch loss data from a PyTorch checkpoint file.
+
+    Args:
+        file_path (Path): The path to the checkpoint file (.pt).
+
+    Returns:
+        A list of batch losses if available, otherwise None.
+    """
+    # --- OPTIMIZATION 6: Bug Fix and Code Polish ---
+    #
+    # Explanation: The original code used the `logging` module without importing or
+    # configuring it, which would cause a `NameError`.
+    #
+    # Improvement: The `logging` import and basic configuration have been added at
+    # the top of the file, making the logging calls functional. Using `pathlib.Path`
+    # and type hints improves readability and robustness. The use of
+    # `map_location='cpu'` is a good practice that was already present, as it
+    # prevents errors when loading a GPU-trained checkpoint on a CPU-only machine.
+    #
+    # Trade-offs: None. This is a bug fix and a code quality improvement.
+
+    if not file_path.is_file():
+        logging.error(f"Checkpoint file not found: {file_path}")
+        return None
+
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses")
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded successfully from {file_path}")
+        else:
+            logging.warning(f"Key 'batch_losses' not found in checkpoint: {file_path}")
+        return batch_losses
+    except (IOError, RuntimeError, pickle.UnpicklingError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None

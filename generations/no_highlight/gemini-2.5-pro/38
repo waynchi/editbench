@@ -1,0 +1,55 @@
+import os
+import shutil
+import random
+
+# Папка со всеми фотографиями / папка с фотографиями для тренировки
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Считываем названия директорий, которые и являются видом затмения
+ECLIPSE_LIST = os.listdir(TRAIN_DIR)
+
+
+# Папка с фотографиями для валидации
+VAL_DIR = os.path.join(DATA_PATH, "val")
+# Создаем папку, если ее не существует
+os.makedirs(VAL_DIR, exist_ok=True)
+
+
+# Папка с фотографиями для теста
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+
+# Доля изображений для валидации
+VAL_FRAC = 0.3
+# Фиксируем random_state для воспроизводимости
+RANDOM_STATE = 42
+random.seed(RANDOM_STATE)
+
+
+# Перебираем все классы (виды затмений)
+for eclipse in ECLIPSE_LIST:
+    train_class_dir = os.path.join(TRAIN_DIR, eclipse)
+    val_class_dir = os.path.join(VAL_DIR, eclipse)
+
+    # Создаем директорию для валидационных данных класса, если ее нет
+    os.makedirs(val_class_dir, exist_ok=True)
+
+    # Получаем список всех изображений в папке класса и сортируем для стабильности
+    images_filename = sorted(os.listdir(train_class_dir))
+
+    # Вычисляем количество изображений для валидации
+    num_images = len(images_filename)
+    num_val = int(num_images * VAL_FRAC)
+
+    # Если в папке есть изображения, выбираем случайные для валидации
+    if num_val > 0:
+        val_images = random.sample(images_filename, num_val)
+
+        print(f'{eclipse} | train images = {num_images - num_val} | val images = {num_val}')
+
+        # Перемещаем выбранные изображения из train в val
+        for image_filename in val_images:
+            source = os.path.join(train_class_dir, image_filename)
+            destination = os.path.join(val_class_dir, image_filename)
+            shutil.move(source, destination)
+    else:
+        print(f'{eclipse} | train images = {num_images} | val images = 0 (недостаточно изображений для разделения)')

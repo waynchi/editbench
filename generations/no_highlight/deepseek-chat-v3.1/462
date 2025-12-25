@@ -1,0 +1,54 @@
+import nltk
+from nltk.corpus import words
+
+def main():
+    # Download the words corpus if not already available
+    try:
+        nltk.data.find('corpora/words')
+    except LookupError:
+        nltk.download('words')
+    
+    # Get all English words
+    english_words = set(words.words())
+    
+    # Group words by length
+    words_by_length = {}
+    for word in english_words:
+        length = len(word)
+        if length not in words_by_length:
+            words_by_length[length] = []
+        words_by_length[length].append(word)
+    
+    while True:
+        try:
+            # Get user input
+            length = int(input("Enter the number of characters for the words (or 0 to exit): "))
+            
+            if length == 0:
+                print("Goodbye!")
+                break
+            
+            # Check if words of this length exist
+            if length not in words_by_length:
+                print(f"No words found with {length} characters.")
+                continue
+            
+            # Get 10 words of the specified length
+            matching_words = words_by_length[length][:10]
+            
+            if not matching_words:
+                print(f"No words found with {length} characters.")
+            else:
+                print(f"\n10 words with {length} characters:")
+                for i, word in enumerate(matching_words, 1):
+                    print(f"{i}. {word}")
+                print()
+                
+        except ValueError:
+            print("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

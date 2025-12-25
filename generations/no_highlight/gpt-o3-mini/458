@@ -1,0 +1,138 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+
+def czyPoprawny(obrazek):
+    # Verifica las filas (excepto la última, que contiene el bit de paridad de columna)
+    for wiersz in obrazek[:-1]:
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    # Verifica las columnas; se recorren las primeras 20 columnas y se usa la fila 21 como bit de paridad
+    for i in range(20):
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]:
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20):
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+           bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """
+    La entrada es una imagen representada como una lista de 21 cadenas.
+    Las primeras 20 cadenas corresponden a las filas de píxeles (cada una tiene 21 caracteres,
+    los 20 primeros son los píxeles y el último es el bit de paridad para la fila).
+    La fila 21 es la fila de bits de paridad para cada una de las 20 columnas.
+    El bit de paridad es 0 si la cantidad de unos en la parte de datos es par, 1 si es impar.
+    
+    La función verifica cuál fila y/o columna presenta error de paridad.
+    Si hay un error en una fila y en una columna, se asume que el error se debe a un
+    pixel erróneo en la intersección de esa fila y columna y se le da la vuelta.
+    Si solo hay error en una fila, se asume que el bit de paridad de esa fila es erróneo y
+    se invierte.
+    Si solo hay error en una columna, se invierte el bit de paridad en la fila de paridad (última fila)
+    correspondiente a esa columna.
+    
+    La función devuelve una lista con dos imágenes:
+        [imagen_incorrecta, imagen_reparada]
+    donde cada imagen es una lista de 21 cadenas.
+    """
+    # Se hace una copia de la imagen original (inmutable, por ser cadenas)
+    oryginal = obrazek.copy()
+    
+    # Convertimos la imagen a una estructura mutable (lista de listas de caracteres)
+    naprawiona = [list(wiersz) for wiersz in obrazek]
+    
+    # Inicializamos índices de error en filas y columnas
+    row_error = None  # índice en 0..19 si hay error en la fila (datos y bit de paridad)
+    col_error = None  # índice en 0..19 si hay error en la columna (datos y su bit de paridad en la última fila)
+    
+    # Verificamos errores en las filas (consideramos sólo las primeras 20 filas, que contienen datos y el bit de paridad)
+    for i in range(20):
+        dane = naprawiona[i][:20]  # píxeles de la fila
+        parzystosc = int(naprawiona[i][20])  # bit de paridad de la fila
+        if dane.count('1') % 2 != parzystosc:
+            row_error = i
+            break  # Solo se espera como máximo un error
+    
+    # Verificamos errores en las columnas (para las columnas 0..19)
+    for j in range(20):
+        kolumna_dane = [naprawiona[i][j] for i in range(20)]  # píxeles de cada fila
+        bit_parity = int(naprawiona[20][j])  # bit de paridad de la columna (en la última fila)
+        if kolumna_dane.count('1') % 2 != bit_parity:
+            col_error = j
+            break  # Solo se espera como máximo un error
+    
+    # Reparación:
+    if row_error is not None and col_error is not None:
+        # Error en un píxel en la intersección de la fila y columna errónea.
+        # Se voltea el píxel defectuoso.
+        if naprawiona[row_error][col_error] == '0':
+            naprawiona[row_error][col_error] = '1'
+        else:
+            naprawiona[row_error][col_error] = '0'
+    elif row_error is not None:
+        # Error solo en la fila: se asume que el bit de paridad de la fila es el defectuoso.
+        # Se invierte el bit de paridad (último dígito de la fila).
+        if naprawiona[row_error][20] == '0':
+            naprawiona[row_error][20] = '1'
+        else:
+            naprawiona[row_error][20] = '0'
+    elif col_error is not None:
+        # Error solo en la columna: se asume que el bit de paridad en la fila de paridad (última fila) es erróneo.
+        if naprawiona[20][col_error] == '0':
+            naprawiona[20][col_error] = '1'
+        else:
+            naprawiona[20][col_error] = '0'
+    # Si no hay errores, la imagen ya es correcta (aunque napraw no debería llamarse en ese caso).
+    
+    # Convertimos la imagen reparada de listas de caracteres a cadenas.
+    naprawiona_str = [''.join(wiersz) for wiersz in naprawiona]
+    
+    # Resultado: la imagen incorrecta (original) y la imagen corregida
+    wynik = [oryginal, naprawiona_str]
+    return wynik
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip()
+    obrazek.append(wiersz)
+    if len(obrazek) == 21:
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+            # Opcional: aquí se puede imprimir o guardar la imagen reparada junto con la original.
+        # Cuando llega a 21 líneas se tiene una imagen completa.
+    if len(obrazek) == 22:
+        # Después de 22 líneas se limpia el contenedor para la siguiente imagen
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

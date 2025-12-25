@@ -1,0 +1,31 @@
+import pandas as pd
+import statsmodels.api as sm
+
+# Supongamos que brand_A, brand_B, brand_C y all_data ya existen en el entorno.
+# Por ejemplo, podrían ser:
+# brand_A = [ ... ]
+# brand_B = [ ... ]
+# brand_C = [ ... ]
+# all_data = brand_A + brand_B + brand_C
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Crear la matriz de diseño utilizando codificación one-hot (estilo Python)
+# Usamos drop_first para evitar la trampa de la variable ficticia.
+X = pd.get_dummies(df['Brand'], prefix='Brand', drop_first=True)
+X = sm.add_constant(X)
+y = df['Cost']
+
+# Ajustar el modelo OLS sin utilizar sintaxis de fórmulas estilo R.
+model = sm.OLS(y, X).fit()
+
+# Generar la tabla ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+# Imprimir la tabla ANOVA
+print(anova_table)

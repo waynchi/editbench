@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""
+This script finds and prints all numbers (up to a user-specified upper bound)
+that can be expressed as the sum of four non-zero squares.
+Each representation is of the form:
+    n = a^2 + b^2 + c^2 + d^2
+where a, b, c, and d are non-zero positive integers.
+"""
+
+import math
+
+def get_expressible_numbers(upper_bound):
+    """
+    Returns a sorted list of all numbers <= upper_bound that can be written
+    as the sum of four non-zero squares.
+    
+    Since a, b, c, and d are positive integers, the maximum value of any one digit 
+    is limited by the condition a^2 <= upper_bound.
+    """
+    results = set()
+    # The maximum digit we need to consider is the integer part of sqrt(upper_bound)
+    max_digit = int(math.sqrt(upper_bound)) + 1
+
+    # Try every combination of a, b, c, d in the range [1, max_digit)
+    for a in range(1, max_digit):
+        a2 = a * a
+        for b in range(1, max_digit):
+            b2 = b * b
+            for c in range(1, max_digit):
+                c2 = c * c
+                for d in range(1, max_digit):
+                    s = a2 + b2 + c2 + d * d
+                    if s <= upper_bound:
+                        results.add(s)
+    return sorted(results)
+
+def main():
+    try:
+        upper_bound_input = input("Enter an upper bound (positive integer): ")
+        upper_bound = int(upper_bound_input)
+        if upper_bound < 1:
+            print("Upper bound must be a positive integer!")
+            return
+    except ValueError:
+        print("Invalid input; please enter a positive integer.")
+        return
+
+    expressible_numbers = get_expressible_numbers(upper_bound)
+    
+    print("\nNumbers up to {} that can be expressed as the sum of four non-zero squares:".format(upper_bound))
+    if expressible_numbers:
+        for number in expressible_numbers:
+            print(number)
+    else:
+        print("No numbers found in the given range.")
+
+if __name__ == "__main__":
+    main()

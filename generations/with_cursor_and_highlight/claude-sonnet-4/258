@@ -1,0 +1,57 @@
+import random
+
+# English dictionary with words of different lengths
+english_words = {
+    3: ["cat", "dog", "run", "sun", "car", "bat", "hat", "map", "cup", "pen", "box", "fox", "red", "big", "hot"],
+    4: ["book", "tree", "fish", "bird", "hand", "door", "moon", "star", "blue", "cold", "fast", "slow", "good", "nice", "home"],
+    5: ["house", "water", "green", "happy", "music", "light", "world", "heart", "smile", "peace", "dream", "magic", "sweet", "brave", "smart"],
+    6: ["flower", "garden", "friend", "family", "summer", "winter", "spring", "autumn", "bright", "strong", "gentle", "golden", "silver", "purple", "orange"],
+    7: ["rainbow", "freedom", "journey", "morning", "evening", "kitchen", "bedroom", "library", "picture", "machine", "science", "history", "mystery", "fantasy", "reality"],
+    8: ["beautiful", "mountain", "elephant", "computer", "sandwich", "umbrella", "birthday", "vacation", "hospital", "magazine", "telephone", "airplane", "building", "swimming", "shopping"],
+    9: ["wonderful", "adventure", "chocolate", "butterfly", "education", "important", "different", "community", "celebrate", "dangerous", "expensive", "fantastic", "invisible", "knowledge", "landscape"],
+    10: ["incredible", "basketball", "strawberry", "playground", "restaurant", "television", "motorcycle", "helicopter", "watermelon", "photograph", "university", "technology", "generation", "population", "revolution"]
+}
+
+def find_words_by_length(n):
+    """Find words with exactly N characters"""
+    if n in english_words:
+        available_words = english_words[n]
+        # Return up to 10 random words
+        return random.sample(available_words, min(10, len(available_words)))
+    else:
+        return []
+
+def main():
+    print("=== ПОИСК СЛОВ ПО КОЛИЧЕСТВУ СИМВОЛОВ ===")
+    print("Эта программа найдет английские слова с заданным количеством символов")
+    
+    while True:
+        try:
+            print("\nВведите количество символов (или 0 для выхода):")
+            n = int(input("Количество символов: "))
+            
+            if n == 0:
+                print("До свидания!")
+                break
+            
+            if n < 1:
+                print("Пожалуйста, введите положительное число")
+                continue
+            
+            words = find_words_by_length(n)
+            
+            if words:
+                print(f"\nНайдено слов с {n} символами:")
+                for i, word in enumerate(words, 1):
+                    print(f"{i}. {word}")
+            else:
+                print(f"К сожалению, в словаре нет слов с {n} символами")
+                print("Доступные длины слов:", sorted(english_words.keys()))
+        
+        except ValueError:
+            print("Пожалуйста, введите корректное число")
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
+if __name__ == "__main__":
+    main()

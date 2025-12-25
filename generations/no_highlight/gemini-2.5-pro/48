@@ -1,0 +1,47 @@
+import requests
+
+
+def registerKey(key: str, user: str):
+    """
+    Registers a user with a key by sending a POST request to the server.
+    
+    Args:
+        key (str): The registration key.
+        user (str): The username.
+        
+    Returns:
+        bool: True if registration is successful and valid, False otherwise.
+    """
+    url = "http://127.0.0.1:5000/register"
+    payload = {"key": key, "user": user}
+
+    print(f'Attempting to register key for user: {user}')
+    print(f'URL: {url}')
+    print(f'Payload: {payload}')
+
+    try:
+        # Send a POST request with the data in the request body as JSON
+        response = requests.post(url, json=payload)
+
+        # Check if the request was successful (e.g., status code 200)
+        if response.status_code == 200:
+            # Parse the JSON response from the server
+            response_data = response.json()
+            
+            # Return the boolean value of the 'valid' key from the response.
+            # .get('valid', False) is a safe way to access the key,
+            # returning False if the key doesn't exist.
+            return response_data.get('valid', False)
+        else:
+            print(f"Request failed with status code: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+
+    except requests.exceptions.RequestException as e:
+        # Handle network-related errors (e.g., connection refused)
+        print(f"Erro de conexão: {e}")
+        return False
+    except ValueError:
+        # Handle cases where the response is not valid JSON
+        print("Error: Failed to decode JSON from the response.")
+        return False

@@ -1,0 +1,83 @@
+import math
+
+def find_sums_of_four_nonzero_squares(limit):
+    """
+    Finds all numbers up to a given limit that can be expressed as the sum
+    of four non-zero squares.
+
+    This function uses an efficient generative approach. It iterates through
+    combinations of four non-zero integers (a, b, c, d) and calculates their
+    sum of squares. To avoid duplicates from permutations, it enforces the
+    condition a >= b >= c >= d >= 1.
+
+    Args:
+        limit (int): The upper bound for the numbers to find.
+
+    Returns:
+        dict: A dictionary where keys are the numbers found and values are
+              tuples (a, b, c, d) representing the four non-zero integers
+              whose squares sum to the key.
+    """
+    # The smallest sum of four non-zero squares is 1^2+1^2+1^2+1^2 = 4.
+    if limit < 4:
+        return {}
+
+    results = {}
+    max_val = int(math.sqrt(limit))
+
+    # Iterate through a, b, c, d, ensuring they are non-zero (>= 1).
+    # Enforce a >= b >= c >= d to find each combination only once.
+    for a in range(1, max_val + 1):
+        a_squared = a * a
+        # Optimization: if the smallest possible sum with this 'a' exceeds the limit, stop.
+        if a_squared + 3 > limit:
+            break
+
+        for b in range(1, a + 1):
+            b_squared = b * b
+            # Optimization for the 'b' loop
+            if a_squared + b_squared + 2 > limit:
+                break
+
+            for c in range(1, b + 1):
+                c_squared = c * c
+                # Optimization for the 'c' loop
+                if a_squared + b_squared + c_squared + 1 > limit:
+                    break
+
+                for d in range(1, c + 1):
+                    d_squared = d * d
+                    current_sum = a_squared + b_squared + c_squared + d_squared
+
+                    if current_sum > limit:
+                        break
+                    
+                    # Store the result. Since we iterate with a>=b>=c>=d,
+                    # the first time we find a sum is with its canonical representation.
+                    if current_sum not in results:
+                        results[current_sum] = (a, b, c, d)
+    
+    return results
+
+# Example usage:
+if __name__ == "__main__":
+    try:
+        limit = int(input("Digite o limite superior: "))
+
+        if limit < 0:
+            print("O limite deve ser um número não negativo.")
+        else:
+            sums_found = find_sums_of_four_nonzero_squares(limit)
+            
+            print("\nNúmeros que podem ser expressos como a soma de quatro quadrados não nulos:")
+
+            if not sums_found:
+                print(f"Nenhum número encontrado até o limite de {limit}.")
+            else:
+                # Sort the numbers for a clean, ordered output
+                for num in sorted(sums_found.keys()):
+                    a, b, c, d = sums_found[num]
+                    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+
+    except ValueError:
+        print("Entrada inválida. Por favor, digite um número inteiro.")

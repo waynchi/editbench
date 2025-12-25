@@ -1,0 +1,125 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# 从API获取数据
+api_url = "<your_api_url>"  # 替换为你的API URL
+headers = {
+    "Content-Type": "application/json",
+    # "Authorization": "Bearer <your_token>"  # 如果需要认证，取消注释并添加token
+}
+
+try:
+    # 调用API获取数据
+    response = requests.get(api_url, headers=headers)
+    response.raise_for_status()  # 检查HTTP错误
+    
+    # 解析JSON响应
+    api_data = response.json()
+    
+    # 分析API数据结构
+    print("=== API数据分析 ===")
+    print(f"响应状态码: {response.status_code}")
+    print(f"数据类型: {type(api_data)}")
+    
+    if isinstance(api_data, dict):
+        print(f"字典键: {list(api_data.keys())}")
+        for key, value in api_data.items():
+            print(f"  {key}: {type(value)} - {len(value) if isinstance(value, (list, dict, str)) else value}")
+    elif isinstance(api_data, list):
+        print(f"列表长度: {len(api_data)}")
+        if len(api_data) > 0:
+            print(f"第一个元素类型: {type(api_data[0])}")
+            if isinstance(api_data[0], dict):
+                print(f"第一个元素的键: {list(api_data[0].keys())}")
+    
+    print("\n=== 原始数据示例 ===")
+    print(json.dumps(api_data[:3] if isinstance(api_data, list) else api_data, indent=2, ensure_ascii=False))
+    
+    # 根据数据结构创建DataFrame
+    if isinstance(api_data, list):
+        # 如果API返回的是列表
+        df = spark.createDataFrame(api_data)
+    elif isinstance(api_data, dict):
+        # 如果API返回的是字典，可能需要提取特定的键
+        # 这里假设数据在'data'或'results'键中，根据实际情况调整
+        if 'data' in api_data:
+            df = spark.createDataFrame(api_data['data'])
+        elif 'results' in api_data:
+            df = spark.createDataFrame(api_data['results'])
+        elif 'items' in api_data:
+            df = spark.createDataFrame(api_data['items'])
+        else:
+            # 如果结构不明确，将整个字典作为单行
+            df = spark.createDataFrame([api_data])
+    else:
+        raise ValueError(f"不支持的数据类型: {type(api_data)}")
+    
+    # 分析DataFrame结构
+    print("\n=== DataFrame分析 ===")
+    print("Schema:")
+    df.printSchema()
+    
+    print(f"\n行数: {df.count()}")
+    print(f"列数: {len(df.columns)}")
+    print(f"列名: {df.columns}")
+    
+    print("\n前5行数据:")
+    df.show(5, truncate=False)
+    
+    print("\n数据统计:")
+    df.describe().show()
+    
+    # 检查空值
+    print("\n空值统计:")
+    null_counts = df.select([col(c).isNull().cast("int").alias(c) for c in df.columns])
+    null_counts.agg(*[sum(col(c)).alias(c) for c in df.columns]).show()
+
+except requests.exceptions.RequestException as e:
+    print(f"API请求错误: {e}")
+    # 使用示例数据进行测试
+    print("使用示例数据进行测试...")
+    data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+    df = spark.createDataFrame(data)
+    print("示例数据DataFrame:")
+    df.show()
+
+except Exception as e:
+    print(f"数据处理错误: {e}")
+    spark.stop()
+    exit(1)
+
+# 配置与ADL2的连接使用Microsoft ID身份
+# 在Synapse的笔记本中不需要显式提供凭据
+# Spark将使用notebook的托管身份进行身份验证。
+
+# 指定ADL2中容器和文件夹的路径
+container_name = "<your_container_name>"  # 用你的容器名称替换
+folder_path = "<your_folder_path>"  # 替换为容器内文件夹的路径
+storage_account_name = "<your_storage_account_name>"  # 替换为你的存储账户名称
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+try:
+    # 将DataFrame以parquet格式写入ADL2
+    print(f"\n正在将数据写入ADL2: {adl2_path}")
+    df.write.mode("overwrite").parquet(adl2_path)
+    print("数据写入成功!")
+    
+    # 可选：读取parquet文件进行验证
+    print("\n验证写入的数据:")
+    df_leido = spark.read.parquet(adl2_path)
+    df_leido.show()
+    
+except Exception as e:
+    print(f"写入ADL2时出错: {e}")
+
+# 停止 Spark 会话
+spark.stop()

@@ -1,0 +1,33 @@
+import pandas as pd
+from main13 import knn, mlp
+
+# Для каждой комбинации параметров создаём DataFrame и делаем one-hot кодирование по колонке "Embarked"
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Создаём DataFrame из списка словарей, чтобы гарантированно получить строку
+            data = [{
+                "Pclass": pclass,
+                "Name": 24,
+                "Sex": 0,
+                "Age": 19,
+                "SibSp": 0,
+                "Parch": 0,
+                "Fare": fare,
+                "Embarked": embarked
+            }]
+            my_df = pd.DataFrame(data)
+
+            # Применяем get_dummies для one-hot кодирования (колонки будут, например, "Embarked_S", "Embarked_Q", "Embarked_C")
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+            # Если по какой-то причине один из столбцов для embarked отсутствует,
+            # добавляем его с нулевыми значениями.
+            for col in ["Embarked_S", "Embarked_Q", "Embarked_C"]:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+
+            print("-------------------------------------------------------")
+            print(f"Параметры: класс {pclass}, плата {fare}, embarked {embarked}")
+            print(f"По knn: {knn.predict(my_df)}")
+            print(f"По mlp: {mlp.predict(my_df)}")

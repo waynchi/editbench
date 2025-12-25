@@ -1,0 +1,464 @@
+import numpy as np
+from matplotlib import pyplot as plt
+from scipy.stats import lognorm
+from scipy.optimize import minimize
+from scipy.integrate import quad
+import pandas as pd
+from tqdm import tqdm
+from typing import Dict, List, Tuple
+import json
+import pandas as pd
+
+
+class ModelRouter:
+    def __init__(
+        self,
+        models: List[str],
+        lambda_latency: float = 1.0,
+        lambda_rarity: float = 1.0,
+        lambda_ambiguity: float = 1.0,
+    ):
+        self.models = models
+        self.n_models = len(models)
+        self.model_to_idx = {model: idx for idx, model in enumerate(models)}
+        self.lambda_latency = lambda_latency
+        self.lambda_rarity = lambda_rarity
+        self.lambda_ambiguity = lambda_ambiguity
+
+        # Inicializar parámetros
+        self.n_pairs = (self.n_models * (self.n_models - 1)) // 2
+        self.theta = np.zeros(self.n_pairs)
+
+        # Caché para estadísticas de batallas
+        self.battle_counts = None
+        self.battle_preferences = None
+
+        # Cache para parámetros de latencia
+        self.latency_params = None
+
+    def _softmax_function(self, theta: np.ndarray, temp: float = 1.0) -> np.ndarray:
+        """Convertir parámetros a probabilidades usando softmax con temperatura."""
+        exp_theta = np.exp(theta / temp)
+        return exp_theta / np.sum(exp_theta)
+
+    def _pair_to_index(self, i: int, j: int) -> int:
+        """Convertir índices de pares de modelos a índice plano."""
+        if i > j:
+            i, j = j, i
+        return i * (self.n_models - 1) - (i * (i - 1)) // 2 + (j - i - 1)
+
+    def _index_to_pair(self, idx: int) -> Tuple[int, int]:
+        """Convertir índice plano a índices de par de modelos."""
+        i = 0
+        while idx >= self.n_models - i - 1:
+            idx -= self.n_models - i - 1
+            i += 1
+        j = i + idx + 1
+        return i, j
+
+    def fit_latency_parameters(self, completions_df: pd.DataFrame):
+        """Ajustar los parámetros log-normales para la distribución de latencia de cada modelo."""
+        self.latency_params = {}
+
+        for model in self.models:
+            model_latencies = completions_df[completions_df["model"] == model][
+                "latency"
+            ]
+            model_latencies = model_latencies[np.isfinite(model_latencies)]
+
+            if len(model_latencies) > 0:
+                # Ajustar distribución log-normal
+                shape, loc, scale = lognorm.fit(model_latencies, floc=0)
+                # Convertir a parámetros mu y sigma
+                mu = np.log(scale)
+                sigma = shape
+                self.latency_params[model] = (mu, sigma)
+            else:
+                print(f"Warning: No latency data for model {model}")
+                self.latency_params[model] = (0, 1)  # Parámetros predeterminados
+
+        print(self.latency_params)
+
+    def compute_battle_statistics(self, outcomes_df: pd.DataFrame):
+        """Calcular conteos de batallas y preferencias a partir de los datos de resultados."""
+        battle_counts = np.zeros((self.n_models, self.n_models))
+        battle_preferences = np.zeros((self.n_models, self.n_models))
+
+        for _, row in outcomes_df.iterrows():
+            items = (
+                json.loads(row["completionItems"])
+                if isinstance(row["completionItems"], str)
+                else row["completionItems"]
+            )
+
+            if len(items) < 2:
+                continue
+
+            # Considerar solo los dos primeros modelos en cada batalla
+            model1, model2 = items[0]["model"], items[1]["model"]
+            if model1 not in self.model_to_idx or model2 not in self.model_to_idx:
+                continue
+
+            i, j = self.model_to_idx[model1], self.model_to_idx[model2]
+            battle_counts[i, j] += 1
+            battle_counts[j, i] += 1
+
+            # Determinar preferencia usando acceptedIndex
+            if row.get("acceptedIndex") == 0:
+                battle_preferences[i, j] += 1
+                battle_preferences[j, i] -= 1
+            elif row.get("acceptedIndex") == 1:
+                battle_preferences[i, j] -= 1
+                battle_preferences[j, i] += 1
+
+        self.battle_counts = battle_counts
+        self.battle_preferences = battle_preferences
+
+    def compute_latency(self):
+        """Calcular el objetivo de latencia máxima esperada utilizando el cálculo exacto de PDF/CDF."""
+
+        def max_latency_integrand(
+            l: float, mu_i: float, sigma_i: float, mu_j: float, sigma_j: float
+        ) -> float:
+            """Calcular la función de densidad para la latencia máxima: f_max(l) = f(l;mu_i,sigma_i)F(l;mu_j,sigma_j) + F(l;mu_i,sigma_i)f(l;mu_j,sigma_j)"""
+            # PDF para el modelo i
+            f_i = lognorm.pdf(l, sigma_i, scale=np.exp(mu_i))
+            # CDF para el modelo j
+            F_j = lognorm.cdf(l, sigma_j, scale=np.exp(mu_j))
+            # PDF para el modelo j
+            f_j = lognorm.pdf(l, sigma_j, scale=np.exp(mu_j))
+            # CDF para el modelo i
+            F_i = lognorm.cdf(l, sigma_i, scale=np.exp(mu_i))
+
+            max_latency = l * (f_i * F_j + F_i * f_j)
+            return max_latency
+
+        total_latency = 0
+        self.latencies = []
+
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            mu_i, sigma_i = self.latency_params[self.models[i]]
+            mu_j, sigma_j = self.latency_params[self.models[j]]
+
+            # Integrar la función de densidad de latencia máxima desde 0 hasta infinito
+            expected_max, _ = quad(
+                max_latency_integrand, 0, np.inf, args=(mu_i, sigma_i, mu_j, sigma_j)
+            )
+
+            self.latencies.append(expected_max)
+
+        # Usar max y min para calcular latencias normalizadas
+        self.normalized_latencies = (np.array(self.latencies) - min(self.latencies)) / (
+            max(self.latencies) - min(self.latencies)
+        )
+
+    def compute_latency_objective(self, probs: np.ndarray) -> float:
+
+        total_normalized_latency = [
+            probs[idx] * self.normalized_latencies[idx] for idx in range(self.n_pairs)
+        ]
+
+        return total_normalized_latency
+
+    def compute_rarity_objective(self, probs: np.ndarray) -> float:
+        """Calcular el objetivo de rareza."""
+        epsilon = 1.0  # Factor de suavizado
+        rarity_scores = []
+        total_rarity = 0
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            count = self.battle_counts[i, j]
+            rarity_score = 1.0 / (count + epsilon)
+            rarity_scores.append(rarity_score)
+            total_rarity -= probs[idx] * rarity_score
+
+        return total_rarity
+
+    def compute_ambiguity_objective(self, probs: np.ndarray) -> float:
+        """Calcular el objetivo de ambigüedad."""
+        total_ambiguity = 0
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            if self.battle_counts[i, j] > 0:
+                avg_preference = (
+                    self.battle_preferences[i, j] / self.battle_counts[i, j]
+                )
+                ambiguity_score = 1.0 - abs(avg_preference)
+                total_ambiguity -= probs[idx] * ambiguity_score
+        return total_ambiguity
+
+    def objective_function(self, theta: np.ndarray) -> float:
+        """Función objetivo combinada para optimización."""
+        # Convertir theta a probabilidades
+        probs = np.exp(theta) / np.sum(np.exp(theta))
+
+        # Calcular objetivos individuales
+        latency_obj = self.compute_latency_objective(probs)
+        rarity_obj = self.compute_rarity_objective(probs)
+        ambiguity_obj = self.compute_ambiguity_objective(probs)
+
+        # Combinar objetivos con pesos
+        total_obj = (
+            self.lambda_latency * latency_obj
+            + self.lambda_rarity * rarity_obj
+            + self.lambda_ambiguity * ambiguity_obj
+        )
+
+        return total_obj
+
+    def fit(self, max_iter: int = 1000):
+        """Optimizar los parámetros de enrutamiento."""
+        # Crear una función envolvente que actualice la barra de progreso
+        pbar = tqdm(total=max_iter, desc="Optimizing routing parameters")
+        iter_count = [0]  # Usar lista para permitir modificación en función anidada
+        self.compute_latency()
+
+        def objective_with_progress(x):
+            iter_count[0] += 1
+            pbar.update(1)
+            print(self._softmax_function(self.theta))
+            return self.objective_function(x)
+
+        try:
+            result = minimize(
+                objective_with_progress,
+                self.theta,
+                method="L-BFGS-B",
+                options={"maxiter": max_iter},
+            )
+            self.theta = result.x
+            return result
+        finally:
+            pbar.close()
+
+    def get_routing_probabilities(self, temp=1.0) -> Dict[Tuple[str, str], float]:
+        """Obtener las probabilidades de enrutamiento optimizadas para cada par de modelos."""
+        probs = self._softmax_function(theta=self.theta, temp=temp)
+        routing_probs = {}
+
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            model_i, model_j = self.models[i], self.models[j]
+            routing_probs[(model_i, model_j)] = probs[idx]
+
+        return routing_probs
+
+    def sample_model_pair(self) -> Tuple[str, str]:
+        """Muestrear un par de modelos según la distribución optimizada."""
+        probs = self._softmax_function(theta=self.theta)
+        idx = np.random.choice(self.n_pairs, p=probs)
+        i, j = self._index_to_pair(idx)
+        return self.models[i], self.models[j]
+
+    def visualize_probability_matrix(self, temp=1.0):
+        """Crear y mostrar una matriz de probabilidad para todos los pares de modelos."""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        # Inicializar matriz de probabilidad
+        prob_matrix = np.zeros((self.n_models, self.n_models))
+
+        # Obtener probabilidades
+        probs = self._softmax_function(theta=self.theta, temp=temp)
+
+        # Rellenar la matriz
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            prob = probs[idx]
+            # Llenar ambos lados de la matriz
+            prob_matrix[i, j] = prob
+            prob_matrix[j, i] = prob
+
+        # Crear figura
+        plt.figure(figsize=(15, 12))
+
+        # Crear mapa de calor
+        sns.heatmap(
+            prob_matrix,
+            xticklabels=self.models,
+            yticklabels=self.models,
+            annot=True,  # Mostrar probabilidades en las celdas
+            fmt=".3f",  # Formatear probabilidades a 3 decimales
+            cmap="YlOrRd",
+        )
+
+        plt.title("Model Pairing Probabilities")
+        plt.xticks(rotation=45, ha="right")
+        plt.yticks(rotation=0)
+        plt.tight_layout()
+
+        # Devuelve la matriz para un análisis posterior si es necesario
+        return prob_matrix
+
+    def print_probability_matrix(self, temp=1.0):
+        """Imprimir la matriz de probabilidad en una tabla formateada."""
+        probs = self._softmax_function(theta=self.theta, temp=temp)
+        prob_matrix = np.zeros((self.n_models, self.n_models))
+
+        # Rellenar la matriz
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            prob = probs[idx]
+            prob_matrix[i, j] = prob
+            prob_matrix[j, i] = prob
+
+        # Imprimir encabezado
+        print("\nProbability Matrix:")
+        print("-" * 120)
+        print(f"{'Model':30}", end="")
+        for model in self.models:
+            print(f"{model:>10}", end="")
+        print("\n" + "-" * 120)
+
+        # Imprimir filas
+        for i, model1 in enumerate(self.models):
+            print(f"{model1:30}", end="")
+            for j, model2 in enumerate(self.models):
+                if i == j:
+                    print(f"{'---':>10}", end="")
+                else:
+                    print(f"{prob_matrix[i,j]:10.3f}", end="")
+            print()
+
+        print("-" * 120)
+
+        return prob_matrix
+
+    def calculate_expected_latency(self, temp: float = 1.0) -> float:
+        """Calcular la latencia esperada en todos los pares de modelos dadas las probabilidades de enrutamiento actuales.
+
+Args:
+    temp (float): Parámetro de temperatura para el cálculo de probabilidad softmax
+
+Returns:
+    float: Latencia esperada en segundos"""
+        if not self.latency_params:
+            raise ValueError(
+                "Latency parameters not fitted. Call fit_latency_parameters first."
+            )
+
+        # Obtener las probabilidades de enrutamiento actuales
+        probs = self._softmax_function(theta=self.theta, temp=temp)
+
+        total_expected_latency = 0
+
+        # Para cada par de modelos
+        for idx in range(self.n_pairs):
+            i, j = self._index_to_pair(idx)
+            mu_i, sigma_i = self.latency_params[self.models[i]]
+            mu_j, sigma_j = self.latency_params[self.models[j]]
+
+            # Calcular la latencia máxima esperada para este par
+            def max_latency_integrand(
+                l: float, mu_i: float, sigma_i: float, mu_j: float, sigma_j: float
+            ) -> float:
+                f_i = lognorm.pdf(l, sigma_i, scale=np.exp(mu_i))
+                F_j = lognorm.cdf(l, sigma_j, scale=np.exp(mu_j))
+                f_j = lognorm.pdf(l, sigma_j, scale=np.exp(mu_j))
+                F_i = lognorm.cdf(l, sigma_i, scale=np.exp(mu_i))
+                return l * (f_i * F_j + F_i * f_j)
+
+            # Integrar para obtener la latencia máxima esperada para este par
+            pair_expected_latency, _ = quad(
+                max_latency_integrand, 0, np.inf, args=(mu_i, sigma_i, mu_j, sigma_j)
+            )
+
+            # Ponderar por la probabilidad de seleccionar este par
+            total_expected_latency += probs[idx] * pair_expected_latency
+
+        return total_expected_latency
+
+    def print_expected_latencies(
+        self, temperatures: List[float] = [1.0, 2.0, 5.0, 10.0]
+    ):
+        """Imprimir latencias esperadas para diferentes valores de temperatura.
+
+Args:
+    temperatures (List[float]): Lista de valores de temperatura a evaluar"""
+        print("\nExpected Latencies:")
+        print("-" * 50)
+        print(f"{'Temperature':>12} | {'Expected Latency (s)':>20}")
+        print("-" * 50)
+
+        for temp in temperatures:
+            expected_latency = self.calculate_expected_latency(temp)
+            print(f"{temp:12.1f} | {expected_latency:20.3f}")
+        print("-" * 50)
+
+
+# Ejemplo de uso
+def main():
+    models = [
+        "gpt-4o-mini-2024-07-18",
+        "codestral-2405",
+        "llama-3.1-70b-instruct",
+        "llama-3.1-405b-instruct",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-pro-002",
+        "claude-3-5-sonnet-20240620",
+        "claude-3-5-sonnet-20241022",
+        "qwen-2.5-coder-32b-instruct",
+        "gpt-4o-2024-08-06",
+    ]
+    # Inicializar el enrutador con la lista de modelos
+    lambda_latency = 1
+    lambda_rarity = 1
+    lambda_ambiguity = 1
+    router = ModelRouter(
+        models,
+        lambda_latency=lambda_latency,
+        lambda_rarity=lambda_rarity,
+        lambda_ambiguity=lambda_ambiguity,
+    )
+
+    # Cargar los dataframes desde csv
+    global_completions_df = pd.read_csv("completions_data.csv")
+    global_outcomes_df = pd.read_csv("outcomes_data.csv")
+
+    # Ajustar parámetros de latencia
+    router.fit_latency_parameters(global_completions_df)
+
+    # Calcular estadísticas de batalla
+    router.compute_battle_statistics(global_outcomes_df)
+
+    filename = "routing_params/routing_parameters_{}_{}_{}.json".format(
+        lambda_latency, lambda_rarity, lambda_ambiguity
+    )
+    # Cargar los routing_parameters si existe
+    try:
+        with open(filename, "r") as f:
+            routing_parameters = json.load(f)
+            router.theta = np.array(routing_parameters["theta"])
+    except FileNotFoundError:
+        # Optimizar parámetros de enrutamiento
+        result = router.fit()
+        print("Optimization completed:", result.success)
+
+    # Guardar el resultado
+    with open(filename, "w") as f:
+        json.dump({"theta": router.theta.tolist()}, f)
+
+    # Explorar probabilidades de enrutamiento con diferentes temperaturas
+    temperatures = [1.0, 2.0, 5.0, 10.0, 100.0, 1000.0]
+    for temp in temperatures:
+        routing_probs = router.get_routing_probabilities(temp=temp)
+        sorted_pairs = sorted(routing_probs.items(), key=lambda x: x[1], reverse=True)
+
+        print(f"Top 10 model pairs by routing probability (temperature={temp:.1f}):")
+        for (model1, model2), prob in sorted_pairs[:10]:
+            print(f"{model1} vs {model2}: {prob:.4f}")
+
+        # Imprimir versión de texto
+        router.print_probability_matrix(temp=temp)
+
+        # Mostrar mapa de calor visual
+        # router.visualizar_matriz_de_probabilidad(temp=temp)
+        # plt.title(f"Probabilidades de Emparejamiento del Modelo (Temperatura = {temp:.1f})")
+        # plt.mostrar()
+
+    router.print_expected_latencies(temperatures)
+
+
+if __name__ == "__main__":
+    main()

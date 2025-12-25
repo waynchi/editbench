@@ -1,0 +1,55 @@
+from pathlib import Path
+import shutil
+
+target_folder = 'F:/Maverick/desktop/Windows/temp/'
+
+def get_content_delivery_path():
+    """
+    Get the path of Windows Content Delivery
+    """
+    path = Path('C:/Users/admin/AppData/Local/Packages/')
+    matched = path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    if result := next(matched, None):
+        suffix = 'LocalState/Assets/'
+        return result / suffix
+    else:
+        raise Exception('ContentDeliveryManager Not Found')
+    
+
+def jpeg(source_folder, target_folder):
+    """
+    Copy files from source folder to target folder and add .jpeg suffix
+    """
+    source_path = Path(source_folder)
+    target_path = Path(target_folder)
+    
+    # Create target directory if it doesn't exist
+    target_path.mkdir(parents=True, exist_ok=True)
+    
+    # Get all files from source folder
+    files = [f for f in source_path.iterdir() if f.is_file()]
+    
+    copied_count = 0
+    for file in files:
+        # Create new filename with .jpeg extension
+        new_filename = file.name + '.jpeg'
+        target_file = target_path / new_filename
+        
+        try:
+            # Copy file to target location with new name
+            shutil.copy2(file, target_file)
+            copied_count += 1
+            print(f"Copied: {file.name} -> {new_filename}")
+        except Exception as e:
+            print(f"Error copying {file.name}: {e}")
+    
+    print(f"Total files copied: {copied_count}")
+
+
+if __name__ == '__main__':
+    try:
+        source_folder = get_content_delivery_path()
+        print(f"Windows Content Delivery path: {source_folder}")
+        jpeg(source_folder, target_folder)
+    except Exception as e:
+        print(f"Error: {e}")

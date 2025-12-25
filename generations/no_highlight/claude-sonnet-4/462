@@ -1,0 +1,74 @@
+import random
+
+# Diccionario en inglés con palabras de diferentes longitudes
+english_dictionary = {
+    1: ["a", "I"],
+    2: ["am", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me", "my", "no", "of", "on", "or", "so", "to", "up", "we"],
+    3: ["and", "are", "but", "can", "cat", "day", "dog", "eat", "end", "far", "get", "had", "has", "her", "him", "his", "how", "man", "may", "new", "not", "now", "old", "one", "our", "out", "put", "run", "say", "see", "she", "the", "too", "try", "two", "use", "was", "way", "who", "why", "win", "yes", "you"],
+    4: ["able", "back", "best", "book", "call", "came", "come", "down", "each", "even", "find", "from", "give", "good", "hand", "have", "help", "here", "home", "just", "keep", "know", "last", "left", "life", "like", "live", "look", "made", "make", "many", "more", "most", "move", "much", "name", "need", "next", "only", "open", "over", "part", "play", "read", "right", "said", "same", "seem", "show", "side", "some", "take", "tell", "than", "that", "them", "they", "this", "time", "turn", "very", "want", "well", "went", "were", "what", "when", "will", "with", "word", "work", "year"],
+    5: ["about", "after", "again", "along", "also", "any", "around", "asked", "being", "below", "black", "bring", "build", "carry", "clean", "close", "could", "doing", "every", "first", "found", "great", "green", "group", "happy", "heard", "house", "large", "learn", "light", "little", "might", "money", "never", "night", "often", "order", "other", "place", "point", "right", "round", "shall", "small", "sound", "start", "still", "study", "their", "there", "these", "think", "three", "today", "under", "until", "water", "where", "which", "while", "white", "world", "would", "write", "young"],
+    6: ["always", "animal", "answer", "around", "became", "become", "before", "better", "change", "coming", "course", "during", "enough", "family", "follow", "friend", "ground", "happen", "having", "inside", "letter", "listen", "living", "making", "mother", "moving", "number", "office", "people", "person", "please", "pretty", "public", "really", "reason", "school", "second", "should", "simple", "sister", "social", "something", "special", "street", "strong", "system", "though", "through", "turned", "wanted", "window", "without"],
+    7: ["another", "because", "between", "brother", "brought", "certain", "company", "country", "develop", "different", "example", "feeling", "general", "getting", "government", "however", "important", "include", "interest", "looking", "machine", "morning", "nothing", "picture", "playing", "problem", "program", "project", "provide", "running", "service", "several", "someone", "special", "started", "student", "surface", "teacher", "thought", "through", "together", "towards", "trouble", "turning", "usually", "waiting", "walking", "working", "writing"],
+    8: ["although", "business", "children", "complete", "consider", "continue", "decision", "describe", "different", "discover", "everyone", "everything", "experience", "following", "function", "happened", "increase", "language", "learning", "material", "national", "necessary", "original", "personal", "position", "possible", "practice", "pressure", "probably", "question", "remember", "research", "resource", "response", "security", "sentence", "services", "shoulder", "situation", "standard", "strength", "students", "suddenly", "surprise", "together", "training", "treatment", "understand", "whatever"],
+    9: ["according", "agreement", "available", "beautiful", "beginning", "community", "condition", "education", "equipment", "everybody", "excellent", "executive", "following", "important", "including", "knowledge", "marketing", "necessary", "operation", "political", "president", "principle", "procedure", "programme", "recognize", "recommend", "represent", "resources", "situation", "sometimes", "structure", "telephone", "therefore", "treatment", "understand", "wonderful"],
+    10: ["additional", "background", "commercial", "commission", "comparison", "conference", "connection", "department", "difference", "discussion", "everything", "experience", "government", "individual", "industrial", "management", "particular", "population", "production", "profession", "protection", "reasonable", "restaurant", "revolution", "technology", "television", "themselves", "throughout", "understand", "university"]
+}
+
+def consultar_diccionario():
+    """
+    Programa que consulta el diccionario en inglés y permite al usuario
+    pedir palabras con N caracteres. Imprime 10 palabras con ese número de caracteres.
+    """
+    print("¡Bienvenido al Consultor de Diccionario en Inglés!")
+    print("=" * 50)
+    
+    while True:
+        try:
+            # Solicitar al usuario el número de caracteres
+            print("\nOpciones disponibles:")
+            print("- Ingresa un número del 1 al 10 para buscar palabras con esa cantidad de caracteres")
+            print("- Ingresa 0 para salir del programa")
+            
+            n_caracteres = int(input("\n¿Cuántos caracteres deben tener las palabras? "))
+            
+            # Opción para salir
+            if n_caracteres == 0:
+                print("¡Gracias por usar el Consultor de Diccionario! ¡Hasta luego!")
+                break
+            
+            # Verificar si el número está en el rango válido
+            if n_caracteres < 1 or n_caracteres > 10:
+                print("❌ Por favor, ingresa un número entre 1 y 10.")
+                continue
+            
+            # Verificar si hay palabras disponibles para esa longitud
+            if n_caracteres not in english_dictionary:
+                print(f"❌ No hay palabras disponibles con {n_caracteres} caracteres.")
+                continue
+            
+            palabras_disponibles = english_dictionary[n_caracteres]
+            
+            # Seleccionar hasta 10 palabras (o todas si hay menos de 10)
+            num_palabras_mostrar = min(10, len(palabras_disponibles))
+            palabras_seleccionadas = random.sample(palabras_disponibles, num_palabras_mostrar)
+            
+            # Mostrar los resultados
+            print(f"\n✅ Aquí tienes {num_palabras_mostrar} palabras con {n_caracteres} caracteres:")
+            print("-" * 40)
+            
+            for i, palabra in enumerate(palabras_seleccionadas, 1):
+                print(f"{i:2d}. {palabra}")
+            
+            print(f"\nTotal de palabras disponibles con {n_caracteres} caracteres: {len(palabras_disponibles)}")
+            
+        except ValueError:
+            print("❌ Por favor, ingresa un número válido.")
+        except KeyboardInterrupt:
+            print("\n\n¡Programa interrumpido por el usuario! ¡Hasta luego!")
+            break
+        except Exception as e:
+            print(f"❌ Ha ocurrido un error inesperado: {e}")
+
+# Ejecutar el programa
+if __name__ == "__main__":
+    consultar_diccionario()

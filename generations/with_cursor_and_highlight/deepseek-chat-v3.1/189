@@ -1,0 +1,39 @@
+class SimpleConvNet1(nn.Module):
+    def __init__(self, input_size=(3, 32, 32)):  # 默认输入尺寸为32x32的3通道图像
+        super().__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+
+        # 自动计算展平后的尺寸
+        with torch.no_grad():
+            self._flattened_size = self._get_flattened_size(input_size)
+
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Sequential(
+            nn.Linear(self._flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def _get_flattened_size(self, input_size):
+        x = torch.randn(1, *input_size)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x.numel()
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x

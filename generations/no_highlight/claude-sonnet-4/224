@@ -1,0 +1,124 @@
+import random
+import logging
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
+import time
+
+class SearchModule:
+    def __init__(self, driver, config):
+        self.driver = driver
+        self.config = config
+        self.search_engine = config.get('Search', 'search_engine')
+        self.queries = [q.strip() for q in config.get('Search', 'queries').split(',')]
+        self.random_query = config.getboolean('Search', 'random_query')
+
+    def perform_search(self):
+        try:
+            query = random.choice(self.queries) if self.random_query else self.queries[0]
+            logging.info(f"Performing search with query: {query}")
+
+            search_box = None
+            
+            if self.search_engine.lower() == 'google':
+                try:
+                    self.driver.get("https://www.google.com")
+                    search_box = self.driver.find_element(By.NAME, "q")
+                except NoSuchElementException:
+                    logging.error("Google search box not found")
+                    return
+                except WebDriverException as e:
+                    logging.error(f"Error loading Google: {e}")
+                    return
+                    
+            elif self.search_engine.lower() == 'yandex':
+                try:
+                    self.driver.get("https://ya.ru")
+                    search_box = self.driver.find_element(By.CSS_SELECTOR, 'input[placeholder="Найдётся всё"]')
+                except NoSuchElementException:
+                    logging.error("Yandex search box not found")
+                    return
+                except WebDriverException as e:
+                    logging.error(f"Error loading Yandex: {e}")
+                    return
+                    
+            elif self.search_engine.lower() == 'bing':
+                try:
+                    self.driver.get("https://www.bing.com")
+                    search_box = self.driver.find_element(By.NAME, "q")
+                except NoSuchElementException:
+                    logging.error("Bing search box not found")
+                    return
+                except WebDriverException as e:
+                    logging.error(f"Error loading Bing: {e}")
+                    return
+            else:
+                logging.error("Unsupported search engine.")
+                return
+
+            if search_box:
+                try:
+                    search_box.send_keys(query + Keys.RETURN)
+                    time.sleep(random.uniform(2, 4))  # 等待加载结果
+                except WebDriverException as e:
+                    logging.error(f"Error performing search: {e}")
+                    return
+                    
+        except Exception as e:
+            logging.error(f"Unexpected error in perform_search: {e}")
+
+    def navigate_random_link(self):
+        try:
+            logging.info("Navigating to a random search result link.")
+            links = []
+            
+            if self.search_engine.lower() == 'google':
+                try:
+                    links = self.driver.find_elements(By.CSS_SELECTOR, 'div.yuRUbf > a')
+                except NoSuchElementException:
+                    logging.warning("Google search result links not found")
+                except WebDriverException as e:
+                    logging.error(f"Error finding Google links: {e}")
+                    
+            elif self.search_engine.lower() == 'yandex':
+                try:
+                    links = self.driver.find_elements(By.CSS_SELECTOR, 'a.link')
+                except NoSuchElementException:
+                    logging.warning("Yandex search result links not found")
+                except WebDriverException as e:
+                    logging.error(f"Error finding Yandex links: {e}")
+                    
+            elif self.search_engine.lower() == 'bing':
+                try:
+                    links = self.driver.find_elements(By.CSS_SELECTOR, 'li.b_algo h2 a')
+                except NoSuchElementException:
+                    logging.warning("Bing search result links not found")
+                except WebDriverException as e:
+                    logging.error(f"Error finding Bing links: {e}")
+            else:
+                logging.error("Unsupported search engine.")
+                return
+
+            if not links:
+                logging.warning("No links found on the search results page.")
+                return
+
+            try:
+                random_link = random.choice(links)
+                href = random_link.get_attribute('href')
+                
+                if not href:
+                    logging.warning("Selected link has no href attribute")
+                    return
+                    
+                logging.info(f"Navigating to: {href}")
+                self.driver.get(href)
+                time.sleep(random.uniform(3, 6))  # 等待页面加载
+                
+            except WebDriverException as e:
+                logging.error(f"Error navigating to random link: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error when clicking link: {e}")
+                
+        except Exception as e:
+            logging.error(f"Unexpected error in navigate_random_link: {e}")

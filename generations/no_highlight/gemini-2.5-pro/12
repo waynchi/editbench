@@ -1,0 +1,21 @@
+import pandas as pd
+
+def create_column(df):
+    """
+    Creates a 'Frequency' column in the DataFrame.
+
+    For rows where the 'EventId' column contains the substring 'E16',
+    the 'Frequency' column is set to 117.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame, which must contain an 'EventId' column.
+
+    Returns:
+        pd.DataFrame: The DataFrame with the added 'Frequency' column.
+    """
+    # Use .loc to select rows based on the condition and assign the value.
+    # .loc will create the 'Frequency' column if it doesn't exist.
+    # Rows not meeting the condition will have NaN in the 'Frequency' column.
+    # The str.contains `na=False` argument treats NaN values in 'EventId' as not matching.
+    df.loc[df['EventId'].str.contains('E16', na=False), 'Frequency'] = 117
+    return df

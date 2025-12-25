@@ -1,0 +1,32 @@
+class Token:
+    start: int
+    end: int
+
+class IntegerToken(Token):
+    value: int
+
+    @staticmethod
+    def is_digit(input_str: str, pos: int) -> bool:
+        """Возвращает True, если символ в позиции pos является цифрой."""
+        return input_str[pos].isdigit()
+
+    @staticmethod
+    def is_int(input_str: str, start_pos: int) -> int:
+        """
+        Возвращает конечную позицию токена, если ввод является допустимым целочисленным токеном,
+        в противном случае вызывает AssertionError.
+        """
+        max_pos = len(input_str)
+        current_pos = start_pos
+        digit_found = False
+
+        while current_pos < max_pos and IntegerToken.is_digit(input_str, current_pos):
+            digit_found = True
+            current_pos += 1
+
+        assert digit_found, "Not an integer"
+        return current_pos
+
+if __name__ == "__main__":
+    print(IntegerToken.is_int("1234", 0))
+    print(IntegerToken.is_int("a123", 0))

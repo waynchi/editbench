@@ -1,0 +1,15 @@
+import os
+from pymilvus import MilvusClient
+
+# Registrar la ruta actual como cwd
+cwd = os.getcwd()
+
+# Crear ruta de base de datos de vectores
+db_path = os.path.join(cwd, 'milvus_db.db')
+
+# Configuración de la tabla y dimensiones
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# Crear enlace de base de datos usando pymilvus
+client = MilvusClient(uri=db_path)

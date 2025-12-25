@@ -1,0 +1,103 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Calcula la suma de distancias mínimas entre dos listas de números.
+    """
+    try:
+        lines = parse_input_file()
+        
+        # Filtrar líneas vacías
+        lines = [line for line in lines if line.strip()]
+        
+        if not lines:
+            print("No hay datos para procesar.")
+            return
+        
+        # Parsear datos de manera más eficiente
+        list_1, list_2 = parse_columns(lines)
+        
+        # Calcular distancias usando NumPy (más eficiente)
+        total_distance = calculate_total_distance(list_1, list_2)
+        
+        print(f"Suma total de distancias: {total_distance}")
+        
+    except FileNotFoundError:
+        print(f"Error: No se pudo encontrar el archivo {INPUT_FILE_PATH}")
+    except ValueError as e:
+        print(f"Error al procesar los datos: {e}")
+    except Exception as e:
+        print(f"Error inesperado: {e}")
+
+def parse_columns(lines: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Parsea las líneas y extrae las dos columnas de números.
+    
+    Args:
+        lines: Lista de líneas del archivo
+        
+    Returns:
+        Tupla con las dos columnas como arrays de NumPy
+    """
+    try:
+        # Dividir cada línea y convertir a enteros
+        cols = []
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 2:
+                cols.append([int(parts[0]), int(parts[1])])
+        
+        if not cols:
+            raise ValueError("No se encontraron datos válidos en el archivo")
+        
+        # Convertir a array de NumPy y transponer
+        cols_array = np.array(cols).T
+        return cols_array[0], cols_array[1]
+        
+    except ValueError as e:
+        raise ValueError(f"Error al convertir datos a enteros: {e}")
+
+def calculate_total_distance(list_1: np.ndarray, list_2: np.ndarray) -> int:
+    """
+    Calcula la suma total de distancias entre los elementos mínimos de ambas listas.
+    
+    Args:
+        list_1: Primera lista de números
+        list_2: Segunda lista de números
+        
+    Returns:
+        Suma total de distancias
+    """
+    # Ordenar ambas listas (más eficiente que buscar mínimos repetidamente)
+    sorted_1 = np.sort(list_1)
+    sorted_2 = np.sort(list_2)
+    
+    # Calcular todas las distancias de una vez
+    distances = np.abs(sorted_1 - sorted_2)
+    
+    return int(np.sum(distances))
+
+def parse_input_file() -> List[str]:
+    """
+    Lee y parsea el archivo de entrada.
+    
+    Returns:
+        Lista de líneas del archivo
+    """
+    file_path = Path(INPUT_FILE_PATH)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"El archivo {INPUT_FILE_PATH} no existe")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = f.read().strip().split("\n")
+    
+    return lines
+
+if __name__ == "__main__":
+    main()

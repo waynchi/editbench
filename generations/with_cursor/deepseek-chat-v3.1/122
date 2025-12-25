@@ -1,0 +1,49 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Create sample data to get the expected feature names
+sample_df = pd.DataFrame({
+    "Pclass": [1],
+    "Name": [24],
+    "Sex": [0],
+    "Age": [19],
+    "SibSp": [0],
+    "Parch": [0],
+    "Fare": [50],
+    "Embarked": ["S"]
+})
+
+# Apply one-hot encoding to get the correct column structure
+sample_df = pd.get_dummies(sample_df, columns=["Embarked"], prefix="Embarked")
+
+# Ensure all expected columns are present
+expected_columns = sample_df.columns.tolist()
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            my_df = pd.DataFrame({"Pclass": [pclass],
+                                "Name": [24],
+                                "Sex": [0],
+                                "Age": [19],
+                                "SibSp": [0],
+                                "Parch": [0],
+                                "Fare": [fare],
+                                "Embarked": [embarked]
+                                })
+            
+            # Apply one-hot encoding
+            my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+            
+            # Ensure all expected columns are present
+            for col in expected_columns:
+                if col not in my_df.columns:
+                    my_df[col] = 0
+            
+            # Reorder columns to match training data
+            my_df = my_df[expected_columns]
+            
+            print(f"""-------------------------------------------------------
+                  Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+                  По knn: {knn.predict(my_df)[0]}
+                  По mlp: {mlp.predict(my_df)[0]}""")

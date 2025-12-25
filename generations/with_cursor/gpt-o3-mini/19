@@ -1,0 +1,129 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+
+def czyPoprawny(obrazek): 
+    # Wiersze – sprawdzamy bity parzystości dla wierszy (tylko 20 pierwszych wierszy zawiera dane + bit parzystości)
+    for wiersz in obrazek[:-1]:
+        # wiersz[:-1] – dane, wiersz[-1] – bit parzystości
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    # Kolumny – każdy z 20 pikselowych kolumn budujemy z 21 wierszy 
+    for i in range(20):  
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]:
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20):
+        kolumna = ""
+        for j in range(21):
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    # Obrazek naprawialny jeśli co najwyżej jeden błąd w wierszu i co najwyżej jeden błąd w kolumnie
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """
+    Funkcja przyjmuje obrazek reprezentowany jako lista 21 łańcuchów znaków.
+    Pierwsze 20 wierszy zawiera dane pikseli (0 - biały, 1 - czarny) oraz na końcu bity parzystości dla wiersza.
+    Wiersz numer 21 zawiera bity parzystości dla kolumn (pierwsze 20 znaków) oraz dodatkowy znak na końcu, który nie jest używany.
+    
+    Funkcja wyszukuje błędne bity – zakładamy, że obrazek jest naprawialny, czyli:
+      • Co najwyżej jeden wiersz ma niepoprawny bit parzystości,
+      • Co najwyżej jedna kolumna ma niepoprawny bit parzystości.
+    Mechanizm naprawy:
+      - Jeśli wykryty został błąd w jednym wierszu oraz w jednej kolumnie, to błąd znajduje się w przecięciu,
+        więc odwracamy wartość bitu w komórce (wiersz, kolumna) (należącej do danych, czyli kolumny 0..19).
+      - Jeśli tylko wiersz jest błędny, to błąd dotyczy bitu parzystości w tym wierszu (ostatni znak w wierszu),
+      - Jeśli tylko kolumna jest błędna, to błąd dotyczy bitu parzystości danej kolumny (odpowiedni znak w ostatnim wierszu).
+      
+    Wynikiem funkcji jest lista zawierająca dwa elementy:
+      [obrazy_drukowane_przed_naprawa, obraz_naprawiony]
+    Każdy z elementów to lista łańcuchów znaków reprezentujących obrazek.
+    """
+    # Kopiujemy obrazek, aby zachować wersję przed naprawą
+    import copy
+    damaged_obrazek = copy.deepcopy(obrazek)
+    
+    # Przekształcamy obrazek na listę list (aby móc modyfikować poszczególne znaki)
+    mod_obrazek = [list(row) for row in obrazek]
+    
+    faulty_row = -1
+    faulty_col = -1
+
+    # Szukamy błędu w wierszach (tylko pierwsze 20 wierszy zawiera dane + bit parzystości)
+    for i in range(20):
+        dane = mod_obrazek[i][:20]
+        bit_parzystosci = mod_obrazek[i][20]
+        if dane.count('1') % 2 != int(bit_parzystosci):
+            faulty_row = i
+            break
+
+    # Szukamy błędu w kolumnach (dla kolumn sprawdzamy 20 danych pikseli i bit parzystości z ostatniego wiersza)
+    for j in range(20):
+        kolumna_dane = [mod_obrazek[i][j] for i in range(20)]
+        bit_parzystosci = mod_obrazek[20][j]
+        if kolumna_dane.count('1') % 2 != int(bit_parzystosci):
+            faulty_col = j
+            break
+
+    # Naprawa – trzy przypadki:
+    if faulty_row != -1 and faulty_col != -1:
+        # Błąd w danych: zmieniamy piksel znajdujący się w przecięciu błędnego wiersza i kolumny.
+        mod_obrazek[faulty_row][faulty_col] = '0' if mod_obrazek[faulty_row][faulty_col] == '1' else '1'
+    elif faulty_row != -1:
+        # Tylko błąd w wierszu – najprawdopodobniej błędny bit parzystości w danym wierszu,
+        # czyli ostatni znak w wierszu.
+        mod_obrazek[faulty_row][20] = '0' if mod_obrazek[faulty_row][20] == '1' else '1'
+    elif faulty_col != -1:
+        # Tylko błąd w kolumnie – naprawiamy bit parzystości kolumny, czyli znak znajdujący się
+        # w ostatnim wierszu na pozycji faulty_col.
+        mod_obrazek[20][faulty_col] = '0' if mod_obrazek[20][faulty_col] == '1' else '1'
+    # Jeśli nie znaleziono błędnych wierszy/kolumn, to obrazek nie wymaga naprawy (choć ta sytuacja nie powinna wystąpić)
+
+    # Konwertujemy naprawiony obrazek z powrotem na listę łańcuchów znaków
+    fixed_obrazek = [''.join(row) for row in mod_obrazek]
+    
+    # Wynik zawiera oryginalny (uszkodzony) obrazek oraz naprawiony obrazek.
+    wynik = [damaged_obrazek, fixed_obrazek]
+    return wynik
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip()  # usuwamy białe znaki, np. znak nowej linii
+    obrazek.append(wiersz)
+    if len(obrazek) == 21:  # mamy 21 linii – pełny obrazek zawierający wiersze z danymi i bity parzystości
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+            # Można tu dodatkowo operować na naprawionym obrazku, np. drukować przed i po naprawie,
+            # ale w tym kodzie tylko wykonujemy naprawę
+    if len(obrazek) == 22:  # obrazek zajmuje 21 linii, więc linia numer 22 to początek nowego obrazka
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

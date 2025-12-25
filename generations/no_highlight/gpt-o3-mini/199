@@ -1,0 +1,33 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Create a DataFrame with fare values as index and Pclass values as columns,
+# with dtype=object so that we can store dictionaries in cells.
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3, 
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+        # Perform one-hot encoding on the 'Embarked' column
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+        # Ensure that the expected columns exist and are converted to 0/1
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].map({True: 1, False: 0})
+
+        # Store the prediction results in the appropriate cell of np_df
+        np_df.loc[fare, pclass] = {
+            "knn": knn.predict(my_df),
+            "mlp": mlp.predict(my_df)
+        }
+
+print(np_df)

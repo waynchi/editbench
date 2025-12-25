@@ -1,0 +1,64 @@
+function createTurnState(allyStates, foeStates) {
+  // This logic block initializes the turn system.
+  // It sets the starting turn number and determines the first acting group.
+  // In a new game, the player's group always starts, and all units can act.
+  let turnNumber = 1;
+  let currentTurn = "player";
+
+  // Initialize all units to be able to act at the beginning of the game.
+  allyStates.forEach(unit => unit.hasActed = false);
+  foeStates.forEach(unit => unit.hasActed = false);
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // nextTurn is called to end the current group's phase (e.g., player clicks "End Turn").
+  function nextTurn() {
+    if (currentTurn === "player") {
+      // Player phase ends, CPU phase begins.
+      currentTurn = "cpu";
+      // The AI now controls its units.
+      cpuTurn();
+    } else { // currentTurn was "cpu"
+      // CPU phase ends, which also ends the current round.
+      // A new round starts with the player.
+      currentTurn = "player";
+      turnNumber++;
+
+      // Reset action availability for all units at the start of the new round.
+      allyStates.forEach(unit => unit.hasActed = false);
+      foeStates.forEach(unit => unit.hasActed = false);
+    }
+  }
+
+  // cpuTurn simulates the entire CPU phase.
+  function cpuTurn() {
+    // The AI iterates through its units and performs actions.
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) { // Check if the unit can act.
+        // --- PLACEHOLDER FOR AI LOGIC ---
+        // Example: cpuUnit.findTargetAndAttack();
+
+        // Mark the unit as having acted in this round.
+        cpuUnit.hasActed = true;
+      }
+    }
+
+    // After all CPU units have had their chance to act, the CPU phase ends.
+    // This call transitions to the next player round.
+    nextTurn();
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

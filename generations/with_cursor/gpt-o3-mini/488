@@ -1,0 +1,43 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Lista de todas las columnas dummy que esperamos tener para "Embarked"
+expected_dummy_cols = ["Embarked_C", "Embarked_Q", "Embarked_S"]
+
+def create_features(pclass, fare, embarked):
+    # Para que DataFrame se maneje bien, definimos cada valor como una lista (fila única)
+    data = {
+        "Pclass": [pclass],
+        "Name": [24],    # Se usa 24 como en el código original.
+        "Sex": [0],
+        "Age": [19],
+        "SibSp": [0],
+        "Parch": [0],
+        "Fare": [fare],
+        "Embarked": [embarked]
+    }
+    df = pd.DataFrame(data)
+    # Realizamos one-hot encoding para Embarked
+    dummies = pd.get_dummies(df["Embarked"], prefix="Embarked")
+    df = df.drop("Embarked", axis=1)
+    df = pd.concat([df, dummies], axis=1)
+    # Aseguramos que el DataFrame contenga todas las columnas dummy, aunque sean 0
+    for col in expected_dummy_cols:
+        if col not in df.columns:
+            df[col] = 0
+    # Opcional: reordenar las columnas si se requiere un orden específico
+    cols_order = ["Pclass", "Name", "Sex", "Age", "SibSp", "Parch", "Fare"] + expected_dummy_cols
+    df = df[cols_order]
+    return df
+
+if __name__ == "__main__":
+    for pclass in [1, 2, 3]:
+        for fare in range(10, 200, 10):
+            for embarked in ["S", "Q", "C"]:
+                my_df = create_features(pclass, fare, embarked)
+                result_knn = knn.predict(my_df)
+                result_mlp = mlp.predict(my_df)
+                print("-------------------------------------------------------")
+                print(f"Parámetros: clase {pclass}, tarifa {fare}, embarked {embarked}")
+                print(f"Por knn: {result_knn}")
+                print(f"Por mlp: {result_mlp}")

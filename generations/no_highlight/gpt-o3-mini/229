@@ -1,0 +1,138 @@
+import random
+import json
+import logging
+import asyncio
+from typing import List, Dict
+
+import httpx
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse
+
+app = FastAPI()
+
+CHAT_URL = "https://duckduckgo.com/duckchat/v1/chat"
+STATUS_URL = "https://duckduckgo.com/duckchat/v1/status"
+MODELS = {
+    "gpt-4o-mini": {"owned_by": "openai", "is_free": True},
+    "llama-3.1-70b": {"owned_by": "Meta", "is_free": True},
+    "mixtral-8x7b": {"owned_by": "mistralai", "is_free": True},
+    "claude-3-haiku": {"owned_by": "Anthropic", "is_free": False},
+}
+
+# 用户代理字符串列表，适用于 Mac、Windows 和 Linux 浏览器
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+]
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def fetch_vqd() -> dict:
+    """
+    获取身份验证所需的VQD令牌，并随机选择一个用户代理字符串。
+    返回一个字典，格式为 { "vqd": <token>, "user-agent": <随机用户代理> }
+    """
+    user_agent = random.choice(USER_AGENTS)
+    headers = {
+        "User-Agent": user_agent,
+        "x-vqd-accept": "1",
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            STATUS_URL,
+            headers=headers,
+        )
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch VQD: {response.status_code}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve VQD token")
+        vqd = response.headers.get("x-vqd-4", "")
+        return {"vqd": vqd, "user-agent": user_agent}
+
+async def stream_chat_response(client: httpx.AsyncClient, vqd: str, messages: List[Dict], model: str, user_agent: str):
+    """
+    从聊天 API 流式传输响应。
+    使用传入的 vqd 和随机选择的用户代理字符串进行请求。
+    """
+    headers = {
+        "User-Agent": user_agent,
+        "Content-Type": "application/json",
+        "x-vqd-4": vqd,
+    }
+    payload = {"model": model, "messages": messages}
+
+    async with client.stream("POST", CHAT_URL, headers=headers, json=payload) as response:
+        if response.status_code != 200:
+            logger.error(f"Chat request failed: {response.status_code}")
+            raise HTTPException(status_code=response.status_code, detail="Chat API request failed")
+        async for line in response.aiter_lines():
+            yield line
+
+# 将 VQD 令牌及其对应的用户代理缓存起来，键为授权头
+vqd_cache = {}
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """
+    处理支持可选流式传输的聊天完成请求。
+    根据请求中的授权头，如果缓存中不存在则获取新的 VQD 令牌和随机用户代理字符串。
+    """
+    try:
+        data = await request.json()
+        messages = data.get("messages", [])
+        model = data.get("model", "gpt-4o-mini")
+        stream = data.get("stream", False)
+
+        if model not in MODELS:
+            raise HTTPException(status_code=400, detail="Invalid model requested")
+
+        auth_header = request.headers.get("authorization")
+
+        # 检查是否存在缓存的 VQD 令牌及用户代理
+        if auth_header not in vqd_cache:
+            vqd_cache[auth_header] = await fetch_vqd()
+        token_data = vqd_cache[auth_header]
+        vqd = token_data["vqd"]
+        user_agent = token_data["user-agent"]
+
+        async with httpx.AsyncClient() as client:
+            if stream:
+                return StreamingResponse(
+                    stream_chat_response(client, vqd, messages, model, user_agent),
+                    media_type="text/event-stream",
+                )
+            else:
+                aggregated_response = ""
+                async for chunk in stream_chat_response(client, vqd, messages, model, user_agent):
+                    aggregated_response += chunk
+                return JSONResponse(content=json.loads(aggregated_response))
+    except Exception as e:
+        logger.error(f"Error in chat_completions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/v1/models")
+async def get_models():
+    """
+    检索可用的模型信息。
+    """
+    try:
+        response_data = []
+        for model_id, details in MODELS.items():
+            response_data.append({
+                "id": model_id,
+                "object": "model",
+                "created": 1686935002,  # 示例硬编码时间戳
+                "owned_by": details["owned_by"],
+                "type": "chat.completions",
+                "is_free": details["is_free"],
+            })
+        return JSONResponse(content={"object": "list", "data": response_data})
+    except Exception as e:
+        logger.error(f"Error in get_models: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# 开发服务器入口点
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

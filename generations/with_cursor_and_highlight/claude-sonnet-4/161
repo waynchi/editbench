@@ -1,0 +1,42 @@
+def can_be_expressed_as_four_nonzero_squares(n):
+    """
+    检查一个数字是否可以表示为四个非零平方数的和
+    """
+    # 遍历所有可能的四个非零平方数组合
+    for a in range(1, int(n**0.5) + 1):
+        a_squared = a * a
+        if a_squared >= n:
+            break
+        for b in range(1, int((n - a_squared)**0.5) + 1):
+            b_squared = b * b
+            if a_squared + b_squared >= n:
+                break
+            for c in range(1, int((n - a_squared - b_squared)**0.5) + 1):
+                c_squared = c * c
+                if a_squared + b_squared + c_squared >= n:
+                    break
+                d_squared = n - a_squared - b_squared - c_squared
+                d = int(d_squared**0.5)
+                if d > 0 and d * d == d_squared:
+                    return True, (a, b, c, d)
+    return False, None
+
+# 测试函数
+def find_numbers_expressible_as_four_nonzero_squares(limit=100):
+    """
+    找到可以表示为四个非零平方和的数字
+    """
+    results = []
+    for n in range(4, limit + 1):  # 最小值是4 (1²+1²+1²+1²)
+        can_express, squares = can_be_expressed_as_four_nonzero_squares(n)
+        if can_express:
+            results.append((n, squares))
+    return results
+
+# 示例使用
+if __name__ == "__main__":
+    numbers = find_numbers_expressible_as_four_nonzero_squares(50)
+    print("可以表示为四个非零平方和的数字：")
+    for num, squares in numbers[:10]:  # 显示前10个
+        a, b, c, d = squares
+        print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")

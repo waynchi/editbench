@@ -1,0 +1,76 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Resuelve el sistema de ecuaciones lineales Ax = b usando el método de gradientes conjugados.
+    
+    Parámetros:
+    A: matriz del sistema (n x n)
+    b: vector del lado derecho (n)
+    x0: aproximación inicial (opcional, por defecto vector cero)
+    tol: tolerancia para el criterio de parada
+    max_iter: número máximo de iteraciones (opcional, por defecto n)
+    
+    Retorna:
+    x: solución aproximada
+    converged: booleano indicando si convergió
+    num_iter: número de iteraciones realizadas
+    residual_norms: historia de normas del residual
+    """
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x
+    p = r.copy()
+    rs_old = r @ r
+    
+    residual_norms = [np.sqrt(rs_old)]
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = r @ r
+        
+        residual_norms.append(np.sqrt(rs_new))
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, i + 1, residual_norms
+        
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x, False, max_iter, residual_norms
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    # Crear una matriz simétrica definida positiva para demostración
+    n = 5
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n)  # Hacerla definida positiva
+    x_true = np.random.randn(n)
+    b = A @ x_true
+    
+    print("Matriz A:")
+    print(A)
+    print("\nVector b:")
+    print(b)
+    print("\nSolución verdadera x:")
+    print(x_true)
+    
+    # Resolver usando gradientes conjugados
+    x_sol, converged, num_iter, residuals = conjugate_gradient(A, b)
+    
+    print(f"\nSolución aproximada después de {num_iter} iteraciones:")
+    print(x_sol)
+    print(f"¿Convergió? {converged}")
+    print(f"Error relativo: {np.linalg.norm(x_sol - x_true) / np.linalg.norm(x_true):.2e}")
+    print(f"Norma del residual final: {residuals[-1]:.2e}")

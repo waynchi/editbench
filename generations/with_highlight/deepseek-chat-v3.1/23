@@ -1,0 +1,36 @@
+import nltk
+from nltk.corpus import words
+
+def main():
+    # Download the words corpus if not already available
+    try:
+        nltk.data.find('corpora/words')
+    except LookupError:
+        nltk.download('words')
+    
+    # Get word list
+    word_list = words.words()
+    
+    # Get user input for number of characters
+    try:
+        num_chars = int(input("Enter the number of characters for the words you want to find: "))
+        if num_chars <= 0:
+            print("Please enter a positive number.")
+            return
+    except ValueError:
+        print("Please enter a valid number.")
+        return
+    
+    # Filter words with exactly the specified number of characters
+    filtered_words = [word for word in word_list if len(word) == num_chars and word.isalpha()]
+    
+    # Print up to 10 words
+    print(f"\nFound {len(filtered_words)} words with {num_chars} characters:")
+    for i, word in enumerate(filtered_words[:10]):
+        print(f"{i+1}. {word}")
+    
+    if len(filtered_words) == 0:
+        print("No words found with that number of characters.")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,106 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_core.runnables import Runnable
+from langchain_core.language_models import BaseChatModel
+
+
+def generate_response_from_shap(
+    shap_json_path: str,
+    system_prompt_path: str,
+    model: str = "llama3.2",
+    base_url: str = "http://localhost:11434",
+    client_kwargs: dict = None,
+) -> str:
+    """
+    Generates a response from a ChatOllama model based on SHAP values and a system prompt.
+
+    Args:
+        shap_json_path (str): The file path to the JSON file containing SHAP values.
+        system_prompt_path (str): The file path to the text file containing the system prompt.
+        model (str): The name of the Ollama model to use.
+        base_url (str): The base URL for the Ollama API server.
+        client_kwargs (dict, optional): Additional keyword arguments for the Ollama client,
+                                        like headers for authentication. Defaults to None.
+
+    Returns:
+        str: The content of the generated response from the language model.
+    """
+    # Initialize the ChatOllama model
+    # Example for local Ollama instance:
+    chat_model: BaseChatModel = ChatOllama(
+        model=model, base_url=base_url, client_kwargs=client_kwargs
+    )
+
+    # Example for remote/authenticated Ollama instance:
+    # chat_model = ChatOllama(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     },
+    # )
+
+    # Load SHAP values from the specified JSON file
+    try:
+        with open(shap_json_path, "r") as file:
+            shap_values_json = json.load(file).get("shap_values")
+        if shap_values_json is None:
+            raise ValueError(f"'shap_values' key not found in {shap_json_path}")
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        print(f"Error loading SHAP values file: {e}")
+        return ""
+
+    # Load system prompt from the specified file
+    try:
+        with open(system_prompt_path, "r") as file:
+            sys_prompt = file.read().strip()
+    except FileNotFoundError as e:
+        print(f"Error loading system prompt file: {e}")
+        return ""
+
+    # Prepare the prompt template for the messages
+    prompt: ChatPromptTemplate = ChatPromptTemplate.from_messages(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Convert the SHAP values data to a JSON string for the user input
+    user_input = json.dumps(shap_values_json)
+
+    # Create the LangChain Expression Language (LCEL) chain
+    chain: Runnable = prompt | chat_model
+
+    # Invoke the chain with the user input and generate the response
+    response = chain.invoke({"user_input": user_input})
+
+    # Return the content of the response
+    return response.content
+
+
+if __name__ == "__main__":
+    # Define file paths and model configuration
+    SHAP_FILE_PATH = "Vuori_Final_Approval_2024_09_24.json"
+    SYSTEM_PROMPT_FILE_PATH = "system.prompt"
+    MODEL_NAME = "llama3.2"
+    BASE_URL = "http://localhost:11434"
+
+    # Generate the response by calling the refactored function
+    print(f"Generating response using '{MODEL_NAME}' from SHAP values in '{SHAP_FILE_PATH}'...")
+    
+    response_content = generate_response_from_shap(
+        shap_json_path=SHAP_FILE_PATH,
+        system_prompt_path=SYSTEM_PROMPT_FILE_PATH,
+        model=MODEL_NAME,
+        base_url=BASE_URL,
+    )
+    
+    # Print the final response
+    if response_content:
+        print("\n--- Generated Response ---")
+        print(response_content)
+        print("--------------------------")
+    else:
+        print("\nFailed to generate a response.")

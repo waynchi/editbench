@@ -1,0 +1,10 @@
+import os
+from pymilvus import connections
+
+# Сохранить текущий путь как cwd
+# Создать путь к векторной базе данных
+cwd = os.getcwd()
+db_path = os.path.join(cwd, 'milvus_db.db')
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+client = connections.connect(alias="default", host="127.0.0.1", port=19530)

@@ -1,0 +1,69 @@
+function createTurnState(allyStates, foeStates) {
+  // Encontrar el turno actual basado en qué grupo todavía tiene unidades que pueden actuar
+  let currentTurn = determineInitialTurn();
+  let turnNumber = 1;
+
+  function determineInitialTurn() {
+    const playerHasUnitsToAct = allyStates.some(unit => !unit.hasActed);
+    const cpuHasUnitsToAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (playerHasUnitsToAct) return "player";
+    if (cpuHasUnitsToAct) return "cpu";
+    
+    // Si ninguna unidad puede actuar, por defecto al jugador
+    return "player";
+  }
+
+  function getCurrentTurn() {
+    return currentTurn;
+  }
+
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  function nextTurn() {
+    // Determinar el siguiente turno basado en qué grupo tiene unidades que pueden actuar
+    const playerHasUnitsToAct = allyStates.some(unit => !unit.hasActed);
+    const cpuHasUnitsToAct = foeStates.some(unit => !unit.hasActed);
+    
+    if (currentTurn === "player" && cpuHasUnitsToAct) {
+      currentTurn = "cpu";
+      // La CPU actuará con sus unidades que no han actuado
+      cpuTurn();
+    } else if (currentTurn === "cpu" && playerHasUnitsToAct) {
+      currentTurn = "player";
+      turnNumber++; // Incrementar el número de turno solo después del turno del jugador
+    } else {
+      // Si ningún grupo tiene unidades que puedan actuar, reiniciar todos los estados
+      // y comenzar un nuevo turno del jugador
+      allyStates.forEach(unit => unit.hasActed = false);
+      foeStates.forEach(unit => unit.hasActed = false);
+      currentTurn = "player";
+      turnNumber++;
+    }
+  }
+
+  function cpuTurn() {
+    // Ejemplo de comportamiento de la CPU (reemplazar con tu lógica de IA real)
+    for (const cpuUnit of foeStates) {
+      if (!cpuUnit.hasActed) {
+        // Realizar acciones de la CPU (por ejemplo, movimiento, ataque)
+        // ... tu lógica de IA de CPU aquí ...
+        
+        cpuUnit.hasActed = true; // Marcar la unidad como que ha actuado
+      }
+    }
+
+    // Después de que todas las unidades de la CPU hayan actuado, pasar al siguiente turno
+    nextTurn();
+  }  
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

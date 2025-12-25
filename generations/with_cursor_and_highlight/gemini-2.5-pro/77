@@ -1,0 +1,199 @@
+An optimized implementation of the code is provided below. The key improvements include:
+1.  **Decoupled State**: The single large `useState` object is broken down into smaller, more granular states. This simplifies state updates and prevents unnecessary re-renders.
+2.  **Derived State with `useMemo`**: The `healthData` array, which can be purely calculated from other states, is now generated using `useMemo`. This removes it from manual state management and ensures it's only re-calculated when its dependencies change.
+3.  **Simplified & Robust Effects**: Data fetching logic is streamlined into `useEffect` hooks with clean, minimal dependencies, eliminating the potential for infinite loops and making the data flow more predictable. A reset `useEffect` is added to clear data when the user changes, preventing stale state issues.
+4.  **Bug Fixes & Efficiency**: A bug in the `checkWebsites` action that failed to update the main customer list is fixed. Data calculation logic has been made more efficient by using `reduce` instead of multiple `filter` calls.
+5.  **Stable Callbacks**: Actions returned by the hook are wrapped in `useCallback` to ensure their function identities are stable, which is a best practice that optimizes performance in consuming components.
+6.  **Maintainability**: The overall structure is cleaner, more organized, and easier to understand and maintain.
+javascript/react
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// A utility to create the default date range (last year to today)
+const getDefaultDateRange = () => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setFullYear(startDate.getFullYear() - 1);
+  return { startDate, endDate };
+};
+
+function useDashboardData(user) {
+  // 1. Decoupled state for better granularity and performance.
+  const [customerData, setCustomerData] = useState({ summary: null, customers: [] });
+  const [stripeApiKey, setStripeApiKey] = useState("");
+  const [dateRange, setDateRange] = useState(getDefaultDateRange);
+  const [error, setError] = useState(null);
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [websiteChecking, setWebsiteChecking] = useState(false);
+
+  // 2. Reset state when user changes to prevent displaying stale data.
+  useEffect(() => {
+    setStripeApiKey("");
+    setCustomerData({ summary: null, customers: [] });
+    setError(null);
+    setCustomerLoading(false);
+    setWebsiteChecking(false);
+    setDateRange(getDefaultDateRange());
+  }, [user?.id]);
+
+  // 3. Data-fetching effects with clear, minimal dependencies.
+  // Effect for loading user settings (Stripe API key).
+  useEffect(() => {
+    const fetchSettings = async () => {
+      if (!user?.id || stripeApiKey) return; // Don't fetch if no user or key exists
+
+      try {
+        setError(null);
+        const response = await fetch("/api/db/churnary_user_settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: "SELECT stripe_api_key FROM `user_settings` WHERE `user_id` = ? LIMIT 1",
+            values: [user.id],
+          }),
+        });
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const settings = await response.json();
+        setStripeApiKey(settings[0]?.stripe_api_key || "");
+      } catch (err) {
+        setError("Failed to load user settings");
+      }
+    };
+    fetchSettings();
+  }, [user?.id, stripeApiKey]);
+  
+  // Effect for loading primary customer data.
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id || !stripeApiKey) return; // Requires user and API key
+
+      setCustomerLoading(true);
+      setError(null);
+      try {
+        const response = await fetch("/api/stripe-customer-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch customer summary");
+        const summary = await response.json();
+        if (summary.error) throw new Error(summary.error);
+
+        setCustomerData({ summary, customers: summary.customers });
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setCustomerLoading(false);
+      }
+    };
+    fetchData();
+  }, [user?.id, stripeApiKey]);
+
+  // 4. Derived state calculated with useMemo for efficiency.
+  const healthData = useMemo(() => {
+    if (!customerData.summary?.customers) return [];
+
+    const months = [];
+    const currentDate = new Date(dateRange.startDate);
+    
+    while (currentDate <= dateRange.endDate) {
+      months.push({
+        month: currentDate.getMonth(), // Store month index for efficient comparison
+        monthName: currentDate.toLocaleString("default", { month: "short" }),
+        year: currentDate.getFullYear(),
+      });
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    return months.map(({ month, monthName, year }) => {
+      const monthYear = `${monthName} ${year}`;
+      const monthCustomers = customerData.summary.customers.filter(customer => {
+        const customerDate = new Date(customer.created);
+        return customerDate.getMonth() === month && customerDate.getFullYear() === year;
+      });
+
+      // Use a single reduce for better performance than multiple filters.
+      const stats = monthCustomers.reduce((acc, c) => {
+        if (c.status === "active") acc.healthy++;
+        else if (c.status === "churned") acc.warning++;
+        else if (c.status === "delinquent") acc.critical++;
+        return acc;
+      }, { healthy: 0, warning: 0, critical: 0 });
+
+      return { monthYear, ...stats };
+    });
+  }, [customerData.summary, dateRange]);
+
+  // 5. Actions memoized with useCallback for stable function references.
+  const checkWebsites = useCallback(async () => {
+    if (!customerData.customers?.length) return;
+    
+    setWebsiteChecking(true);
+    setError(null);
+    try {
+      const updatedCustomers = await Promise.all(
+        customerData.customers.map(async (customer) => {
+          const res = await fetch("/api/website-churn-detector", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ websiteUrl: customer.website }),
+          });
+          const health = await res.json();
+          return { ...customer, health, status: health.status === "active" ? "active" : "churned" };
+        })
+      );
+
+      const newSummary = {
+        ...customerData.summary,
+        customers: updatedCustomers,
+        active: updatedCustomers.filter(c => c.status === "active").length,
+        churned: updatedCustomers.filter(c => c.status === "churned").length,
+      };
+      
+      // Update both customers and summary state (fixes a bug in original code).
+      setCustomerData({ summary: newSummary, customers: updatedCustomers });
+    } catch (err) {
+      setError("Failed to check websites. Please try again.");
+    } finally {
+      setWebsiteChecking(false);
+    }
+  }, [customerData]);
+
+  const setDateRangeAction = useCallback((newRange) => {
+    if (newRange.startDate > newRange.endDate) {
+      setError("Start date cannot be after end date");
+      return;
+    }
+    setError(null);
+    setDateRange(newRange);
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  // 6. Assemble the hook's return value, maintaining the original structure.
+  const actions = useMemo(() => ({
+    checkWebsites,
+    setDateRange: setDateRangeAction,
+    clearError,
+  }), [checkWebsites, setDateRangeAction, clearError]);
+  
+  const data = useMemo(() => ({
+    customerData: { ...customerData, loading: customerLoading },
+    healthData,
+    websiteStatus: { checking: websiteChecking },
+    stripeApiKey,
+    dateRange,
+    error,
+  }), [customerData, customerLoading, healthData, websiteChecking, stripeApiKey, dateRange, error]);
+
+  return { 
+    data,
+    actions,
+    isLoading: customerLoading || websiteChecking,
+  };
+}
+
+export default useDashboardData;

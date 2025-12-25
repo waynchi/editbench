@@ -1,0 +1,81 @@
+import math
+
+def find_four_non_zero_squares(n):
+    """
+    Efficiently finds four non-zero integers a, b, c, d such that
+    a^2 + b^2 + c^2 + d^2 = n.
+    Returns a tuple (a, b, c, d) if a solution is found, otherwise None.
+    """
+    # The smallest sum of four non-zero squares is 1^2+1^2+1^2+1^2 = 4.
+    if n < 4:
+        return None
+
+    # Loop for 'a', starting from 1 since we need non-zero squares.
+    # The upper bound for 'a' can't exceed sqrt(n).
+    for a in range(1, int(math.sqrt(n)) + 1):
+        a_squared = a**2
+        rem1 = n - a_squared
+        # The remaining sum for b, c, d must be at least 1^2+1^2+1^2 = 3.
+        if rem1 < 3:
+            continue
+
+        # Loop for 'b', starting from 1.
+        # Upper bound for 'b' can't exceed sqrt(n - a^2).
+        for b in range(1, int(math.sqrt(rem1)) + 1):
+            b_squared = b**2
+            rem2 = rem1 - b_squared
+            # The remaining sum for c, d must be at least 1^2+1^2 = 2.
+            if rem2 < 2:
+                continue
+
+            # Loop for 'c', starting from 1.
+            # Upper bound for 'c' can't exceed sqrt(n - a^2 - b^2).
+            for c in range(1, int(math.sqrt(rem2)) + 1):
+                c_squared = c**2
+                
+                # Calculate the remaining value needed for d^2.
+                d_squared = rem2 - c_squared
+                
+                # d^2 must be a positive perfect square.
+                if d_squared > 0:
+                    d = int(math.sqrt(d_squared))
+                    if d**2 == d_squared:
+                        # Found a valid decomposition with non-zero a, b, c, d.
+                        return a, b, c, d
+                        
+    # If no solution is found after all checks.
+    return None
+
+def find_sums_up_to_limit(limit):
+    """
+    Finds all numbers up to a given limit that can be expressed as the sum
+    of four non-zero squares.
+    Returns a dictionary mapping each number to its four-square components.
+    """
+    # Use a dictionary to store the number and its decomposition.
+    decompositions = {}
+    # Iterate through each number up to the limit.
+    # The smallest possible number is 4.
+    for num in range(4, limit + 1):
+        result = find_four_non_zero_squares(num)
+        if result:
+            decompositions[num] = result
+    return decompositions
+
+# Example usage:
+# Prompt the user for the upper limit.
+limit = int(input("Digite o limite superior: "))
+# Find the numbers and their decompositions.
+sums_found = find_sums_up_to_limit(limit)
+
+# Print the header for the results.
+print("\nNúmeros que podem ser expressos como a soma de quatro quadrados não nulos:")
+
+# Check if any numbers were found.
+if not sums_found:
+    print(f"Nenhum número encontrado até {limit}.")
+else:
+    # Iterate through the found numbers and print the decomposition.
+    for num, components in sums_found.items():
+        a, b, c, d = components
+        print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

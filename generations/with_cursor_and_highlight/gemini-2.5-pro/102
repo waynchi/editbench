@@ -1,0 +1,54 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    #for l in lines:
+    #    print(l)
+
+    str_to_match = "XMAS"
+    count = 0
+
+    if not lines:
+        print("Input grid is empty.")
+    else:
+        # Convert list of strings to a 2D numpy array of characters.
+        # This resolves the IndexError from treating a 1D array of strings as 2D.
+        grid = np.array([list(l) for l in lines])
+        print(grid)
+
+        # Check horizontally
+        for row in grid:
+            row_str = ''.join(row)
+            count += row_str.count(str_to_match)
+
+        # Check vertically
+        for col in range(grid.shape[1]):
+            col_str = ''.join(grid[:,col])
+            count += col_str.count(str_to_match)
+
+        # Check diagonally (top-left to bottom-right)
+        for i in range(-(grid.shape[0]-1), grid.shape[1]):
+            diag = np.diagonal(grid, offset=i)
+            diag_str = ''.join(diag)
+            count += diag_str.count(str_to_match)
+
+        # Check diagonally (top-right to bottom-left)
+        flipped_grid = np.fliplr(grid)
+        for i in range(-(grid.shape[0]-1), grid.shape[1]):
+            diag = np.diagonal(flipped_grid, offset=i)
+            diag_str = ''.join(diag)
+            count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of {str_to_match}")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        # Using .splitlines() correctly handles newlines and returns an empty list for an empty file.
+        lines = f.read().splitlines()
+    return lines
+
+if __name__ == "__main__":
+    main()

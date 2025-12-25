@@ -1,0 +1,146 @@
+def create_matrix(rows: int, cols: int, fill_value=0) -> list:
+    """
+    Tworzy macierz o rozmiarze rows x cols, wypełnioną wartością fill_value.
+    
+    Parametry:
+      rows (int): liczba wierszy.
+      cols (int): liczba kolumn.
+      fill_value (dowolny typ): wartość do wypełnienia macierzy.
+      
+    Zwraca:
+      list: macierz w postaci listy list.
+    """
+    return [[fill_value for _ in range(cols)] for _ in range(rows)]
+
+
+def add_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Dodaje dwie macierze o tym samym rozmiarze.
+    
+    Parametry:
+      matrix_a (list): pierwsza macierz.
+      matrix_b (list): druga macierz.
+      
+    Zwraca:
+      list: wynik dodawania macierzy, gdzie każdy element to suma odpowiadających elementów.
+    """
+    if len(matrix_a) != len(matrix_b) or any(len(row_a) != len(row_b) for row_a, row_b in zip(matrix_a, matrix_b)):
+        raise ValueError("Macierze muszą mieć ten sam rozmiar")
+    
+    result = []
+    for row_a, row_b in zip(matrix_a, matrix_b):
+        new_row = []
+        for a, b in zip(row_a, row_b):
+            new_row.append(a + b)
+        result.append(new_row)
+    return result
+
+
+def scalar_multiply(matrix: list, scalar: float) -> list:
+    """
+    Mnoży wszystkie elementy macierzy przez skalar.
+    
+    Parametry:
+      matrix (list): macierz źródłowa.
+      scalar (float): liczba, przez którą mnożone są elementy macierzy.
+      
+    Zwraca:
+      list: wynik mnożenia macierzy przez skalar.
+    """
+    result = []
+    for row in matrix:
+        new_row = []
+        for element in row:
+            new_row.append(element * scalar)
+        result.append(new_row)
+    return result
+
+
+def multiply_matrices(matrix_a: list, matrix_b: list) -> list:
+    """
+    Mnoży dwie macierze.
+    
+    Parametry:
+      matrix_a (list): pierwsza macierz (n x m).
+      matrix_b (list): druga macierz (m x p).
+      
+    Zwraca:
+      list: wynik mnożenia macierzy (n x p).
+      
+    Warunek: liczba kolumn macierzy matrix_a musi być równa liczbie wierszy macierzy matrix_b.
+    """
+    # Sprawdzenie wymiarów
+    if len(matrix_a) == 0 or len(matrix_b) == 0:
+        raise ValueError("Macierze nie mogą być puste")
+        
+    num_cols_a = len(matrix_a[0])
+    num_rows_b = len(matrix_b)
+    if num_cols_a != num_rows_b:
+        raise ValueError("Liczba kolumn w matrix_a musi być równa liczbie wierszy w matrix_b")
+    
+    num_rows_a = len(matrix_a)
+    num_cols_b = len(matrix_b[0])
+    
+    # Inicjalizacja macierzy wynikowej zerami
+    result = create_matrix(num_rows_a, num_cols_b, fill_value=0)
+    
+    # Mnożenie macierzy - standardowy algorytm trzech pętli for
+    for i in range(num_rows_a):
+        for j in range(num_cols_b):
+            sum_value = 0
+            for k in range(num_cols_a):
+                sum_value += matrix_a[i][k] * matrix_b[k][j]
+            result[i][j] = sum_value
+    
+    return result
+
+
+def transpose_matrix(matrix: list) -> list:
+    """
+    Transponuje macierz.
+    
+    Parametry:
+      matrix (list): macierz źródłowa.
+      
+    Zwraca:
+      list: macierz transponowana, gdzie wiersze stają się kolumnami a kolumny wierszami.
+    """
+    if not matrix:
+        return []
+    
+    num_rows = len(matrix)
+    num_cols = len(matrix[0])
+    
+    transposed = []
+    for j in range(num_cols):
+        new_row = []
+        for i in range(num_rows):
+            new_row.append(matrix[i][j])
+        transposed.append(new_row)
+    return transposed
+
+
+def determinant_3x3(matrix: list) -> float:
+    """
+    Oblicza wyznacznik macierzy 3x3.
+    
+    Parametry:
+      matrix (list): macierz źródłowa o rozmiarze 3x3.
+      
+    Zwraca:
+      float: wyznacznik macierzy.
+      
+    Wzór:
+      det(A) = a11*(a22*a33 - a23*a32) - a12*(a21*a33 - a23*a31) + a13*(a21*a32 - a22*a31)
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("Macierz musi być rozmiaru 3x3")
+    
+    a11, a12, a13 = matrix[0]
+    a21, a22, a23 = matrix[1]
+    a31, a32, a33 = matrix[2]
+    
+    det = (a11 * (a22 * a33 - a23 * a32) -
+           a12 * (a21 * a33 - a23 * a31) +
+           a13 * (a21 * a32 - a22 * a31))
+    return float(det)

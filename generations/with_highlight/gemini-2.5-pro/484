@@ -1,0 +1,24 @@
+import requests
+
+
+def registerKey(key: str, user: str):
+    print(f'chave: {key}\nnome: {user}')
+    try:
+        # The URL for the POST endpoint.
+        url = 'http://127.0.0.1:5000/register'
+        # The data to be sent in the body of the POST request.
+        payload = {'key': key, 'user': user}
+        # Make a POST request, sending the data as JSON.
+        response = requests.post(url, json=payload)
+
+        # A successful request (status 200) and a 'valid': True in the JSON response
+        # indicate success.
+        if response.status_code == 200:
+            # .get() is used for safe access to the dictionary key, returns False if 'valid' is not found.
+            return response.json().get('valid', False)
+
+        return False
+
+    except requests.RequestException as e:
+        print(f"Erro de conexão: {e}")
+        return False

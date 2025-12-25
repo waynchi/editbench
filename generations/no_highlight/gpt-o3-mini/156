@@ -1,0 +1,39 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+# 初始化 ChatOllama 模型
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# 从 JSON 文件加载 SHAP 值
+with open("Vuori_Final_Approval_2024_09_24.json", "r", encoding="utf-8") as file:
+    data = json.load(file)
+    shap_values = data.get("shap_values")
+    if shap_values is None:
+        raise ValueError("JSON 文件中未找到 'shap_values' 键")
+
+# 从文件加载系统提示
+with open("system.prompt", "r", encoding="utf-8") as file:
+    sys_prompt = file.read().strip()
+    if not sys_prompt:
+        raise ValueError("系统提示文件为空")
+
+# 准备对话模板
+# 注意：ChatPromptTemplate 需要传入一个字典，其 key 对应消息角色，value 为消息内容模板
+template = ChatPromptTemplate(
+    messages=[
+        ("system", sys_prompt),
+        ("human", "{user_input}")
+    ]
+)
+
+# 格式化模板，将 shap_values 转换为字符串作为 user_input 参数
+user_input_str = json.dumps(shap_values, ensure_ascii=False, indent=2)
+formatted_messages = template.format_messages(user_input=user_input_str)
+
+# 调用 ChatOllama 模型生成响应
+# ChatOllama 允许直接传入格式化后的消息列表
+response = chat_model.invoke(formatted_messages)
+
+# 打印响应
+print(response)

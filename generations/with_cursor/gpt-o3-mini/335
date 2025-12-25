@@ -1,0 +1,32 @@
+def is_prime(n):
+    """
+    Sprawdza, czy liczba n jest liczbą pierwszą.
+    
+    Parametry:
+        n (int): Liczba do sprawdzenia.
+    
+    Zwraca:
+        bool: True, jeśli n jest liczbą pierwszą, False w przeciwnym razie.
+    """
+    if n < 2:
+        return False
+    if n == 2:
+        return True
+    if n % 2 == 0:
+        return False
+    # Sprawdzenie dzielników od 3 do pierwiastka z n, z krokiem 2.
+    for i in range(3, int(n ** 0.5) + 1, 2):
+        if n % i == 0:
+            return False
+    return True
+
+# Przykładowe użycie funkcji is_prime
+if __name__ == "__main__":
+    try:
+        number = int(input("Podaj liczbę do sprawdzenia: "))
+        if is_prime(number):
+            print(f"{number} jest liczbą pierwszą!")
+        else:
+            print(f"{number} nie jest liczbą pierwszą.")
+    except ValueError:
+        print("Podana wartość nie jest liczbą całkowitą.")

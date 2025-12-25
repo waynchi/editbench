@@ -1,0 +1,55 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+def generate_response(shap_file_path: str, sys_prompt_file_path: str) -> str:
+    """
+    Generates a response using the ChatOllama model by loading SHAP values and a system prompt from files.
+
+    Args:
+        shap_file_path (str): The path to the JSON file containing SHAP values.
+        sys_prompt_file_path (str): The path to the file containing the system prompt.
+
+    Returns:
+        str: The generated response from the ChatOllama model.
+    """
+    # Initialize the ChatOllama model
+    chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+    # If needed, you can also initialize with authentication headers as shown below:
+    # chat_model = ChatOllama(
+    #     model="llama3.1:70b",
+    #     base_url="http://ada-open-webui.serveo.net/ollama",
+    #     client_kwargs={
+    #         "headers": {"authorization": "Bearer <MASKED>"}
+    #     },
+    # )
+
+    # Load SHAP values from JSON file
+    with open(shap_file_path, "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+
+    # Load system prompt from file
+    with open(sys_prompt_file_path, "r") as file:
+        sys_prompt = file.read().strip()
+
+    # Prepare the messages
+    prompt = ChatPromptTemplate(
+        [
+            ("system", sys_prompt),
+            ("human", "{user_input}"),
+        ]
+    )
+
+    # Generate the response
+    user_input = json.dumps(shap_values_json)  # Prepare user input
+    chain = prompt | chat_model
+
+    response = chain.invoke(user_input)
+    return response.content
+
+if __name__ == "__main__":
+    shap_json_filename = "Vuori_Final_Approval_2024_09_24.json"
+    system_prompt_filename = "system.prompt"
+    
+    response_text = generate_response(shap_json_filename, system_prompt_filename)
+    print(response_text)

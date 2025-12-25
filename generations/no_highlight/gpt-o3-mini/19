@@ -1,0 +1,142 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+
+def czyPoprawny(obrazek):  # obrazek zawiera listę łańcuchów znaków; można korzystać z operatora indeksowania, np. obrazek[i][j]
+    # Sprawdzamy bity parzystości w wierszach (pomijamy ostatni, gdyż to bity parzystości kolumn)
+    for wiersz in obrazek[:-1]:
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    # Sprawdzamy bity parzystości w kolumnach (dla każdej kolumny zbieramy 21 znaków, gdzie ostatni to bit parzystości)
+    for i in range(20):  # kolumny 0..19
+        kolumna = ""
+        for j in range(21):  # wiersze 0..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]:  # Sprawdzamy tylko 20 wierszy zawierających dane + bit parzystości
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20):  # dla kolumn 0..19
+        kolumna = ""
+        for j in range(21):  # wiersze 0..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """
+    Wejście: obrazek jako lista łańcuchów znaków.
+    Obrazek reprezentuje czarno-biały obrazek zakodowany jako:
+      - 0 oznacza piksel biały,
+      - 1 oznacza piksel czarny.
+    Każdy wiersz oraz każda kolumna posiada na swoim końcu bit parzystości.
+    Bit parzystości jest równy 0, jeśli ilość jedynek w danym wierszu (lub kolumnie) jest parzysta,
+    oraz 1, jeśli jest nieparzysta.
+
+    Funkcja znajduje uszkodzony (ale naprawialny) obrazek i go naprawia. Naprawialny jest wtedy,
+    gdy uszkodzenie dotyczy co najwyżej jednego bitu parzystości w wierszu oraz co najwyżej jednego bitu parzystości w kolumnie.
+    W szczególności możliwe są trzy przypadki:
+      1. Dokładnie jedna niepoprawna kolumna oraz dokładnie jeden niepoprawny wiersz – błąd dotyczy piksela
+         znajdującego się na przecięciu tej kolumny i tego wiersza. Wówczas należy odwrócić tę wartość.
+      2. Dokładnie jeden niepoprawny wiersz i żadna niepoprawna kolumna – błąd dotyczy bitu parzystości wiersza.
+         Wówczas należy przeliczyć poprawny bit parzystości na podstawie danych wiersza.
+      3. Żadna niepoprawna wiersz i dokładnie jedna niepoprawna kolumna – błąd dotyczy bitu parzystości kolumny.
+         Wówczas należy przeliczyć poprawny bit parzystości na podstawie danych kolumny.
+
+    Zwracana wartość to lista zawierająca:
+      [obrazek_błędny, obrazek_naprawiony]
+    Oba obrazki reprezentowane są jako lista łańcuchów znaków.
+    """
+    # Zachowujemy kopię oryginalnego obrazka (jako lista łańcuchów)
+    obrazek_bledny = list(obrazek)
+
+    # Tworzymy wersję modyfikowalną obrazu: lista list znaków
+    obrazek_corr = [list(wiersz) for wiersz in obrazek]
+
+    # Wykrywanie błędnych wierszy (dotyczą tylko wierszy z danymi: indeksy 0..19)
+    row_errors = []
+    for r in range(20):
+        data = obrazek_corr[r][:20]  # dane wiersza
+        parity = obrazek_corr[r][20]  # bit parzystości wiersza
+        if data.count('1') % 2 != int(parity):
+            row_errors.append(r)
+
+    # Wykrywanie błędnych kolumn (dla kolumn 0..19)
+    col_errors = []
+    for c in range(20):
+        kolumna = [obrazek_corr[r][c] for r in range(21)]  # zbieramy 21 elementów: 20 danych oraz bit parzystości
+        data = kolumna[:20]
+        parity = kolumna[20]
+        if data.count('1') % 2 != int(parity):
+            col_errors.append(c)
+
+    # Naprawianie w zależności od rodzaju błędu
+    if len(row_errors) == 1 and len(col_errors) == 1:
+        # Błąd dotyczy błędnego piksela w przecięciu wiersza i kolumny.
+        r = row_errors[0]
+        c = col_errors[0]
+        # Odwracamy bit w miejscu przecięcia
+        obrazek_corr[r][c] = '1' if obrazek_corr[r][c] == '0' else '0'
+    elif len(row_errors) == 1 and len(col_errors) == 0:
+        # Błąd dotyczy tylko bitu parzystości wiersza.
+        r = row_errors[0]
+        data = obrazek_corr[r][:20]
+        poprawny_parity = str(data.count('1') % 2)
+        obrazek_corr[r][20] = poprawny_parity
+    elif len(row_errors) == 0 and len(col_errors) == 1:
+        # Błąd dotyczy tylko bitu parzystości kolumny.
+        c = col_errors[0]
+        # Zbierz dane danej kolumny z wierszy 0..19
+        data = [obrazek_corr[r][c] for r in range(20)]
+        poprawny_parity = str(data.count('1') % 2)
+        obrazek_corr[20][c] = poprawny_parity
+    # W przypadku gdy nie ma ani pojedynczego błędu, obrazek jest poprawny – ale funkcja zostanie wywołana tylko dla naprawialnych obrazków
+
+    # Konwertujemy obrazek naprawiony z powrotem do listy łańcuchów znaków
+    obrazek_naprawiony = ["".join(wiersz) for wiersz in obrazek_corr]
+
+    # Zwracamy listę z obrazkiem błędnym oraz naprawionym
+    wynik = [obrazek_bledny, obrazek_naprawiony]
+    return wynik
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip()  # usuwamy białe znaki, np. znak nowej linii
+    obrazek.append(wiersz)
+    if len(obrazek) == 21:  # mamy 21 linii - cały obrazek (20 wierszy danych + 1 wiersz bitów parzystości kolumn)
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+            # Można dodatkowo wypisać lub przetworzyć naprawione obrazki, np.:
+            # print("Obrazek błędny:")
+            # for lin in naprawiony[0]:
+            #     print(lin)
+            # print("Obrazek naprawiony:")
+            # for lin in naprawiony[1]:
+            #     print(lin)
+    if len(obrazek) == 22:  # po 22 liniach czyścimy obrazek, by czytać kolejne
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

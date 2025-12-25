@@ -1,0 +1,22 @@
+import os
+from pymilvus import connections
+
+# 记录当前路径为cwd
+cwd = os.getcwd()
+
+# 创建向量数据库路径
+# 使用 os.path.join 拼接路径，兼容不同操作系统
+db_path = os.path.join(cwd, 'milvus_db.db')
+
+# 定义表名和维度常量
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# 使用pymilvus创建数据库链接 (连接到本地的Milvus Lite)
+# 如果要连接到远程服务器，可以使用: connections.connect("default", host="localhost", port="19530")
+connections.connect(
+  alias="default",
+  uri=db_path
+)
+
+print(f"成功连接到Milvus: {db_path}")

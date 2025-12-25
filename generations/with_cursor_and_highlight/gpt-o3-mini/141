@@ -1,0 +1,36 @@
+import random
+
+def roll_dice(num_rolls):
+    """掷一个六面骰子指定次数，并返回每个结果的频率。
+
+参数：
+    num_rolls: 掷骰子的次数。
+
+返回：
+    一个字典，其中键是数字1-6（表示骰子面），值是它们的频率。如果num_rolls不是正整数，则返回一个空字典。
+
+异常：
+    TypeError: 如果num_rolls不是整数。
+    ValueError: 如果num_rolls不是正数。"""
+    if not isinstance(num_rolls, int):
+        raise TypeError("Number of rolls must be an integer.")
+    if num_rolls <= 0:
+        raise ValueError("Number of rolls must be positive.")
+
+    frequencies = {i: 0 for i in range(1, 7)}  # 初始化每个面（1-6）的频率
+    for _ in range(num_rolls):
+        roll = random.randint(1, 6)  # 模拟掷骰子
+        frequencies[roll] += 1
+    return frequencies
+
+if __name__ == "__main__":
+    num_rolls = 10000
+    try:
+        results = roll_dice(num_rolls)
+        print(f"Frequencies of die rolls after {num_rolls} rolls:")
+        for face, frequency in results.items():
+            percentage = (frequency / num_rolls) * 100
+            print(f"Face {face}: {frequency} times ({percentage:.2f}%)")
+
+    except (TypeError, ValueError) as e:
+        print(f"Error: {e}")

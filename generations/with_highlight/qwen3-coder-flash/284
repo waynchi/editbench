@@ -1,0 +1,37 @@
+    async def run(self):
+        try:
+            async with async_playwright() as p:
+                self.browser = await p.chromium.launch(headless=self.config.headless)
+                self.browser_context = await self.browser.new_context(
+                    viewport={'width': self.config.window_w, 'height': self.config.window_h}
+                )
+                page = await self.browser_context.new_page()
+    
+                # Пример задачи: перейти по указанному URL-адресу
+                await page.goto("https://example.com")
+                
+                # Добавленная отладка: вывод информации о странице
+                logger.debug(f"Page title: {await page.title()}")
+                logger.debug(f"Page URL: {page.url}")
+                
+                # Дополнительная отладка: сделаем паузу и проверим элементы
+                await page.wait_for_timeout(1000)
+                
+                # Вывод отладочной информации о задаче
+                logger.debug(f"Executing task: {self.config.task}")
+    
+                # Выполните дополнительные действия здесь в зависимости от задачи
+                # Для отладки - добавим простую проверку
+                try:
+                    await page.wait_for_selector('body', timeout=5000)
+                    logger.debug("Page loaded successfully")
+                except Exception as wait_error:
+                    logger.warning(f"Page load timeout or selector error: {wait_error}")
+    
+                return "Task completed successfully", "", "", ""
+            except Exception as e:
+                logger.error(f"Detailed error during run: {e}")
+                logger.exception("Full traceback:")  # Добавляем полный трейсбэк для отладки
+                return "", str(e), "", ""
+        finally:
+            await self.cleanup()

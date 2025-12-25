@@ -1,0 +1,39 @@
+from pathlib import Path
+
+target_folder = 'F:/Maverick/desktop/Windows/temp/'
+
+def get_content_delivery_path():
+    """Pobierz ścieżkę Windows Content Delivery"""
+    path = Path('C:/Users/admin/AppData/Local/Packages/')
+    matched = path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    if result := next(matched):
+        suffix = 'LocalState/Assets/'
+        return result / suffix
+    else:
+        raise Exception('ContentDeliveryManager Not Found')
+    
+
+def jpeg(source_folder, target_folder):
+    """Kopiuj pliki z folderu źródłowego do folderu docelowego i dodaj sufiks .jpeg"""
+    import shutil
+
+    target_path = Path(target_folder)
+    target_path.mkdir(parents=True, exist_ok=True)
+
+    copied_count = 0
+    for source_file in source_folder.iterdir():
+        # Filtruj pliki, które prawdopodobnie są obrazami na podstawie rozmiaru (>100KB)
+        if source_file.is_file() and source_file.stat().st_size > 100_000:
+            destination_file = target_path / f"{source_file.name}.jpeg"
+            
+            # Kopiuj plik tylko jeśli jeszcze nie istnieje w docelowym folderze
+            if not destination_file.exists():
+                shutil.copy2(source_file, destination_file)
+                copied_count += 1
+
+    print(f"Skopiowano {copied_count} nowych plików do '{target_path}'.")
+
+
+if __name__ == '__main__':
+    source_folder = get_content_delivery_path()
+    print(f"Windows Content Delivery path: {source_folder}")

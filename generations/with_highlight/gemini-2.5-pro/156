@@ -1,0 +1,35 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+# 初始化 ChatOllama 模型
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# 从 JSON 文件加载 SHAP 值
+with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+    shap_values_json = json.load(file).get("shap_values")
+
+# 从文件加载系统提示
+with open("system.prompt", "r") as file:
+    sys_prompt = file.read().strip()
+
+# 准备消息模板
+template = ChatPromptTemplate.from_messages([
+    ("system", sys_prompt),
+    ("human", "{user_input}"),
+])
+
+# 创建一个处理链 (LCEL Chain)
+# 该链首先使用模板格式化输入，然后将格式化后的提示传递给聊天模型。
+chain = template | chat_model
+
+# 准备链的输入数据
+# 输入必须是一个字典，其键与模板中定义的变量（即 "user_input"）相匹配。
+input_data = {"user_input": json.dumps(shap_values_json)}
+
+# 调用链以生成响应
+response = chain.invoke(input_data)
+
+# 打印响应内容
+# `invoke` 的结果是一个 AIMessage 对象，其文本内容存储在 .content 属性中。
+print(response.content)

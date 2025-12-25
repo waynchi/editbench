@@ -1,0 +1,52 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Create a template row with all expected features
+template_row = {
+    "Pclass": 1,
+    "Name": 24,
+    "Sex": 0,
+    "Age": 19,
+    "SibSp": 0,
+    "Parch": 0,
+    "Fare": 50,
+    "Embarked_S": 0,
+    "Embarked_C": 0,
+    "Embarked_Q": 0
+}
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        for embarked in ["S", "Q", "C"]:
+            # Create a copy of the template
+            row_data = template_row.copy()
+            
+            # Update the specific values
+            row_data["Pclass"] = pclass
+            row_data["Fare"] = fare
+            
+            # Reset all embarked columns to 0
+            row_data["Embarked_S"] = 0
+            row_data["Embarked_C"] = 0
+            row_data["Embarked_Q"] = 0
+            
+            # Set the correct embarked column to 1
+            if embarked == "S":
+                row_data["Embarked_S"] = 1
+            elif embarked == "C":
+                row_data["Embarked_C"] = 1
+            elif embarked == "Q":
+                row_data["Embarked_Q"] = 1
+            
+            # Create DataFrame with proper column order
+            my_df = pd.DataFrame([row_data])
+            
+            # Ensure the columns are in the expected order
+            expected_columns = ["Pclass", "Name", "Sex", "Age", "SibSp", "Parch", "Fare", 
+                               "Embarked_S", "Embarked_C", "Embarked_Q"]
+            my_df = my_df[expected_columns]
+            
+            print(f"""-------------------------------------------------------
+Параметры: класс {pclass}, плата {fare}, embarked {embarked}
+По knn: {knn.predict(my_df)[0]}
+По mlp: {mlp.predict(my_df)[0]}""")

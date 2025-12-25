@@ -1,0 +1,54 @@
+def load_dictionary(filename="words.txt"):
+    """Load English dictionary from file"""
+    try:
+        with open(filename, 'r') as file:
+            words = [word.strip().lower() for word in file.readlines()]
+        return words
+    except FileNotFoundError:
+        print(f"Error: Dictionary file '{filename}' not found.")
+        return []
+
+def find_words_by_length(words, length):
+    """Find words with specified length"""
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Load dictionary
+    words = load_dictionary()
+    if not words:
+        return
+    
+    print("English Dictionary Word Finder")
+    print("Enter the number of characters to search for (or 'quit' to exit)")
+    
+    while True:
+        user_input = input("\nNumber of characters: ").strip().lower()
+        
+        if user_input == 'quit':
+            print("Goodbye!")
+            break
+            
+        try:
+            n = int(user_input)
+            if n <= 0:
+                print("Please enter a positive number.")
+                continue
+                
+            # Find words with exactly n characters
+            matching_words = find_words_by_length(words, n)
+            
+            if not matching_words:
+                print(f"No words found with {n} characters.")
+            else:
+                print(f"\nWords with {n} characters (showing up to 10):")
+                for i, word in enumerate(matching_words[:10]):
+                    print(f"{i+1}. {word}")
+                
+                if len(matching_words) > 10:
+                    print(f"... and {len(matching_words) - 10} more words")
+                    
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+
+if __name__ == "__main__":
+    main()

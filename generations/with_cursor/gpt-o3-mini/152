@@ -1,0 +1,38 @@
+from pathlib import Path
+import shutil
+
+target_folder = 'F:/Maverick/desktop/Windows/temp/'
+
+def get_content_delivery_path():
+    """获取 Windows 内容传递的路径"""
+    path = Path('C:/Users/admin/AppData/Local/Packages/')
+    matched = path.glob('*Microsoft.Windows.ContentDeliveryManager*')
+    if result := next(matched, None):
+        suffix = 'LocalState/Assets/'
+        return result / suffix
+    else:
+        raise Exception('ContentDeliveryManager Not Found')
+
+def jpeg(source_folder, target_folder):
+    """将文件从源文件夹复制到目标文件夹并添加.jpeg后缀"""
+    src_path = Path(source_folder)
+    dst_path = Path(target_folder)
+    
+    # 如果目标文件夹不存在，则创建它
+    if not dst_path.exists():
+        dst_path.mkdir(parents=True, exist_ok=True)
+    
+    # 遍历源文件夹内的所有文件
+    for file in src_path.iterdir():
+        if file.is_file():
+            # 构造新的文件名，加上 .jpeg 后缀
+            new_file = dst_path / (file.name + '.jpeg')
+            shutil.copy(file, new_file)
+            print(f"Copied {file} to {new_file}")
+
+if __name__ == '__main__':
+    source_folder = get_content_delivery_path()
+    print(f"Windows Content Delivery path: {source_folder}")
+    
+    jpeg(source_folder, target_folder)
+    print("文件复制完成。")

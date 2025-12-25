@@ -1,0 +1,133 @@
+import random
+import requests
+import json
+
+class EnglishDictionary:
+    def __init__(self):
+        # Using a comprehensive word list from a reliable source
+        self.words = self._load_word_list()
+    
+    def _load_word_list(self):
+        """Load a comprehensive list of English words"""
+        # For this implementation, we'll use a built-in word list
+        # In a real application, you might want to load from a file or API
+        word_list = [
+            # 3-letter words
+            "cat", "dog", "run", "car", "sun", "hat", "bat", "rat", "mat", "sat",
+            "hot", "pot", "got", "not", "lot", "cot", "dot", "rot", "cut", "but",
+            
+            # 4-letter words
+            "book", "tree", "home", "time", "work", "play", "love", "life", "hand", "word",
+            "good", "help", "open", "door", "water", "house", "world", "place", "thing", "night",
+            
+            # 5-letter words
+            "happy", "world", "great", "small", "right", "light", "sound", "heart", "music", "power",
+            "black", "white", "green", "horse", "paper", "money", "story", "chair", "table", "phone",
+            
+            # 6-letter words
+            "people", "friend", "family", "number", "person", "school", "health", "change", "mother", "father",
+            "system", "garden", "travel", "office", "animal", "please", "create", "wonder", "simple", "reason",
+            
+            # 7-letter words
+            "morning", "evening", "picture", "problem", "service", "thought", "history", "machine", "prepare", "present",
+            "company", "program", "nothing", "someone", "without", "through", "example", "another", "control", "process",
+            
+            # 8-letter words
+            "children", "business", "computer", "question", "language", "possible", "together", "building", "yourself", "increase",
+            "magazine", "hospital", "remember", "birthday", "vacation", "employee", "princess", "sandwich", "elephant", "triangle",
+            
+            # 9-letter words
+            "beautiful", "different", "important", "community", "education", "knowledge", "wonderful", "recognize", "advantage", "dangerous",
+            "committee", "crocodile", "champagne", "geography", "hamburger", "landscape", "millionaire", "orchestra", "paleontology", "quintet",
+            
+            # 10-letter words
+            "government", "university", "basketball", "strawberry", "technology", "atmosphere", "background", "understand", "vegetables", "television",
+            "psychology", "philosophy", "mechanical", "dinosaurs", "breakfast", "jellyfish", "watermelon", "generation", "appreciate", "microscope",
+            
+            # 11-letter words
+            "information", "development", "environment", "independent", "responsible", "mathematics", "temperature", "performance", "anniversary", "preparation",
+            "grandmother", "comfortable", "personality", "application", "photography", "refrigerator", "chimpanzee", "xylophone", "archaeology", "traditional",
+            
+            # 12-letter words
+            "relationship", "organization", "encyclopedia", "architecture", "neighborhood", "intelligence", "appreciation", "conversation", "compensation", "construction",
+            "Philadelphia", "entrepreneur", "hyphenation", "kindergarten", "metamorphosis", "encyclopedia", "veterinarian", "bibliography", "championship", "irregularities"
+        ]
+        return word_list
+    
+    def get_words_by_length(self, n):
+        """Get all words with exactly n characters"""
+        filtered_words = [word for word in self.words if len(word) == n]
+        return filtered_words
+    
+    def get_random_words_by_length(self, n, count=10):
+        """Get random words with exactly n characters"""
+        filtered_words = self.get_words_by_length(n)
+        
+        if not filtered_words:
+            return []
+        
+        # If we have fewer words than requested, return all available words
+        if len(filtered_words) <= count:
+            return filtered_words
+        
+        # Return random selection of words
+        return random.sample(filtered_words, count)
+
+def main():
+    print("=" * 50)
+    print("English Dictionary Word Lookup")
+    print("=" * 50)
+    print("This program will show you 10 random words with a specific number of characters.")
+    print()
+    
+    dictionary = EnglishDictionary()
+    
+    while True:
+        try:
+            print("-" * 30)
+            user_input = input("Enter the number of characters you want (or 'quit' to exit): ").strip()
+            
+            if user_input.lower() in ['quit', 'exit', 'q']:
+                print("Thank you for using the English Dictionary Lookup!")
+                break
+            
+            n = int(user_input)
+            
+            if n <= 0:
+                print("Please enter a positive number.")
+                continue
+            
+            if n > 20:
+                print("Please enter a number 20 or less for better results.")
+                continue
+            
+            print(f"\nSearching for words with {n} character(s)...")
+            words = dictionary.get_random_words_by_length(n, 10)
+            
+            if not words:
+                print(f"Sorry, no words found with exactly {n} character(s) in our dictionary.")
+                print("Try a different number of characters.")
+            else:
+                print(f"\nFound {len(words)} word(s) with {n} character(s):")
+                print("-" * 40)
+                for i, word in enumerate(words, 1):
+                    print(f"{i:2d}. {word.capitalize()}")
+                
+                # Show total count available
+                total_words = len(dictionary.get_words_by_length(n))
+                if total_words > len(words):
+                    print(f"\n(Showing {len(words)} out of {total_words} available words)")
+            
+            print()
+            
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+        except KeyboardInterrupt:
+            print("\n\nProgram interrupted. Goodbye!")
+            break
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print("Please try again.")
+
+if __name__ == "__main__":
+    main()

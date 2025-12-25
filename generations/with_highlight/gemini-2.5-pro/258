@@ -1,0 +1,98 @@
+import random
+import sys
+
+# The name of the dictionary file. Ensure this file exists in the same directory.
+# You can download a word list file from many sources, for example:
+# https://github.com/dwyl/english-words/blob/master/words.txt
+WORDLIST_FILENAME = "words.txt"
+
+def load_words():
+    """
+    Loads a list of English words from a file.
+    Returns:
+        A list of strings, where each string is a word in lowercase.
+    """
+    try:
+        print(f"Loading word list from file: {WORDLIST_FILENAME}...")
+        with open(WORDLIST_FILENAME, 'r') as file:
+            # Read all lines from the file, strip whitespace/newlines, and convert to lowercase
+            word_list = [word.strip().lower() for word in file]
+        print(f"✅ {len(word_list)} words loaded.")
+        return word_list
+    except FileNotFoundError:
+        print(f"❌ Error: The dictionary file '{WORDLIST_FILENAME}' was not found.")
+        print("Please make sure you have a file named 'words.txt' in the same directory as this script.")
+        sys.exit(1) # Exit the program if the word list is essential and not found
+
+def find_words_by_length(word_list, length):
+    """
+    Filters the word list to find words of a specific length.
+    Args:
+        word_list (list): The list of all words.
+        length (int): The desired length of the words.
+    Returns:
+        A list of strings containing only words of the specified length.
+    """
+    return [word for word in word_list if len(word) == length]
+
+def main():
+    """
+    The main function to run the program. It interacts with the user
+    to find words of a specific length from the dictionary.
+    """
+    # Load the dictionary at the start of the program
+    all_words = load_words()
+
+    # Main loop to repeatedly ask the user for input
+    while True:
+        try:
+            # Prompt the user for the desired number of characters
+            user_input = input("\nEnter the number of characters for the word (or type 'quit' to exit): ")
+
+            # Allow the user to exit the program
+            if user_input.lower() == 'quit':
+                print("Goodbye!")
+                break
+
+            # Convert the user's input to an integer
+            num_chars = int(user_input)
+
+            # Ensure the number is positive
+            if num_chars <= 0:
+                print("⚠️ Please enter a positive number.")
+                continue
+
+        except ValueError:
+            # Handle cases where the input is not a valid number
+            print("⚠️ Invalid input. Please enter a whole number.")
+            continue
+
+        # Search for words that match the specified length
+        print(f"\n🔍 Searching for words with {num_chars} characters...")
+        matching_words = find_words_by_length(all_words, num_chars)
+
+        num_found = len(matching_words)
+
+        if num_found == 0:
+            # Inform the user if no words were found
+            print(f"Sorry, no words found with {num_chars} characters.")
+        else:
+            # If words are found, prepare to display a sample
+            print(f"🎉 Found {num_found} words. Here are up to 10 random examples:")
+
+            # If more than 10 words were found, pick a random sample of 10
+            # Otherwise, just use all the words that were found
+            if num_found > 10:
+                words_to_display = random.sample(matching_words, 10)
+            else:
+                words_to_display = matching_words
+
+            # Print the selected words
+            for word in words_to_display:
+                print(f"  - {word}")
+
+        print("-" * 30) # A separator for clarity
+
+# Standard boilerplate to call the main() function when the script is executed
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,214 @@
+import torch
+import numpy as np
+import time
+from torch.utils.data import DataLoader
+from transformers import TrainerCallback
+from transformers.data.data_collator import default_data_collator
+
+
+def check_answer_factual(output_str, expected_answer):
+    """
+    Check if the model's output matches the expected answer.
+
+    Args:
+        output_str: The string output from the model
+        expected_answer: The expected answer string
+
+    Returns:
+        bool: True if the answer is correct, False otherwise
+    """
+    # This is a simple implementation - you might want to enhance this
+    # with more sophisticated matching logic based on your specific needs
+    return expected_answer.lower() in output_str.lower()
+
+
+def check_answer_format(output_str, hard=False):
+    """
+    Check if the model's output follows the expected format.
+
+    Args:
+        output_str: The string output from the model
+        hard: If True, apply stricter format checking
+
+    Returns:
+        bool: True if the format is correct, False otherwise
+    """
+    if hard:
+        # Strict format checking (e.g., must exactly match a pattern)
+        # Implement your strict format checking logic here
+        return bool(output_str.strip())  # Simple check that output is not empty
+    else:
+        # Softer format checking (e.g., contains expected sections)
+        # Implement your soft format checking logic here
+        return len(output_str.strip()) > 0  # Simple check that output has content
+
+
+class FactualAccuracyCallbackBETTER(TrainerCallback):
+    """
+    A callback to evaluate and log the factual accuracy of the model during training.
+    """
+
+    def __init__(
+        self, model, tokenizer, dataset, batch_size, verbose=False, output_format=False
+    ):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.n_samp = len(dataset)
+        self.verbose = verbose
+        self.output_format = output_format
+
+        tokenized_questions = self.dataset.map(
+            lambda examples: tokenizer(
+                examples["question"],
+                padding="max_length",
+                truncation=True,
+                max_length=512,
+            ),
+            batched=True,
+            remove_columns=["question", "answer"],
+        )
+
+        self.eval_dataloader = DataLoader(
+            tokenized_questions,
+            batch_size=self.batch_size,
+            shuffle=False,
+            collate_fn=default_data_collator,
+        )
+        self.answers_dataloader = DataLoader(
+            self.dataset["answer"], batch_size=self.batch_size, shuffle=False
+        )
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        """
+        Called after logging the last logs.
+        """
+        eval_model = model if model is not None else self.model
+        if eval_model is None:
+            print("FactualAccuracyCallback: No model available for evaluation.")
+            return
+
+        self.model = eval_model
+
+        if not state.is_local_process_zero:
+            return
+
+        start_time = time.time()
+        try:
+            is_training = self.model.training
+            self.model.eval()
+
+            with torch.no_grad():
+                results = factual_score_dataloader(
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    dataset_loader=self.eval_dataloader,
+                    expected_answers_loader=self.answers_dataloader,
+                    output_format=self.output_format,
+                    verbose=self.verbose,
+                )
+                if self.output_format:
+                    fact_results, format_hard, format_soft = results
+                    factual_accuracy_avg = np.mean(fact_results)
+                    format_hard_avg = np.mean(format_hard)
+                    format_soft_avg = np.mean(format_soft)
+                else:
+                    factual_accuracy_avg = np.mean(results)
+
+                if state.log_history:
+                    log_entry = state.log_history[-1]
+                    log_entry["factual_accuracy"] = factual_accuracy_avg
+                    if self.output_format:
+                        log_entry["format_hard"] = format_hard_avg
+                        log_entry["format_soft"] = format_soft_avg
+        except Exception as e:
+            print(f"Error during factual accuracy evaluation: {e}")
+        finally:
+            if is_training:
+                self.model.train()  # Restore training state
+            time_taken = time.time() - start_time
+            if self.verbose:
+                print(
+                    f"[TIME] {time_taken:.2f} seconds: Model evaluated on FactualAccuracy."
+                )
+
+
+def factual_score_dataloader(
+    model,
+    tokenizer,
+    dataset_loader,
+    expected_answers_loader,
+    max_new_tokens=32,
+    output_format=False,
+    device=None,
+    verbose=False,
+):
+    """
+    Evaluate the factual accuracy of answers from a language model using batched operations.
+
+    Args:
+        model: The language model.
+        tokenizer: The tokenizer.
+        dataset_loader: DataLoader for the tokenized evaluation dataset.
+        expected_answers_loader: DataLoader for the expected answer strings.
+        max_new_tokens: Maximum number of new tokens to generate.
+        output_format: Whether to check output format.
+        device: Device to run on (defaults to CUDA if available, else CPU).
+        verbose: If True, prints questions, generated answers, and expected answers.
+
+    Returns:
+        A tuple of (fact_results, format_hard_results, format_soft_results) if output_format is True,
+        otherwise just fact_results (list of booleans).
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    all_fact_results = []
+    all_format_hard, all_format_soft = ([], []) if output_format else (None, None)
+
+    for batch, expected_answers_batch in zip(dataset_loader, expected_answers_loader):
+        batch = {
+            k: v.to(device)
+            for k, v in batch.items()
+            if k in ["input_ids", "attention_mask"]
+        }
+
+        outputs = model.generate(
+            **batch,
+            max_new_tokens=max_new_tokens,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+
+        output_strings = tokenizer.batch_decode(
+            outputs[:, batch["input_ids"].shape[-1] :], skip_special_tokens=True
+        )
+
+        if verbose:
+            detokenized_inputs = tokenizer.batch_decode(
+                batch["input_ids"], skip_special_tokens=True
+            )
+            for q, o, e in zip(detokenized_inputs, output_strings, expected_answers_batch):
+                print(f"Q: {repr(q)}\nA: {repr(o)}\nE: {repr(e)}\n---")
+
+        # Batched evaluation of the generated strings
+        batch_fact_results = [
+            check_answer_factual(o, e) for o, e in zip(output_strings, expected_answers_batch)
+        ]
+        all_fact_results.extend(batch_fact_results)
+
+        if output_format:
+            all_format_hard.extend(
+                [check_answer_format(o, hard=True) for o in output_strings]
+            )
+            all_format_soft.extend(
+                [check_answer_format(o, hard=False) for o in output_strings]
+            )
+
+    return (
+        (all_fact_results, all_format_hard, all_format_soft)
+        if output_format
+        else all_fact_results
+    )

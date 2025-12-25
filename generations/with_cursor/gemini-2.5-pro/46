@@ -1,0 +1,20 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the relative path to the chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# The SessionNotCreatedException was caused by incorrectly setting options.binary_location.
+# That option is for the Chrome browser executable, not the driver.
+# The correct parameter for the driver path is `driver_executable_path`.
+# The redundant second block of code has also been removed.
+print("wde")
+with uc.Chrome(driver_executable_path=chromedriver_path, use_subprocess=True) as driver:
+    print("wde")
+    driver.get("https://lmarena.ai/")
+    print("wde")
+    time.sleep(10)

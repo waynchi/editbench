@@ -1,0 +1,55 @@
+import random
+
+# Diccionario en inglés con palabras de diferentes longitudes
+english_dictionary = {
+    3: ["cat", "dog", "run", "sun", "car", "hat", "bat", "rat", "man", "can", "pen", "ten", "red", "bed", "web"],
+    4: ["book", "tree", "love", "moon", "star", "bird", "fish", "hand", "door", "king", "blue", "wind", "rain", "fire", "life"],
+    5: ["house", "water", "happy", "green", "world", "light", "music", "dance", "smile", "heart", "peace", "dream", "laugh", "magic", "storm"],
+    6: ["flower", "summer", "winter", "spring", "island", "garden", "forest", "orange", "purple", "yellow", "friend", "family", "school", "laptop", "spider"],
+    7: ["rainbow", "chicken", "kitchen", "library", "strange", "perfect", "morning", "evening", "package", "classic", "article", "mystery", "journey", "freedom", "machine"],
+    8: ["elephant", "mountain", "treasure", "swimming", "birthday", "vacation", "princess", "dinosaur", "children", "sandwich", "chocolate", "computer", "sandwich", "language", "homework"],
+    9: ["wonderful", "butterfly", "adventure", "education", "beautiful", "fantastic", "christmas", "halloween", "telephone", "crocodile", "dashboard", "jellyfish", "breakfast", "nightmare", "celebrate"],
+    10: ["incredible", "university", "strawberry", "basketball", "playground", "watermelon", "motorcycle", "helicopter", "cheesecake", "skateboard", "tournament", "friendship", "technology", "psychology", "philosophy"]
+}
+
+def consultar_diccionario():
+    print("¡Bienvenido al consultor de diccionario en inglés!")
+    print("Este programa te mostrará 10 palabras con el número de caracteres que elijas.")
+    
+    while True:
+        try:
+            n = int(input(f"\n¿Cuántos caracteres debe tener la palabra? (3-10): "))
+            
+            if n < 3 or n > 10:
+                print("Por favor, ingresa un número entre 3 y 10.")
+                continue
+                
+            if n in english_dictionary:
+                palabras = english_dictionary[n]
+                print(f"\nAquí tienes 10 palabras con {n} caracteres:")
+                
+                # Si hay menos de 10 palabras, mostrar todas las disponibles
+                if len(palabras) < 10:
+                    for i, palabra in enumerate(palabras, 1):
+                        print(f"{i}. {palabra}")
+                    print(f"\n(Solo hay {len(palabras)} palabras disponibles con {n} caracteres)")
+                else:
+                    # Seleccionar 10 palabras aleatorias
+                    palabras_seleccionadas = random.sample(palabras, 10)
+                    for i, palabra in enumerate(palabras_seleccionadas, 1):
+                        print(f"{i}. {palabra}")
+            else:
+                print(f"No hay palabras disponibles con {n} caracteres.")
+            
+            # Preguntar si quiere continuar
+            continuar = input("\n¿Quieres buscar palabras con otro número de caracteres? (s/n): ").lower()
+            if continuar != 's' and continuar != 'si':
+                print("¡Gracias por usar el consultor de diccionario!")
+                break
+                
+        except ValueError:
+            print("Por favor, ingresa un número válido.")
+
+# Ejecutar el programa
+if __name__ == "__main__":
+    consultar_diccionario()

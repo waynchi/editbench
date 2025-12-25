@@ -1,0 +1,291 @@
+import os
+import shutil
+import json
+import pickle
+import torch
+import logging
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# Configuración básica para la salida de logs
+logging.basicConfig(level=logging.INFO)
+
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """
+    Guarda el historial de registros en un archivo JSON. Si el archivo ya existe, se añade a él.
+    
+    Optimización:
+    - Se usa json.load() para cargar el contenido del archivo directamente, lo que puede ser más eficiente
+      que leer todo el contenido como cadena y luego parsearlo.
+    - Reducción de llamadas a funciones innecesarias.
+    
+    Mejoras esperadas:
+    - Menor carga en la lectura y manejo de archivos, con un código más claro.
+    
+    Compensación:
+    - Con archivos JSON vacíos, se debe capturar la excepción JSONDecodeError.
+    
+    Parámetros:
+    - log_history: Lista de entradas de registro (cada entrada es un diccionario).
+    - file_path: Ruta al archivo donde se guardarán los registros.
+    - append_latest_only: Si es True, solo se añade la última entrada de registro.
+    """
+    current_logs = []
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                # Usamos json.load() para evitar una lectura manual y limpieza de cadena.
+                current_logs = json.load(f)
+        except json.JSONDecodeError:
+            logging.warning(f"{file_path} contiene JSON inválido. Se sobrescribirá el archivo.")
+            current_logs = []
+        except Exception as e:
+            logging.error(f"Ocurrió un error leyendo {file_path}: {e}")
+            current_logs = []
+
+    # Añadir solo la última entrada o todo el historial según el parámetro append_latest_only.
+    if append_latest_only and log_history:
+        current_logs.append(log_history[-1])
+    else:
+        current_logs.extend(log_history)
+
+    try:
+        with open(file_path, "w") as f:
+            json.dump(current_logs, f, indent=4)
+    except Exception as e:
+        logging.error(f"Ocurrió un error al escribir en {file_path}: {e}")
+
+
+def clear_directory(directory, delete_directory=False):
+    """
+    Limpia todos los archivos y subdirectorios dentro de un directorio dado. Opcionalmente elimina el directorio en sí.
+    Crea el directorio si no existe y delete_directory es False.
+
+    Optimización:
+    - Se utiliza os.scandir() para iterar sobre los items del directorio, lo que suele ser más rápido y eficiente 
+      que os.listdir() al devolver entradas de directorio con atributos.
+    
+    Mejoras esperadas:
+    - Mejor rendimiento en directorios con gran cantidad de archivos y subdirectorios.
+    
+    Compensación:
+    - La implementación con os.scandir() es ligeramente más compleja, pero la ganancia en rendimiento justifica el cambio.
+    
+    Args:
+        directory (str): La ruta al directorio a limpiar.
+        delete_directory (bool): Si es True, elimina el directorio después de limpiar su contenido.
+    
+    Raises:
+        OSError: Si ocurre algún error durante la eliminación.
+        
+    Ejemplo:
+        clear_directory('/ruta/a/mi/directorio')
+        clear_directory('/ruta/a/mi/directorio', delete_directory=True)
+    """
+    if not os.path.exists(directory):
+        if not delete_directory:
+            os.makedirs(directory)
+            logging.info(f"Directorio '{directory}' creado.")
+        else:
+            raise ValueError("El directorio no existe y delete_directory es True. No se puede proceder.")
+        return
+
+    # Utilizando os.scandir para una iteración más performante
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            item_path = entry.path
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    shutil.rmtree(item_path)
+                    logging.info(f"Directorio eliminado: {item_path}")
+                else:
+                    os.remove(item_path)
+                    logging.info(f"Archivo eliminado: {item_path}")
+            except OSError as e:
+                logging.error(f"No se pudo eliminar '{item_path}'. Razón: {e}")
+                raise  # Relanzar la excepción para detener la ejecución
+
+    if delete_directory:
+        try:
+            os.rmdir(directory)
+            logging.info(f"Directorio eliminado: {directory}")
+        except OSError as e:
+            logging.error(f"No se pudo eliminar '{directory}'. Razón: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name="pythia-31M",
+    base_model_repo_name="EleutherAI/",
+    model_load_path=MODEL_PATH,
+    model_save_path=MODEL_PATH,
+):
+    """
+    Fusiona un LoRA model en el modelo base y guarda el modelo fusionado.
+
+    Optimización:
+    - Se reduce la cantidad de llamadas a os.path.join reutilizando variables intermedias.
+    - Se mejora la legibilidad del código mediante el uso de f-strings para la generación de nombres.
+    
+    Mejoras esperadas:
+    - Código más legible y ligeramente más eficiente en la composición de rutas y nombres.
+    
+    Compensación:
+    - Ninguna significativa, simplemente se mejora la claridad del código.
+    """
+    my_model_path = os.path.join(model_load_path, model_name)
+    # Extraer el número de parámetros del nombre del modelo, asumiendo el formato "pythia-31M"
+    try:
+        param_count = model_name.lower().split("m")[0].split("-")[1]
+    except IndexError as e:
+        logging.error(f"Formato de model_name inesperado: {model_name}")
+        raise e
+
+    base_model_name = f"pythia-{param_count}M"
+    base_model_repo = os.path.join(base_model_repo_name, base_model_name)
+    base_model = AutoModelForCausalLM.from_pretrained(base_model_repo)
+    model = PeftModel.from_pretrained(base_model, my_model_path)
+    merged_model = model.merge_and_unload()
+    my_model_save_path = os.path.join(model_save_path, f"{model_name}_merged")
+    merged_model.save_pretrained(my_model_save_path)
+    logging.info(f"Modelo fusionado guardado en {my_model_save_path}")
+
+
+def remove_repetition(question, answer):
+    """
+    Elimina la repetición de la pregunta en la respuesta, si está presente.
+    """
+    if question in answer:
+        return answer.replace(question, "").strip()
+    return answer
+
+
+def load_model(
+    model_type,
+    model_path=None,
+    blocks_str=None,
+    vanilla_model_name=None,
+    host_model_name=None,
+):
+    """
+    Carga diferentes tipos de modelos basado en el parámetro model_type.
+
+    Optimización:
+    - Se reorganizó el código para minimizar operaciones repetitivas (por ejemplo, extracciones de nombres)
+      y se usan f-strings para una composición de cadenas más rápida y legible.
+    
+    Mejoras esperadas:
+    - Reducción de redundancia y mejora en la legibilidad del código.
+    
+    Compensación:
+    - Ninguna significativa, el rendimiento mejora con una estructura de código más clara.
+    
+    Parameters:
+        model_type (str): Tipo de modelo a cargar. Puede ser 'Tuned Model', 'Vanilla Model',
+                          'Transformed Model', 'Final Model' o 'Host Model'.
+        model_path (str): Ruta base donde se almacenan los modelos.
+        blocks_str (str): Cadena representando capas o bloques usados en el nombre del modelo.
+        vanilla_model_name (str): Nombre o ruta del modelo base.
+        host_model_name (str): Nombre o ruta del modelo host.
+    
+    Returns:
+        model: Objeto del modelo cargado.
+    
+    Raises:
+        ValueError: Si se proporciona un model_type desconocido o faltan parámetros requeridos.
+        IOError: Si falla la carga del modelo.
+    
+    Ejemplo:
+        model = load_model(
+            model_type="Tuned Model",
+            model_path="/ruta/a/modelos",
+            blocks_str="1-5",
+            vanilla_model_name="EleutherAI/pythia-31M"
+        )
+    """
+    if model_type == "Tuned Model":
+        if not vanilla_model_name or not blocks_str or not model_path:
+            raise ValueError("Se requieren vanilla_model_name, blocks_str y model_path para Tuned Model")
+
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        tuned_model_path = os.path.join(model_path, tuned_model_name)
+        tuned_model = AutoModelForCausalLM.from_pretrained(tuned_model_path)
+        return tuned_model
+
+    elif model_type == "Vanilla Model":
+        if not vanilla_model_name:
+            raise ValueError("Se requiere vanilla_model_name para Vanilla Model")
+        vanilla_model = AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+        return vanilla_model
+
+    elif model_type == "Transformed Model":
+        if not host_model_name or not blocks_str or not model_path:
+            raise ValueError("Se requieren host_model_name, blocks_str y model_path para Transformed Model")
+        name = host_model_name.split("/")[-1]
+        save_path = os.path.join(model_path, f"{name}_preGRAFTED_{blocks_str}.pkl")
+        with open(save_path, "rb") as f:
+            transformed_model = pickle.load(f)
+        return transformed_model
+
+    elif model_type == "Final Model":
+        if not host_model_name or not blocks_str or not model_path:
+            raise ValueError("Se requieren host_model_name, blocks_str y model_path para Final Model")
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = os.path.join(model_path, model_save_name)
+        with open(save_path, "rb") as f:
+            final_model = pickle.load(f)
+        return final_model
+
+    elif model_type == "Host Model":
+        if not host_model_name:
+            raise ValueError("Se requiere host_model_name para Host Model")
+        host_model = AutoModelForCausalLM.from_pretrained(host_model_name)
+        return host_model
+
+    else:
+        raise ValueError(f"Tipo de modelo desconocido: {model_type}")
+
+
+def load_batch_losses(file_path):
+    """
+    Carga datos de pérdidas por lote desde un archivo de punto de control.
+
+    Optimización:
+    - Se mantiene torch.load con map_location para seguridad en dispositivos sin GPU.
+    - Se agregan logs informativos para facilidad de depuración.
+    
+    Mejoras esperadas:
+    - Mayor claridad en la salida de errores y confirmación de carga exitosa.
+    
+    Compensación:
+    - Dependencia en la configuración de logging para ver todos los mensajes.
+    
+    Parámetros:
+        file_path (str): Ruta al archivo de punto de control.
+    
+    Devuelve:
+        list o None: Las pérdidas por lote si están disponibles, None en caso contrario.
+    
+    Ejemplo:
+        batch_losses = load_batch_losses('/ruta/al/checkpoint.pt')
+    """
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses", None)
+        if batch_losses is not None:
+            logging.info(f"Pérdidas por lote cargadas desde {file_path}")
+        else:
+            logging.warning(f"No se encontró la clave 'batch_losses' en el checkpoint de {file_path}")
+        return batch_losses
+    except (FileNotFoundError, IOError, RuntimeError) as e:
+        logging.error(f"Error al cargar el checkpoint desde {file_path}: {e}")
+        return None

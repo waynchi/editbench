@@ -1,0 +1,70 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar(texto: str):
+    return "count me " in texto
+def is_own_author(autor: str):
+    return autor == 'subidu'
+def is_banned(autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico() -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies(replies: Comment):
+    pass
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu', body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+q = Query()
+d = Discussions()
+# 新添加的功能: 创建一个层次字典来存储posts和对应的replies
+hierarchy = {}
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    # 使用 author/permlink 作为每个帖子的唯一键
+    post_key = f"{post_author}/{post_permlink}"
+    hierarchy[post_key] = {"post": post, "replies": []}
+    
+    cnt = 0
+    X += 1
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        replies_list = comment.get_replies()
+        
+        cnt = 0
+        for reply in replies_list:
+            author = reply['author']
+            text = reply['body']
+            if is_own_author(author):
+                # 重新评估评论
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt += 1
+                # 将符合条件的reply添加到层次字典中
+                hierarchy[post_key]["replies"].append(reply)
+    if cnt > 3:
+        print("Iterador: ", X)
+        print(reply['author'], '/', reply['permlink'])
+
+# 如果需要查看生成的层次字典，可以取消注释以下代码：
+# import pprint
+# pprint.pprint(hierarchy)

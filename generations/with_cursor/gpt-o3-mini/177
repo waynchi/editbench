@@ -1,0 +1,39 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+def main():
+    # In undetected_chromedriver the ChromeOptions.binary_location must point to the actual Chrome browser executable,
+    # not to the chromedriver binary.
+    #
+    # If you want to use a custom Chrome installation, set its path below.
+    # For example, on Windows the default Chrome installation might be:
+    # chrome_binary = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    #
+    # If you’re not using a custom Chrome installation, you can omit setting binary_location.
+    #
+    # Uncomment and update the following line if needed:
+    # chrome_binary = r"C:\Path\To\Your\Chrome.exe"
+
+    # Create and configure ChromeOptions.
+    options = uc.ChromeOptions()
+    # Uncomment and set the path to your Chrome binary if necessary:
+    # options.binary_location = chrome_binary
+
+    url = "https://lmarena.ai/"
+
+    try:
+        # Launch undetected_chromedriver.
+        # Note: Removing any settings that point to the chromedriver file.
+        # undetected_chromedriver will automatically handle the driver.
+        with uc.Chrome(use_subprocess=True, options=options) as driver:
+            print("Chrome launched. Navigating to:", url)
+            driver.get(url)
+            # Let the browser run for a while so you can inspect the page.
+            time.sleep(10)
+            print("Finished waiting, closing browser.")
+    except Exception as e:
+        print("An error occurred:", e)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,58 @@
+import pandas as pd
+
+# Dummy model implementations for knn and mlp
+class DummyModel:
+    def __init__(self, name, factor):
+        self.name = name
+        self.factor = factor
+
+    def predict(self, df):
+        # For demonstration, we use a simple computation on the input data.
+        # Get the first (and only) row of data
+        row = df.iloc[0]
+        # Sum all numeric values in the row
+        total = row.select_dtypes(include="number").sum()
+        # Compute a dummy prediction value based on a factor
+        prediction = total * self.factor
+        return round(prediction, 2)
+
+
+# Create dummy instances for knn and mlp with different scaling factors.
+knn = DummyModel("KNN", factor=0.1)
+mlp = DummyModel("MLP", factor=0.05)
+
+
+def main():
+    for pclass in [1, 2, 3]:
+        for fare in range(10, 200, 10):
+            for embarked in ["S", "Q", "C"]:
+                # Create a DataFrame with fixed values and the current parameters
+                my_df = pd.DataFrame({
+                    "Pclass": [pclass],
+                    "Name": [24],   # dummy numeric value for name
+                    "Sex": [0],     # e.g., 0 for male, 1 for female
+                    "Age": [19],
+                    "SibSp": [0],
+                    "Parch": [0],
+                    "Fare": [fare],
+                    "Embarked": [embarked]
+                })
+
+                # Perform one-hot encoding for the 'Embarked' column
+                my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+                
+                # Ensure the dummy variables are numeric (they already are from get_dummies)
+                # This mapping is not strictly necessary, but included to closely mimic the original behavior.
+                for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+                    if col in my_df.columns:
+                        my_df[col] = my_df[col].map({True: 1, False: 0})
+                
+                # Print the results from both dummy models
+                print("-------------------------------------------------------")
+                print(f"Параметры: класс {pclass}, плата {fare}, embarked {embarked}")
+                print(f"По knn: {knn.predict(my_df)}")
+                print(f"По mlp: {mlp.predict(my_df)}")
+
+
+if __name__ == '__main__':
+    main()

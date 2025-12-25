@@ -1,0 +1,29 @@
+# 编写二分查找
+
+def binary_search(arr, target):
+    """
+    Performs a binary search on a sorted list to find the index of a target element.
+
+    Args:
+        arr: A sorted list of elements.
+        target: The element to search for.
+
+    Returns:
+        The index of the target element if found, otherwise -1.
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        # Calculate the middle index.
+        mid = (low + high) // 2
+        guess = arr[mid]
+
+        if guess == target:
+            return mid  # Target found
+        elif guess > target:
+            high = mid - 1  # The target is in the left half
+        else:
+            low = mid + 1  # The target is in the right half
+
+    return -1  # Target not found

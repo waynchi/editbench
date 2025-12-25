@@ -1,0 +1,34 @@
+def sum_of_four_nonzero_squares(n):
+    """
+    Sprawdza czy liczbę n można wyrazić jako sumę czterech niezerowych kwadratów.
+    """
+    # Sprawdź wszystkie możliwe kombinacje czterech niezerowych kwadratów
+    max_square = int(n**0.5) + 1
+    
+    for a in range(1, max_square):
+        for b in range(1, max_square):
+            for c in range(1, max_square):
+                for d in range(1, max_square):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True, (a, b, c, d)
+    return False, None
+
+def find_numbers_with_four_nonzero_squares(limit):
+    """
+    Znajduje wszystkie liczby do limitu, które można wyrazić jako sumę czterech niezerowych kwadratów.
+    """
+    result = []
+    for i in range(1, limit + 1):
+        can_be_expressed, squares = sum_of_four_nonzero_squares(i)
+        if can_be_expressed:
+            result.append((i, squares))
+    return result
+
+# Przykład użycia
+if __name__ == "__main__":
+    limit = 50
+    numbers = find_numbers_with_four_nonzero_squares(limit)
+    
+    print(f"Liczby do {limit}, które można wyrazić jako sumę czterech niezerowych kwadratów:")
+    for number, squares in numbers:
+        print(f"{number} = {squares[0]}^2 + {squares[1]}^2 + {squares[2]}^2 + {squares[3]}^2")

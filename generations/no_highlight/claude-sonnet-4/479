@@ -1,0 +1,56 @@
+import pandas as pd
+from scipy import stats
+import numpy as np
+
+# Assuming brand_A, brand_B, brand_C, and all_data are defined elsewhere
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Realizar análisis ANOVA usando scipy
+brand_a_costs = df[df['Brand'] == 'A']['Cost']
+brand_b_costs = df[df['Brand'] == 'B']['Cost']
+brand_c_costs = df[df['Brand'] == 'C']['Cost']
+
+# Realizar ANOVA de una vía
+f_statistic, p_value = stats.f_oneway(brand_a_costs, brand_b_costs, brand_c_costs)
+
+# Calcular estadísticas adicionales
+n_total = len(df)
+n_groups = df['Brand'].nunique()
+df_between = n_groups - 1
+df_within = n_total - n_groups
+
+# Calcular sumas de cuadrados
+overall_mean = df['Cost'].mean()
+group_means = df.groupby('Brand')['Cost'].mean()
+group_sizes = df.groupby('Brand').size()
+
+# Suma de cuadrados entre grupos
+ss_between = sum(group_sizes * (group_means - overall_mean)**2)
+
+# Suma de cuadrados dentro de grupos
+ss_within = sum((df[df['Brand'] == brand]['Cost'] - group_means[brand])**2 
+                for brand in df['Brand'].unique())
+
+# Suma de cuadrados total
+ss_total = ss_between + ss_within
+
+# Cuadrados medios
+ms_between = ss_between / df_between
+ms_within = ss_within / df_within
+
+# Crear tabla ANOVA
+anova_results = pd.DataFrame({
+    'sum_sq': [ss_between, ss_within],
+    'df': [df_between, df_within],
+    'mean_sq': [ms_between, ms_within],
+    'F': [f_statistic, np.nan],
+    'PR(>F)': [p_value, np.nan]
+}, index=['Brand', 'Residual'])
+
+# Imprimir la tabla ANOVA
+print(anova_results)

@@ -1,0 +1,30 @@
+from langchain_ollama.chat_models import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
+import json
+
+# Create the chat model
+llm = ChatOllama(
+    model="llama3.2",
+    base_url="http://localhost:11434"
+)
+
+with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+    shap_values_json = json.load(file).get("shap_values")
+with open("system.prompt", "r") as file:
+    sys_prompt = file.read().strip()
+
+human_prompt = f"""
+{shap_values_json}
+"""
+
+# Create the prompt template
+prompt = ChatPromptTemplate.from_messages([
+    ("system", sys_prompt),
+    ("human", human_prompt)
+])
+
+# Create the chain and invoke it
+chain = prompt | llm
+response = chain.invoke({})
+
+print(response.content)

@@ -1,0 +1,90 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return author == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+def build_hierarchical_dict(posts_generator):
+    """Builds a hierarchical dictionary from posts and their replies"""
+    hierarchical_dict = {}
+    
+    X = 0
+    for post in posts_generator:
+        post_author = post['author']
+        post_permlink = post['permlink']
+        post_replies = post['children']
+        cnt = 0
+        X += 1
+        if post_replies > n_respuestas_minimas:
+            comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+            post_replies :list = comment.get_replies()
+            
+            # Initialize post entry in dictionary
+            post_key = f"{post_author}/{post_permlink}"
+            hierarchical_dict[post_key] = {
+                'author': post_author,
+                'permlink': post_permlink,
+                'replies': {},
+                'count_me_count': 0
+            }
+            
+            cnt = 0
+            for replies in post_replies:
+                
+                author = replies['author']
+                text = replies['body']
+                reply_key = f"{author}/{replies['permlink']}"
+                
+                # Add reply to hierarchical structure
+                hierarchical_dict[post_key]['replies'][reply_key] = {
+                    'author': author,
+                    'permlink': replies['permlink'],
+                    'body': text,
+                    'is_count_me': False
+                }
+                
+                if is_own_author(author):
+                    # Reevaluate the comment
+                    break
+                if is_banned(author):
+                    break
+                if procesar(text):
+                    cnt+= 1
+                    hierarchical_dict[post_key]['replies'][reply_key]['is_count_me'] = True
+            
+            hierarchical_dict[post_key]['count_me_count'] = cnt
+        if cnt > 3:
+            print("Iterador: ",X)
+            print(replies['author'],'/',replies['permlink']) 
+    
+    return hierarchical_dict
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+
+# Build the hierarchical dictionary
+hierarchical_structure = build_hierarchical_dict(posts_generator)

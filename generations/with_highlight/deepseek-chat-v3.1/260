@@ -1,0 +1,75 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=None):
+    """
+    Реализация метода сопряжённых градиентов для решения системы Ax = b,
+    где A - симметричная, положительно определённая матрица.
+    
+    Parameters:
+    A : numpy.ndarray
+        Симметричная положительно определённая матрица коэффициентов
+    b : numpy.ndarray
+        Вектор правой части системы
+    x0 : numpy.ndarray, optional
+        Начальное приближение. Если не задано, используется нулевой вектор
+    tol : float, optional
+        Допуск для критерия остановки (по умолчанию 1e-6)
+    max_iter : int, optional
+        Максимальное количество итераций. Если не задано, равно размерности системы
+        
+    Returns:
+    x : numpy.ndarray
+        Приближённое решение системы
+    converged : bool
+        Флаг сходимости метода
+    k : int
+        Количество выполненных итераций
+    """
+    
+    n = len(b)
+    
+    if max_iter is None:
+        max_iter = n
+        
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x  # Вектор невязки
+    p = r.copy()   # Направление поиска
+    rs_old = r @ r
+    
+    for k in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x += alpha * p
+        r -= alpha * Ap
+        rs_new = r @ r
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, k + 1
+            
+        beta = rs_new / rs_old
+        p = r + beta * p
+        rs_old = rs_new
+    
+    return x, False, max_iter
+
+# Пример использования
+if __name__ == "__main__":
+    # Создаём тестовую симметричную положительно определённую матрицу
+    n = 5
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n)  # Делаем матрицу положительно определённой
+    x_true = np.ones(n)
+    b = A @ x_true
+    
+    # Решаем систему методом сопряжённых градиентов
+    x_sol, converged, iterations = conjugate_gradient(A, b)
+    
+    print(f"Решение найдено: {converged}")
+    print(f"Количество итераций: {iterations}")
+    print(f"Истинное решение: {x_true}")
+    print(f"Полученное решение: {x_sol}")
+    print(f"Норма невязки: {np.linalg.norm(A @ x_sol - b)}")

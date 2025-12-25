@@ -1,0 +1,70 @@
+I'll create a Python implementation that finds numbers that can be represented as the sum of four non-zero squares.
+python
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Check if a number can be represented as the sum of four non-zero squares
+    """
+    if n < 4:  # Minimum sum is 1+1+1+1 = 4
+        return False
+    
+    # Check all combinations of four positive integers whose squares sum to n
+    # We only need to check up to sqrt(n) for each term
+    limit = int(n**0.5) + 1
+    
+    for a in range(1, limit):
+        if a*a > n:
+            break
+        for b in range(a, limit):
+            if a*a + b*b > n:
+                break
+            for c in range(b, limit):
+                if a*a + b*b + c*c > n:
+                    break
+                for d in range(c, limit):
+                    if a*a + b*b + c*c + d*d == n:
+                        return True
+                    if a*a + b*b + c*c + d*d > n:
+                        break
+    return False
+
+def find_numbers_with_four_square_representation(limit):
+    """
+    Find all numbers up to 'limit' that can be represented as sum of four non-zero squares
+    """
+    result = []
+    for i in range(4, limit + 1):
+        if can_be_sum_of_four_nonzero_squares(i):
+            result.append(i)
+    return result
+
+# Example usage
+if __name__ == "__main__":
+    # Test a few numbers
+    test_numbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    
+    print("Numbers that can be represented as sum of four non-zero squares:")
+    for num in test_numbers:
+        if can_be_sum_of_four_nonzero_squares(num):
+            # Find one representation
+            found = False
+            limit = int(num**0.5) + 1
+            for a in range(1, limit):
+                if a*a > num:
+                    break
+                for b in range(a, limit):
+                    if a*a + b*b > num:
+                        break
+                    for c in range(b, limit):
+                        if a*a + b*b + c*c > num:
+                            break
+                        for d in range(c, limit):
+                            if a*a + b*b + c*c + d*d == num:
+                                print(f"{num} = {a}² + {b}² + {c}² + {d}²")
+                                found = True
+                                break
+                        if found:
+                            break
+                    if found:
+                        break
+                if found:
+                    break

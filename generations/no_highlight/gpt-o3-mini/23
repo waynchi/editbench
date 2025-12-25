@@ -1,0 +1,65 @@
+import os
+
+def load_dictionary():
+    """
+    Attempt to load a system dictionary file containing English words.
+    If not available, fall back to a small built-in list of words.
+    """
+    dict_path = "/usr/share/dict/words"
+    if os.path.isfile(dict_path):
+        try:
+            with open(dict_path, "r") as file:
+                # Remove any trailing newline characters.
+                words = [line.strip() for line in file if line.strip()]
+            return words
+        except Exception as e:
+            print(f"Error loading dictionary from {dict_path}: {e}")
+    # Fallback dictionary
+    return [
+        "apple", "banana", "cherry", "date", "fig", "grape", "kiwi", "lemon",
+        "mango", "orange", "peach", "berry", "melon", "apricot", "plum",
+        "strawberry", "blueberry", "watermelon", "cantaloupe", "pineapple"
+    ]
+
+def find_words_by_length(words, length, limit=10):
+    """
+    Filter the list of words to find those with exactly 'length' characters.
+    Returns up to 'limit' words.
+    """
+    matching = [word for word in words if len(word) == length]
+    return matching[:limit]
+
+def main():
+    words = load_dictionary()
+    if not words:
+        print("No dictionary words available. Exiting.")
+        return
+    
+    print("Dictionary lookup: Enter a number to receive 10 English words with that many characters.")
+    print("Type 'exit' to quit the program.")
+    
+    while True:
+        user_input = input("Enter the desired word length (or 'exit'): ").strip()
+        if user_input.lower() == "exit":
+            print("Goodbye!")
+            break
+        try:
+            length = int(user_input)
+            if length <= 0:
+                print("Please enter a positive integer.")
+                continue
+        except ValueError:
+            print("Invalid input. Please enter a positive integer or 'exit' to quit.")
+            continue
+        
+        result = find_words_by_length(words, length)
+        if result:
+            print(f"\nFound {len(result)} word(s) with {length} character(s):")
+            for word in result:
+                print(word)
+        else:
+            print(f"No words found with {length} character(s).")
+        print()  # Blank line for better readability
+
+if __name__ == '__main__':
+    main()

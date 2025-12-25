@@ -1,0 +1,91 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import json
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("AnalizarDatosAPI").getOrCreate()
+
+# Функция для анализа структуры данных из API
+def analizar_estructura_datos(datos_json):
+    """
+    Анализирует структуру JSON данных, поступающих из API
+    """
+    try:
+        # Преобразовать JSON в словарь Python
+        datos_dict = json.loads(datos_json)
+        
+        # Если данные представляют собой список
+        if isinstance(datos_dict, list):
+            print("✓ Los datos son una lista de elementos")
+            if len(datos_dict) > 0:
+                primer_elemento = datos_dict[0]
+                print(f"✓ Primer elemento: {primer_elemento}")
+                print(f"✓ Estructura del primer elemento: {list(primer_elemento.keys())}")
+                return True
+            else:
+                print("⚠ La lista está vacía")
+                return False
+        
+        # Если данные представляют собой словарь
+        elif isinstance(datos_dict, dict):
+            print("✓ Los datos son un diccionario")
+            print(f"✓ Claves del diccionario: {list(datos_dict.keys())}")
+            return True
+        
+        else:
+            print("⚠ Formato de datos no reconocido")
+            return False
+            
+    except json.JSONDecodeError as e:
+        print(f"❌ Error al decodificar JSON: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Error inesperado: {e}")
+        return False
+
+# Пример данных JSON de API (simulando datos de API)
+datos_api_json = '''
+[
+    {"id": 1, "nombre": "Juan", "edad": 30, "departamento": "IT"},
+    {"id": 2, "nombre": "Ana", "edad": 25, "departamento": "HR"},
+    {"id": 3, "nombre": "Pedro", "edad": 40, "departamento": "Finanzas"}
+]
+'''
+
+# Analizar la estructura de los datos
+print("🔍 Analizando estructura de datos de API...")
+estructura_valida = analizar_estructura_datos(datos_api_json)
+
+if estructura_valida:
+    print("\n✅ Estructura de datos válida. Creando DataFrame...")
+    
+    # Crear DataFrame a partir de los datos JSON
+    df = spark.read.json(spark.sparkContext.parallelize([datos_api_json]))
+    
+    # Mostrar esquema y datos
+    print("📋 Esquema del DataFrame:")
+    df.printSchema()
+    
+    print("📊 Datos del DataFrame:")
+    df.show()
+    
+    # Analizar estadísticas básicas
+    print("📈 Estadísticas básicas:")
+    df.describe().show()
+    
+    # Contar nulos por columna
+    print("🔍 Análisis de valores nulos:")
+    for column in df.columns:
+        nulos_count = df.filter(col(column).isNull()).count()
+        print(f"  {column}: {nulos_count} valores nulos")
+    
+    # Mostrar tipos de datos
+    print("🎯 Tipos de datos:")
+    for field in df.schema.fields:
+        print(f"  {field.name}: {field.dataType}")
+        
+else:
+    print("\n❌ No se puede proceder con datos de estructura inválida")
+
+# Detener la sesión de Spark
+spark.stop()

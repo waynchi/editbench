@@ -1,0 +1,248 @@
+import os
+import shutil
+import json
+import pickle
+import logging
+from pathlib import Path
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+from dotenv import load_dotenv
+import torch
+
+load_dotenv()
+
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+
+def save_log_to_file(log_history, file_path, append_latest_only=False):
+    """Zapisuje historię logów do pliku JSON. Jeśli plik już istnieje, dodaje do niego.
+
+Parametry:
+- log_history: Lista wpisów logów (każdy wpis to słownik).
+- file_path: Ścieżka do pliku, w którym logi będą zapisywane.
+- append_latest_only: Jeśli True, tylko najnowszy wpis logu jest dodawany."""
+    
+    file_path = Path(file_path)
+    current_logs = []
+    
+    # Sprawdzanie istnienia pliku przed otwarciem
+    if file_path.exists():
+        try:
+            # Otwieranie z lepszą obsługą błędów
+            with file_path.open("r", encoding='utf-8') as f:
+                content = f.read().strip()
+                if content:
+                    current_logs = json.loads(content)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logging.warning(f"Warning: {file_path} contains invalid data. Overwriting file. Error: {e}")
+        except Exception as e:
+            logging.error(f"An error occurred while reading {file_path}: {e}")
+            return  # Wracamy wcześniej w przypadku poważnego błędu
+
+    # Używanie wycinków zamiast extend dla lepszej wydajności
+    logs_to_add = log_history[-1:] if append_latest_only and log_history else log_history
+    
+    # Konkatenacja list zamiast extend
+    updated_logs = current_logs + logs_to_add
+
+    # Zapis z bezpiecznym tworzeniem katalogów
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with file_path.open("w", encoding='utf-8') as f:
+            json.dump(updated_logs, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"An error occurred while writing to {file_path}: {e}")
+
+
+def clear_directory(directory, delete_directory=False):
+    """Czyści wszystkie pliki i podkatalogi w podanym katalogu. Opcjonalnie usuwa sam katalog.
+
+Argumenty:
+    directory (str): Ścieżka do katalogu do wyczyszczenia.
+    delete_directory (bool): Jeśli True, usuwa katalog po wyczyszczeniu jego zawartości.
+
+Wyjątki:
+    OSError: Jeśli wystąpi jakikolwiek błąd podczas usuwania plików lub katalogów.
+Przykład:
+    clear_directory('/path/to/my/directory')
+    clear_directory('/path/to/my/directory', delete_directory=True)"""
+    
+    directory = Path(directory)
+    
+    if not directory.exists():
+        if delete_directory:
+            raise ValueError("Directory does not exist and delete_directory is True. Cannot proceed.")
+        directory.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Directory '{directory}' created.")
+        return
+
+    # Używanie generatora zamiast listy dla lepszej pamięci
+    items = list(directory.iterdir())  # Konwertujemy do listy przed iteracją dla bezpieczeństwa
+    
+    for item in items:
+        try:
+            if item.is_dir():
+                shutil.rmtree(item)
+                logging.info(f"Removed directory: {item}")
+            else:
+                item.unlink()
+                logging.info(f"Removed file: {item}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{item}'. Reason: {e}")
+            raise
+
+    if delete_directory:
+        try:
+            directory.rmdir()
+            logging.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{directory}'. Reason: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name="pythia-31M",
+    base_model_repo_name="EleutherAI/",
+    model_load_path=MODEL_PATH,
+    model_save_path=MODEL_PATH,
+):
+    """Optymalizacja: Cache dla modeli bazowych i szybsze wczytywanie"""
+    
+    my_model_path = Path(model_load_path) / model_name
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model_name = f"pythia-{param_count}M"
+    full_base_path = Path(base_model_repo_name) / base_model_name
+
+    # Cache dla modeli bazowych - unikanie wielokrotnego wczytywania tych samych modeli
+    if not hasattr(merge_lora_model, '_base_model_cache'):
+        merge_lora_model._base_model_cache = {}
+    
+    cache_key = str(full_base_path)
+    if cache_key not in merge_lora_model._base_model_cache:
+        base_model = AutoModelForCausalLM.from_pretrained(full_base_path)
+        merge_lora_model._base_model_cache[cache_key] = base_model
+    else:
+        base_model = merge_lora_model._base_model_cache[cache_key]
+
+    model = PeftModel.from_pretrained(base_model, str(my_model_path))
+    merged_model = model.merge_and_unload()
+    
+    my_model_save_path = Path(model_save_path) / f"{model_name}_merged"
+    my_model_save_path.mkdir(parents=True, exist_ok=True)
+    
+    merged_model.save_pretrained(my_model_save_path)
+
+
+def remove_repetition(question, answer):
+    """Optymalizacja: Szybsze sprawdzanie zawartości"""
+    return answer.replace(question, "", 1).strip() if question in answer else answer
+
+
+def load_model(
+    model_type,
+    model_path=None,
+    blocks_str=None,
+    vanilla_model_name=None,
+    host_model_name=None,
+):
+    """
+    Loads different types of models with caching and optimized path handling.
+
+    Parameters:
+    model_type (str): The type of model to load.
+    model_path (str): The base path where models are stored.
+    blocks_str (str): A string representing the layers or blocks used in model naming.
+    vanilla_model_name (str): The name or path of the vanilla (base) model.
+    host_model_name (str): The name or path of the host model.
+
+    Returns:
+    model: The loaded model object.
+
+    Raises:
+    ValueError: If an unknown model_type is provided or required parameters are missing.
+    """
+    
+    # Cache dla załadowanych modeli
+    if not hasattr(load_model, '_model_cache'):
+        load_model._model_cache = {}
+    
+    cache_key = f"{model_type}_{model_path}_{blocks_str}_{vanilla_model_name}_{host_model_name}"
+    
+    if cache_key in load_model._model_cache:
+        return load_model._model_cache[cache_key]
+
+    model_path = Path(model_path) if model_path else Path(MODEL_PATH)
+
+    if model_type == "Tuned Model":
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        model_path_full = model_path / tuned_model_name
+        
+        model = AutoModelForCausalLM.from_pretrained(model_path_full)
+
+    elif model_type == "Vanilla Model":
+        model = AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+
+    elif model_type == "Transformed Model":
+        name = host_model_name.split("/")[-1]
+        save_path = model_path / f"{name}_preGRAFTED_{blocks_str}.pkl"
+        with save_path.open("rb") as f:
+            model = pickle.load(f)
+
+    elif model_type == "Final Model":
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = model_path / model_save_name
+        with save_path.open("rb") as f:
+            model = pickle.load(f)
+
+    elif model_type == "Host Model":
+        model = AutoModelForCausalLM.from_pretrained(host_model_name)
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+    # Cache the loaded model
+    load_model._model_cache[cache_key] = model
+    return model
+
+
+def load_batch_losses(file_path):
+    """Ładuje dane strat partii z pliku punktu kontrolnego z lepszą obsługą pamięci.
+
+Parametry:
+file_path (str): Ścieżka do pliku punktu kontrolnego.
+
+Zwraca:
+list lub None: Straty partii, jeśli dostępne, w przeciwnym razie None.
+
+Logi:
+Komunikat o błędzie, jeśli ładowanie się nie powiedzie.
+"""
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        logging.error(f"Checkpoint file not found: {file_path}")
+        return None
+
+    try:
+        # Mapowanie od razu na CPU z optymalizacją pamięci
+        checkpoint = torch.load(file_path, map_location='cpu', weights_only=False)
+        batch_losses = checkpoint.get("batch_losses")
+        
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        
+        return batch_losses
+        
+    except (IOError, RuntimeError, pickle.UnpicklingError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None
+
+
+# Inicjalizacja loggera
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

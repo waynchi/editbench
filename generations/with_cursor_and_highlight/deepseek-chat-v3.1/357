@@ -1,0 +1,55 @@
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=None):
+    """
+    Rozwiązuje układ równań liniowych Ax = b metodą sprzężonych gradientów.
+    
+    Parametry:
+    A: macierz współczynników (n x n) - może być listą list, numpy array lub funkcją
+    b: wektor prawych stron (n)
+    x0: przybliżenie początkowe (domyślnie wektor zerowy)
+    tol: tolerancja błędu
+    max_iter: maksymalna liczba iteracji (domyślnie len(b))
+    
+    Zwraca:
+    x: przybliżone rozwiązanie
+    """
+    import numpy as np
+    
+    b = np.array(b, dtype=float)
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    # Sprawdzenie czy A jest funkcją (operator) czy macierzą
+    if callable(A):
+        def mat_vec(v):
+            return A(v)
+    else:
+        A_mat = np.array(A, dtype=float)
+        def mat_vec(v):
+            return A_mat @ v
+    
+    # Inicjalizacja
+    r = b - mat_vec(x)  # residuum
+    p = r.copy()  # kierunek poszukiwań
+    rs_old = np.dot(r, r)
+    
+    for i in range(max_iter):
+        Ap = mat_vec(p)
+        alpha = rs_old / np.dot(p, Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = np.dot(r, r)
+        
+        if np.sqrt(rs_new) < tol:
+            break
+        
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x

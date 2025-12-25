@@ -1,0 +1,54 @@
+function createTurnState(allyStates, foeStates) {
+  let turnNumber = 1;
+
+  // Esta función determina cuál es el grupo que todavía tiene unidades disponibles para actuar.
+  // Si ningún grupo tiene unidades disponibles, reinicia la acción de todas las unidades y aumenta el número de turno.
+  function getCurrentTurn() {
+    if (allyStates.some(unit => !unit.hasActed)) {
+      return "player";
+    } else if (foeStates.some(unit => !unit.hasActed)) {
+      return "cpu";
+    } else {
+      // Si ninguno tiene acción disponible, es el momento de pasar al siguiente turno.
+      // Reiniciamos las acciones de ambas partes y aumentamos el número de turno.
+      allyStates.forEach(unit => unit.hasActed = false);
+      foeStates.forEach(unit => unit.hasActed = false);
+      turnNumber++;
+      // Devolvemos "player" como turno inicial del nuevo ciclo.
+      return "player";
+    }
+  }
+
+  // Llamar a nextTurn() interpretará el turno actual:
+  // Si el turno es de la CPU, ejecutará la lógica de la CPU,
+  // en otro caso (jugador) se espera que la lógica del usuario ejecute las acciones.
+  function nextTurn() {
+    const current = getCurrentTurn();
+
+    if (current === "cpu") {
+      // Simulación de acciones de la CPU en todas las unidades disponibles.
+      foeStates.forEach(cpuUnit => {
+        if (!cpuUnit.hasActed) {
+          // Aquí se coloca la lógica del IA (movimiento, ataque, etc.).
+          // Por esta implementación de ejemplo, simplemente marcamos la unidad como actuada.
+          cpuUnit.hasActed = true;
+        }
+      });
+      // Después de que la CPU finaliza sus acciones, llamamos a getCurrentTurn
+      // para determinar si el turno debe seguir o reiniciarse.
+      return getCurrentTurn();
+    } else {
+      // Si es el turno del jugador, no se fuerza ninguna acción.
+      // Se asume que en otro lado se marcarán las unidades como utilizadas.
+      return current;
+    }
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber: () => turnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

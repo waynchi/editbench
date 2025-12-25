@@ -1,0 +1,73 @@
+import aiohttp
+import xml.etree.ElementTree
+import matplotlib.pyplot as plt
+import pandas as pd
+import datetime
+import pickle
+import json
+import asyncio
+
+class valute():
+    """Валюта и всё с ней связанное, через ЦБ РФ
+
+Требуются библиотеки:
+
+aiohttp
+
+xml.etree.ElementTree
+
+matplotlib.pyplot as plt
+
+pandas as pd
+
+datetime
+
+pickle
+
+json"""
+    def __init__(self, name):
+        self.name = name
+    
+    async def correct_name(self):
+        """Асинхронная проверка имени валюты на наличие в множестве валют."""
+        async with aiohttp.ClientSession() as session:
+            # Открываем файл инфы
+            with open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "r", encoding="utf-8") as info_opened_file:
+                info = json.load(info_opened_file)
+            
+            if datetime.datetime.now() - datetime.timedelta(days=1) > datetime.datetime.strptime(info["last_day_check"]["valute"], "%Y-%m-%d %H:%M:%S.%f"):
+                # Если нужно обновить список валют
+                set_valutes = set()
+                async with session.get("http://www.cbr.ru/scripts/XML_daily.asp") as response:
+                    content = await response.text()
+                    root = xml.etree.ElementTree.fromstring(content)
+                    for Valute in root.findall("Valute"):
+                        CharCode = Valute.find("CharCode")
+                        set_valutes.add(CharCode.text)
+                
+                # Сохраняем обновленное множество валют
+                with open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "wb") as set_valutes_file_opened:
+                    pickle.dump(set_valutes, set_valutes_file_opened)
+                
+                # Обновляем время последнего обновления
+                info["last_day_check"]["valute"] = str(datetime.datetime.now())
+                with open(r"D:\MoexAPI_bot_aiogram3\data_files\Info.json", "w", encoding="utf-8") as info_opened_file:
+                    json.dump(info, info_opened_file, indent=3, ensure_ascii=False)
+            
+            # Проверяем наличие валюты в множестве
+            with open(r"D:\MoexAPI_bot_aiogram3\data_files\set_valutes.bin", "rb") as set_valutes_file_opened:
+                set_valutes = pickle.load(set_valutes_file_opened)
+            
+            return self.name in set_valutes
+    
+    async def CurrentExchangeRate(self):
+        '''Асинхронный запрос текущего курса обмена валюты на рубль'''
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://www.cbr.ru/scripts/XML_daily.asp") as response:
+                content = await response.text()
+                root = xml.etree.ElementTree.fromstring(content)
+                for Valute in root.findall("Valute"):
+                    CharCode = Valute.find("CharCode")
+                    if CharCode.text == self.name:
+                        return Valute.find("VunitRate").text
+                return None

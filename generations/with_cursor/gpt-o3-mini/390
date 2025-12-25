@@ -1,0 +1,59 @@
+import torch
+import torch.nn as nn
+
+class SimpleConvNet1(nn.Module):
+    def __init__(self, flattened_size):
+        super(SimpleConvNet1, self).__init__()
+        # Pierwszy blok splotowy: warstwa konwolucyjna, ReLU, pooling
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        # Drugi blok splotowy: warstwa konwolucyjna, ReLU, pooling
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+        # Warstwa spłaszczająca wielowymiarowy tensor
+        self.flatten = nn.Flatten()
+        # Warstwy w pełni połączone z ReLU w środku
+        self.fc1 = nn.Sequential(
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 3)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
+if __name__ == '__main__':
+    # Przykladowe użycie sieci
+    # Ustalamy przykładowy rozmiar partii oraz wymiary obrazu (np. 64x64 piksele)
+    batch_size = 1
+    input_tensor = torch.randn(batch_size, 3, 64, 64)
+
+    # Dynamically compute the flattened size by running a forward pass through the conv layers:
+    # Używając tymczasowej sekwencji z tymi samymi operacjami co w części konwolucyjnej
+    temp_model = nn.Sequential(
+        nn.Conv2d(3, 32, 3),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.Conv2d(32, 64, 3),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.Flatten()
+    )
+
+    with torch.no_grad():
+        flattened_size = temp_model(input_tensor).shape[1]
+
+    # Inicjalizacja i testowanie sieci
+    model = SimpleConvNet1(flattened_size)
+    output = model(input_tensor)
+    print("Output shape:", output.shape)

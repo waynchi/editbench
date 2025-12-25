@@ -1,0 +1,60 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Build relative path to chromedriver
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# Create ChromeOptions instance
+options = uc.ChromeOptions()
+
+# Add common Chrome arguments to avoid connection issues
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--disable-web-security")
+options.add_argument("--allow-running-insecure-content")
+options.add_argument("--disable-extensions")
+options.add_argument("--disable-plugins")
+options.add_argument("--disable-images")
+options.add_argument("--disable-javascript")
+options.add_argument("--remote-debugging-port=9222")
+
+print("Initializing Chrome driver...")
+
+try:
+    # Initialize undetected Chrome driver with specified options
+    # Note: binary_location should point to Chrome browser, not chromedriver
+    # Let undetected_chromedriver handle the chromedriver automatically
+    driver = uc.Chrome(
+        driver_executable_path=chromedriver_path if os.path.exists(chromedriver_path) else None,
+        options=options,
+        use_subprocess=False,
+        version_main=None  # Let it auto-detect
+    )
+    
+    print("Chrome driver initialized successfully")
+    
+    # Navigate to the website
+    driver.get("https://lmarena.ai/")
+    print("Page loaded successfully")
+    
+    # Wait for page to load
+    time.sleep(10)
+    
+    print("Script completed successfully")
+    
+except Exception as e:
+    print(f"Error occurred: {e}")
+    
+finally:
+    # Ensure driver is properly closed
+    try:
+        if 'driver' in locals():
+            driver.quit()
+            print("Driver closed successfully")
+    except Exception as e:
+        print(f"Error closing driver: {e}")

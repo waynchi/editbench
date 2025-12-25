@@ -1,0 +1,30 @@
+def four_squares(n):
+    """
+    Find four non-zero squares that sum to n.
+    Returns a tuple of four integers (a, b, c, d) such that:
+    a² + b² + c² + d² = n, where a, b, c, d > 0
+    """
+    # Try all possible combinations of four non-zero squares
+    max_square = int(n**0.5) + 1
+    for a in range(1, max_square):
+        for b in range(1, max_square):
+            for c in range(1, max_square):
+                remaining = n - a*a - b*b - c*c
+                if remaining > 0:
+                    d = int(remaining**0.5)
+                    if d > 0 and d*d == remaining:
+                        return (a, b, c, d)
+    return None
+
+# Example usage and test
+if __name__ == "__main__":
+    # Test with numbers that can be expressed as sum of four non-zero squares
+    test_numbers = [30, 31, 39, 43, 50, 100]
+    
+    for num in test_numbers:
+        result = four_squares(num)
+        if result:
+            a, b, c, d = result
+            print(f"{num} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+        else:
+            print(f"{num} cannot be expressed as sum of four non-zero squares")

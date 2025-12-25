@@ -1,0 +1,49 @@
+import { messages } from "./messages.js";
+
+$(function() {
+    // 定义jQuery元素变量
+    const $loading = $('.container-loading');
+    const $payment = $('.payment-section');
+    const $info = $('.user-info');
+    const $main = $('.main');
+    const $loadingMessages = $('#loading-messages');
+
+    // 从 localStorage 中获取数据
+    const storedData = JSON.parse(localStorage.getItem('userData')) || {};
+    const { userInfo, paymentInfo } = storedData;
+
+    console.log('User Info:', userInfo);
+    console.log('Payment Info:', paymentInfo);
+
+    // 点击按钮生成税单
+    $('#generateTaxButton').on('click', function() {
+        // 淡出主界面
+        $main.fadeOut(500, function() {
+            setTimeout(function() {
+                $loading.css('display', 'flex');
+
+                // 计算所有消息的总时间间隔
+                let totalDelay = 0;
+                $.each(messages, function(index, message) {
+                    totalDelay += message.time;
+                });
+                console.log('总间隔时间:', totalDelay);
+
+                // 更新加载信息文本
+                $.each(messages, function(index, message) {
+                    setTimeout(function() {
+                        $loadingMessages.text(message.text);
+                    }, message.time);
+                });
+
+                // 在所有消息显示完毕后，切换到支付界面和用户信息显示
+                setTimeout(function() {
+                    console.log('pagamento');
+                    $loading.css('display', 'none');
+                    $payment.css('display', 'block');
+                    $info.css('display', 'block');
+                }, totalDelay + 500);
+            }, 200);
+        });
+    });
+});

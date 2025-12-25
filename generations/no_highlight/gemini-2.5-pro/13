@@ -1,0 +1,55 @@
+import requests
+import json
+
+def interact_with_local_llm(prompt, base_url="http://localhost:11434"):
+    """
+    Interact with a local LLM using the Ollama API.
+
+    This implementation is modified to prevent JSON decoding errors by disabling
+    response streaming. It also includes more robust error handling.
+
+    :param prompt: The input prompt for the LLM.
+    :param base_url: The base URL of the Ollama API.
+    :return: The response string from the LLM, or None if an error occurs.
+    """
+    endpoint = f"{base_url}/api/generate"
+    payload = {
+        "model": "llama3.2:latest",  # Replace with your model name
+        "prompt": prompt,
+        "max_tokens": 2048,          # Adjust as needed
+        "stream": False              # Key change: Disable streaming to get a single response object
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        
+        # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
+        
+        # By setting "stream": False, the API returns a single JSON object,
+        # preventing the "Extra data" error that occurs when trying to parse a stream.
+        return response.json().get('response', '')
+        
+    except requests.exceptions.RequestException as e:
+        # Handles connection errors, timeouts, etc.
+        print(f"Error communicating with Ollama API: {e}")
+        return None
+    except json.JSONDecodeError:
+        # Handles cases where the response is not valid JSON
+        # (e.g., an HTML error page from a proxy or the server itself).
+        print(f"Error: Failed to decode JSON response. Status code: {response.status_code}")
+        print(f"Response text: {response.text}")
+        return None
+
+# Example usage
+if __name__ == "__main__":
+    prompt = "Hello, how are you?"
+    response = interact_with_local_llm(prompt)
+    if response:
+        print("LLM Response:")
+        print(response)
+    else:
+        print("Failed to get a response from the LLM.")

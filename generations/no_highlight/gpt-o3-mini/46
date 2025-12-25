@@ -1,0 +1,38 @@
+import os
+import time
+import undetected_chromedriver as uc
+from selenium.common.exceptions import SessionNotCreatedException
+
+def main():
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Build the path to the chromedriver executable (if you really need to supply it)
+    # IMPORTANT: Do not confuse the chromedriver executable with the Chrome browser binary.
+    # The Chrome browser executable (chrome.exe) is usually installed separately,
+    # and if you need to specify its location, set it via options.binary_location.
+    driver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+    # Create ChromeOptions instance; add any further customization if needed.
+    options = uc.ChromeOptions()
+    # If you need to set the Chrome browser binary location (not the chromedriver),
+    # uncomment the following line and supply the correct path to chrome.exe:
+    # options.binary_location = r"C:\Path\To\Your\Chrome\Application\chrome.exe"
+    
+    try:
+        # Initialize undetected_chromedriver specifying the driver executable path.
+        # Note: Instead of using options.binary_location (which was wrongly set to the driver),
+        # we use driver_executable_path to tell uc.Chrome where the chromedriver is.
+        with uc.Chrome(driver_executable_path=driver_path, use_subprocess=True, options=options) as driver:
+            driver.get("https://lmarena.ai/")
+            print("Navigated to https://lmarena.ai/")
+            time.sleep(10)
+    except SessionNotCreatedException as e:
+        print("Session was not created. Error details:")
+        print(e)
+    except Exception as e:
+        print("An unexpected error occurred:")
+        print(e)
+
+if __name__ == "__main__":
+    main()

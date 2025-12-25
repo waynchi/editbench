@@ -1,0 +1,39 @@
+import pandas as pd
+from main13 import knn, mlp
+
+# Создаем DataFrame для хранения результатов. dtype=object позволит сохранять в ячейках произвольные объекты.
+results_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3,
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+
+        # Преобразуем категориальную переменную в dummy-переменные
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+
+        # На случай, если после get_dummies не появились все нужные столбцы, создаем их
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col not in my_df.columns:
+                my_df[col] = 0
+            else:
+                # Приводим логические значения к числам (на всякий случай)
+                my_df[col] = my_df[col].map({True: 1, False: 0})
+
+        # Получаем предсказания от обеих моделей
+        knn_prediction = knn.predict(my_df)
+        mlp_prediction = mlp.predict(my_df)
+
+        # Используем .at для одиночного присвоения в ячейку DataFrame,
+        # чтобы избежать ошибки ValueError: Incompatible indexer with Series.
+        results_df.at[fare, pclass] = {"knn": knn_prediction, "mlp": mlp_prediction}
+
+print(results_df)

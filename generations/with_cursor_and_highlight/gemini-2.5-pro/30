@@ -1,0 +1,60 @@
+import math
+
+def generate_sums_of_four_nonzero_squares(limit):
+    """
+    Gera uma lista de números até um limite especificado que podem ser
+    expressos como a soma de quatro quadrados não nulos.
+
+    Um número n é uma soma de quatro quadrados não nulos se pode ser escrito como
+    n = a^2 + b^2 + c^2 + d^2, onde a, b, c, d são inteiros positivos.
+    """
+    sums = set()
+    # O maior valor para qualquer um dos números (a,b,c,d) não pode exceder sqrt(limit)
+    max_val = int(math.sqrt(limit))
+
+    # Para evitar permutações e recalcular, assumimos 1 <= a <= b <= c <= d.
+    # Iteramos sobre todos os valores possíveis para a, b, c, e d.
+    # Otimizações são usadas para 'podar' a busca quando a soma parcial já é muito grande.
+
+    # Loop para o primeiro número 'a'
+    for a in range(1, max_val + 1):
+        s_a = a * a
+        # A menor soma possível com 'a' é a^2+a^2+a^2+a^2 = 4*a^2. Se já excede o limite, paramos.
+        if 4 * s_a > limit:
+            break
+
+        # Loop para o segundo número 'b'
+        for b in range(a, max_val + 1):
+            s_ab = s_a + b * b
+            # A menor soma possível daqui em diante é a^2+b^2+b^2+b^2
+            if s_ab + 2 * b * b > limit:
+                break
+            
+            # Loop para o terceiro número 'c'
+            for c in range(b, max_val + 1):
+                s_abc = s_ab + c * c
+                # A menor soma possível daqui em diante é a^2+b^2+c^2+c^2
+                if s_abc + c * c > limit:
+                    break
+                
+                # Loop para o quarto número 'd'
+                for d in range(c, max_val + 1):
+                    total_sum = s_abc + d * d
+                    
+                    if total_sum <= limit:
+                        sums.add(total_sum)
+                    else:
+                        # Como 'd' está aumentando, qualquer soma futura também excederá o limite.
+                        break
+                        
+    return sorted(list(sums))
+
+# Bloco de execução principal
+if __name__ == "__main__":
+    UPPER_LIMIT = 100
+    
+    print(f"Números até {UPPER_LIMIT} que podem ser expressos como a soma de quatro quadrados não nulos:")
+    
+    result_numbers = generate_sums_of_four_nonzero_squares(UPPER_LIMIT)
+    
+    print(result_numbers)

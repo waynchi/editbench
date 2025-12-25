@@ -1,0 +1,39 @@
+import os
+from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility
+
+# Registrar la ruta actual como cwd
+cwd = os.getcwd()
+
+# Crear conexión a la base de datos Milvus
+# La URL debe apuntar al servidor Milvus, no a una ruta local
+# Para una instancia local, usaría "localhost:19530"
+connections.connect(host='localhost', port='19530')
+
+# En Milvus, las bases de datos se crean/manejan de forma diferente
+# No se usa una ruta de archivo .db como en SQLite
+# En su lugar, se trabaja con colecciones dentro del servidor Milvus
+
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+
+# Verificar si la colección ya existe, si no, crearla
+if not utility.has_collection(TABLE_NAME):
+    # Definir los campos del esquema
+    fields = [
+        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=DIM_VALUE)
+    ]
+    
+    # Crear el esquema de la colección
+    schema = CollectionSchema(fields=fields, description="Colección de embeddings de prueba")
+    
+    # Crear la colección
+    collection = Collection(name=TABLE_NAME, schema=schema)
+    
+    print(f"Colección '{TABLE_NAME}' creada exitosamente")
+else:
+    print(f"La colección '{TABLE_NAME}' ya existe")
+    collection = Collection(TABLE_NAME)
+
+# El cliente/colección está ahora listo para usar
+print(f"Conexión establecida con Milvus y colección '{TABLE_NAME}' configurada")

@@ -1,0 +1,61 @@
+import math
+
+def find_four_squares_sums(limit):
+    """
+    Находит все числа до заданного предела, которые можно выразить как
+    сумму четырех ненулевых квадратов, и возвращает их разложения.
+    Использует генеративный подход для эффективности.
+    """
+    # Словарь для хранения чисел и их разложений: {число: (a, b, c, d)}
+    decompositions = {}
+    
+    # Максимальное возможное значение для любого из корней - это sqrt(limit)
+    if limit < 4: # Наименьшая сумма 4-х ненулевых квадратов это 1+1+1+1=4
+        return {}
+        
+    max_root = int(math.sqrt(limit))
+
+    # Генерируем суммы, используя четыре ненулевых целых числа a, b, c, d.
+    # Циклы устроены так, что 1 <= a <= b <= c <= d, чтобы находить уникальные комбинации.
+    for a in range(1, max_root + 1):
+        a2 = a * a
+        # Оптимизация: если наименьшая возможная комбинация с 'a' (a*a*4) уже больше лимита,
+        # то дальнейшие итерации бессмысленны.
+        if a2 * 4 > limit:
+            break
+        for b in range(a, max_root + 1):
+            b2 = b * b
+            sum_ab = a2 + b2
+            # Оптимизация: если наименьшая возможная комбинация с 'a' и 'b' (a^2 + 3*b^2)
+            # уже больше лимита, прерываем внутренний цикл.
+            if sum_ab + 2 * b2 > limit:
+                break
+            for c in range(b, max_root + 1):
+                c2 = c * c
+                sum_abc = sum_ab + c2
+                # Оптимизация: если наименьшая сумма (a^2+b^2+2*c^2) > лимита
+                if sum_abc + c2 > limit:
+                    break
+                for d in range(c, max_root + 1):
+                    d2 = d * d
+                    current_sum = sum_abc + d2
+
+                    if current_sum > limit:
+                        break
+                    
+                    # Сохраняем первое найденное разложение для данного числа.
+                    # Поскольку a,b,c,d итерируются от меньшего к большему, это
+                    # будет "лексикографически" наименьшее разложение.
+                    if current_sum not in decompositions:
+                        decompositions[current_sum] = (a, b, c, d)
+                        
+    return decompositions
+
+# Пример использования:
+limit = int(input("Digite o limite superior: "))
+sums_found = find_four_squares_sums(limit)
+print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+# Сортируем найденные числа перед выводом
+for num in sorted(sums_found.keys()):
+    a, b, c, d = sums_found[num]
+    print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")

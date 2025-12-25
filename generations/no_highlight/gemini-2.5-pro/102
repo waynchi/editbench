@@ -1,0 +1,139 @@
+import numpy as np
+
+# Note: The original code defined INPUT_FILE_PATH twice. 
+# The second definition overrides the first. We will keep the one used for the example.
+# INPUT_FILE_PATH = './input.txt' 
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    """
+    Parses a grid of characters from a file and counts the occurrences of a target string
+    horizontally, vertically, and diagonally.
+    """
+    lines = parse_input_file()
+    
+    # If the file is empty or contains only whitespace, exit.
+    if not lines:
+        print("Input file is empty or contains no valid lines.")
+        return
+
+    # The error 'IndexError: tuple index out of range' occurs because np.array(list_of_strings)
+    # creates a 1D array of strings. We need a 2D array of characters.
+    # To fix this, we first convert each string in the list into a list of characters.
+    try:
+        char_grid = [list(line) for line in lines]
+        grid = np.array(char_grid)
+    except Exception as e:
+        print(f"Error creating grid. Ensure all lines in the input file have the same length. Error: {e}")
+        return
+
+    print("Input Grid:")
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+
+    # --- Horizontal scan (left-to-right) ---
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+        # Also check the reversed string
+        count += row_str[::-1].count(str_to_match)
+
+    # --- Vertical scan (top-to-bottom) ---
+    for col_idx in range(grid.shape[1]):
+        col_chars = grid[:, col_idx]
+        col_str = ''.join(col_chars)
+        count += col_str.count(str_to_match)
+        # Also check the reversed string (bottom-to-top)
+        count += col_str[::-1].count(str_to_match)
+
+    # --- Main diagonals (top-left to bottom-right) ---
+    # The range of offsets for np.diagonal goes from -(num_rows - 1) to (num_cols - 1)
+    for offset in range(-(grid.shape[0] - 1), grid.shape[1]):
+        diag_chars = np.diagonal(grid, offset=offset)
+        diag_str = ''.join(diag_chars)
+        count += diag_str.count(str_to_match)
+        # Also check the reversed string
+        count += diag_str[::-1].count(str_to_match)
+
+    # --- Anti-diagonals (top-right to bottom-left) ---
+    # We can get these by flipping the grid left-to-right and taking the main diagonals
+    flipped_grid = np.fliplr(grid)
+    for offset in range(-(flipped_grid.shape[0] - 1), flipped_grid.shape[1]):
+        diag_chars = np.diagonal(flipped_grid, offset=offset)
+        diag_str = ''.join(diag_chars)
+        count += diag_str.count(str_to_match)
+        # Also check the reversed string
+        count += diag_str[::-1].count(str_to_match)
+
+    # Note: If a word is a palindrome (e.g., "ABBA"), it would be counted twice
+    # in each direction (forward and backward). The current logic assumes the word
+    # and its reverse are distinct unless the word itself is a palindrome.
+    # For "XMAS", this is not an issue. If XMAS appeared as SAMX, it wouldn't be counted forward.
+    # Let's adjust to avoid double counting palindromes found on the same line.
+    
+    # We are asked to just implement the code, not to change the logic of counting.
+    # The original implementation seems to count "XMAS" and "SAMX" separately.
+    # The code above was modified to search for reversed words as well, which might not be the
+    # intended behavior. Let's revert to the original counting logic, but with the bug fixed.
+    
+    # Re-implementing with the original counting logic, just fixing the bug.
+    count = 0
+    
+    # Check horizontally (left-to-right)
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Check vertically (top-to-bottom)
+    for col_idx in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col_idx])
+        count += col_str.count(str_to_match)
+
+    # Check diagonally (top-left to bottom-right)
+    for i in range(-(grid.shape[0] - 1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Check diagonally (top-right to bottom-left)
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(flipped_grid.shape[0] - 1), flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"\nFound {count} occurrences of '{str_to_match}' (following original logic).")
+
+def parse_input_file():
+    """Reads the input file, strips leading/trailing whitespace from each line,
+    and filters out any empty lines."""
+    try:
+        with open(INPUT_FILE_PATH, 'r') as f:
+            # .read().splitlines() is a robust way to get lines without newline characters
+            lines = f.read().splitlines()
+        # Filter out any empty strings that might result from blank lines
+        return [line for line in lines if line]
+    except FileNotFoundError:
+        print(f"Error: Input file not found at '{INPUT_FILE_PATH}'")
+        return []
+
+if __name__ == "__main__":
+    # Create a dummy example file for demonstration if it doesn't exist.
+    import os
+    if not os.path.exists(INPUT_FILE_PATH):
+        print(f"Creating dummy file: {INPUT_FILE_PATH}")
+        with open(INPUT_FILE_PATH, 'w') as f:
+            f.write("MMMSXXMASM\n")
+            f.write("MSAMXMSMSA\n")
+            f.write("AMXSXMAAMM\n")
+            f.write("MSAMASMSMX\n")
+            f.write("XMASAMXAMM\n")
+            f.write("XXAMMXXAMA\n")
+            f.write("SMSMSASXSS\n")
+            f.write("SAXAMASAAA\n")
+            f.write("MAMMMXMMMM\n")
+            f.write("MXMXAXMASX\n")
+    
+    main()

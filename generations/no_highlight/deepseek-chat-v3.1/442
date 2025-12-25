@@ -1,0 +1,63 @@
+# generar un módulo de medio sumador de verilog con python con más señales de entrada
+
+# código verilog
+verilog_code = """
+module half_adder(a, b, c, d, e, f, sum, carry, overflow, zero);
+    input a, b, c, d, e, f;
+    output sum, carry, overflow, zero;
+    wire temp_sum, temp_carry;
+    
+    assign temp_sum = a ^ b;
+    assign temp_carry = a & b;
+    
+    assign sum = temp_sum ^ c ^ d;
+    assign carry = temp_carry | (temp_sum & c) | (temp_sum & d) | (c & d);
+    assign overflow = (a & b & ~temp_sum) | (~a & ~b & temp_sum);
+    assign zero = ~(sum | carry | overflow);
+endmodule
+"""
+
+# nombre del módulo verilog
+module_name = "half_adder"
+
+# puertos de entrada y salida del módulo verilog
+input_ports = ["a", "b", "c", "d", "e", "f"]
+output_ports = ["sum", "carry", "overflow", "zero"]
+
+# parámetros del módulo verilog
+parameters = ["WIDTH"]
+
+# valor de los parámetros del módulo verilog
+parameter_values = ["8"]
+
+# cuerpo del módulo verilog
+module_body = """
+    input a, b, c, d, e, f;
+    output sum, carry, overflow, zero;
+    wire temp_sum, temp_carry;
+    
+    assign temp_sum = a ^ b;
+    assign temp_carry = a & b;
+    
+    assign sum = temp_sum ^ c ^ d;
+    assign carry = temp_carry | (temp_sum & c) | (temp_sum & d) | (c & d);
+    assign overflow = (a & b & ~temp_sum) | (~a & ~b & temp_sum);
+    assign zero = ~(sum | carry | overflow);
+endmodule
+"""
+
+# instanciación de módulo verilog
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .c(c),
+    .d(d),
+    .e(e),
+    .f(f),
+    .sum(sum),
+    .carry(carry),
+    .overflow(overflow),
+    .zero(zero)
+);
+"""

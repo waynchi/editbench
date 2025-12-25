@@ -1,0 +1,22 @@
+import pandas as pd
+from scipy import stats
+
+
+data = {
+    'Brand': ['A'] * len(brand_A) + ['B'] * len(brand_B) + ['C'] * len(brand_C),
+    'Cost': all_data
+}
+
+df = pd.DataFrame(data)
+
+# Realizar análisis ANOVA usando scipy
+brand_a_costs = df[df['Brand'] == 'A']['Cost']
+brand_b_costs = df[df['Brand'] == 'B']['Cost']
+brand_c_costs = df[df['Brand'] == 'C']['Cost']
+
+f_statistic, p_value = stats.f_oneway(brand_a_costs, brand_b_costs, brand_c_costs)
+
+# Imprimir resultados del ANOVA
+print(f"F-statistic: {f_statistic}")
+print(f"P-value: {p_value}")
+print(f"Significant: {'Yes' if p_value < 0.05 else 'No'}")

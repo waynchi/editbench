@@ -1,0 +1,93 @@
+import numpy as np
+
+def fit_line(x, y):
+    """Функция для нахождения линии наилучшего соответствия для массива.
+    
+    Параметры:
+    x : array_like
+        Массив значений x.
+    y : array_like
+        Массив значений y.
+    
+    Возвращает:
+    slope : float
+        Наклон линии.
+    intercept : float
+        Пересечение линии с осью Y.
+    """
+    # Вычислить среднее значение x и y
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Вычисление отклонения x и y
+    x_dev = x - x_mean
+    y_dev = y - y_mean
+    
+    # Вычисление произведения отклонений x и y
+    xy_dev = x_dev * y_dev
+    
+    # Вычислить квадрат отклонения x
+    x_dev_squared = x_dev ** 2
+    
+    # Вычисление наклона и пересечения прямой
+    slope = np.sum(xy_dev) / np.sum(x_dev_squared)
+    intercept = y_mean - slope * x_mean
+    
+    return slope, intercept
+
+def fit_quadratic(x, y):
+    """Функция для нахождения квадратичной аппроксимации массива.
+    
+    Параметры:
+    x : array_like
+        Массив значений x.
+    y : array_like
+        Массив значений y.
+    
+    Возвращает:
+    coeffs : ndarray
+        Коэффициенты квадратичной функции [a, b, c], где a*x^2 + b*x + c аппроксимирует y.
+    """
+    # Создать матрицу Вандермонда
+    A = np.vstack([x**2, x, np.ones(len(x))]).T
+    
+    # Использовать метод наименьших квадратов для нахождения коэффициентов
+    coeffs = np.linalg.lstsq(A, y, rcond=None)[0]
+    
+    return coeffs
+
+def find_max_deviation(x, y):
+    """Функция для нахождения максимального отклонения между фактическими значениями и
+    значениями, полученными по линии наилучшего соответствия.
+    
+    Параметры:
+    x : array_like
+        Массив значений x.
+    y : array_like
+        Массив значений y.
+    
+    Возвращает:
+    max_index : int
+        Индекс наблюдения с максимальным отклонением.
+    x_max : float
+        Значение x для наблюдения с максимальным отклонением.
+    y_actual : float
+        Фактическое значение y для наблюдения с максимальным отклонением.
+    y_fit : float
+        Значение y, предсказанное линейной аппроксимацией для наблюдения с максимальным отклонением.
+    max_deviation : float
+        Максимальное абсолютное отклонение.
+    """
+    # Получить параметры линии наилучшего соответствия
+    slope, intercept = fit_line(x, y)
+    
+    # Вычислить предсказанные значения y по найденной линии
+    y_fit = slope * x + intercept
+    
+    # Вычислить абсолютные отклонения
+    deviations = np.abs(y - y_fit)
+    
+    # Найти индекс максимального отклонения
+    max_index = np.argmax(deviations)
+    
+    return max_index, x[max_index], y[max_index], y_fit[max_index], deviations[max_index]

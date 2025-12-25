@@ -1,0 +1,42 @@
+def conjugate_gradients(A, b, x0=None, max_iter=None, tol=1e-10):
+    """
+    Funkcja dla metody sprzężonych gradientów.
+    
+    A: macierz współczynników (w formie ndarray)
+    b: wektor wyrazów wolnych
+    x0: początkowe przybliżenie (domyślnie zero)
+    max_iter: maksymalna liczba iteracji
+    tol: tolerancja zbieżności
+    
+    Zwraca: rozwiązanie układu równań Ax = b
+    """
+    import numpy as np
+    
+    n = len(b)
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = x0.copy()
+    
+    r = b - A @ x
+    p = r.copy()
+    rsold = np.dot(r, r)
+    
+    if max_iter is None:
+        max_iter = n
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rsold / (np.dot(p, Ap))
+        x = x + alpha * p
+        r = r - alpha * Ap
+        
+        rsnew = np.dot(r, r)
+        
+        if np.sqrt(rsnew) < tol:
+            break
+            
+        p = r + (rsnew / rsold) * p
+        rsold = rsnew
+    
+    return x

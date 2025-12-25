@@ -1,0 +1,82 @@
+import os
+import time
+import undetected_chromedriver as uc
+from selenium.webdriver.chrome.service import Service
+
+# 获取当前脚本的目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 构建到 chromedriver 的相对路径
+chromedriver_path = os.path.join(script_dir, "chromedriver-win64", "chromedriver.exe")
+
+# 检查 chromedriver 文件是否存在
+if not os.path.exists(chromedriver_path):
+    print(f"ChromeDriver not found at: {chromedriver_path}")
+    print("Please ensure chromedriver.exe is in the correct location.")
+    exit(1)
+
+try:
+    # 创建 ChromeOptions 实例
+    options = uc.ChromeOptions()
+    
+    # 添加一些稳定性选项
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--disable-extensions")
+    
+    print("Initializing Chrome driver...")
+    
+    # 使用 Service 来指定 chromedriver 路径
+    service = Service(executable_path=chromedriver_path)
+    
+    # 初始化 Chrome 驱动程序
+    driver = uc.Chrome(service=service, options=options, use_subprocess=False)
+    
+    print("Chrome driver initialized successfully")
+    print("Navigating to website...")
+    
+    # 导航到网站
+    driver.get("https://lmarena.ai/")
+    print("Website loaded successfully")
+    
+    # 等待页面加载
+    time.sleep(10)
+    
+    print("Test completed successfully")
+    
+except Exception as e:
+    print(f"An error occurred: {str(e)}")
+    print("Trying alternative approach...")
+    
+    try:
+        # 备用方案：不指定 chromedriver 路径，让 undetected_chromedriver 自动处理
+        options = uc.ChromeOptions()
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        
+        print("Trying with auto-detected chromedriver...")
+        driver = uc.Chrome(options=options, use_subprocess=False)
+        
+        print("Chrome driver initialized with auto-detection")
+        driver.get("https://lmarena.ai/")
+        print("Website loaded successfully")
+        
+        time.sleep(10)
+        print("Test completed successfully with fallback method")
+        
+    except Exception as e2:
+        print(f"Fallback method also failed: {str(e2)}")
+        print("Please check your Chrome installation and chromedriver compatibility")
+        
+finally:
+    # 确保驱动程序正确关闭
+    try:
+        if 'driver' in locals():
+            driver.quit()
+            print("Driver closed successfully")
+    except:
+        pass

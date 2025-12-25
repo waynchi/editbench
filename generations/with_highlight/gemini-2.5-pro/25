@@ -1,0 +1,45 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+import json
+
+# Initialize the ChatOllama model
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# Load SHAP values from JSON file
+try:
+    with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+        shap_values_json = json.load(file).get("shap_values")
+except FileNotFoundError:
+    print("Error: The SHAP values JSON file was not found.")
+    exit()
+except json.JSONDecodeError:
+    print("Error: The JSON file is not valid.")
+    exit()
+
+# Load system prompt from file
+try:
+    with open("system.prompt", "r") as file:
+        sys_prompt = file.read().strip()
+except FileNotFoundError:
+    print("Error: The system.prompt file was not found.")
+    exit()
+
+# Prepare the prompt template using the recommended `from_messages` method
+template = ChatPromptTemplate.from_messages([
+    ("system", sys_prompt),
+    ("human", "{user_input}"),
+])
+
+# Create the LangChain Expression Language (LCEL) chain
+# The chain pipes the formatted prompt into the model, then to an output parser
+chain = template | chat_model | StrOutputParser()
+
+# Prepare the input for the chain
+# The 'user_input' key must match the variable in the prompt template
+input_data = {"user_input": json.dumps(shap_values_json)}
+
+# Invoke the chain with the input data and print the streaming response
+print("Generating response...")
+for chunk in chain.stream(input_data):
+    print(chunk, end="", flush=True)

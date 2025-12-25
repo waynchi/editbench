@@ -1,0 +1,35 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Create the output DataFrame outside of the loops
+results_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3])
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+        my_df = pd.DataFrame({
+            "Pclass": [pclass] * 3,
+            "Name": [24] * 3,
+            "Sex": [0] * 3, 
+            "Age": [19] * 3,
+            "SibSp": [0] * 3,
+            "Parch": [0] * 3,
+            "Fare": [fare] * 3,
+            "Embarked": ["S", "Q", "C"]
+        })
+        
+        # Perform one-hot encoding on the 'Embarked' column
+        my_df = pd.get_dummies(my_df, columns=["Embarked"], prefix="Embarked")
+        
+        # Ensure the one-hot encoded columns are numeric (0 or 1)
+        for col in ["Embarked_S", "Embarked_C", "Embarked_Q"]:
+            if col in my_df.columns:
+                my_df[col] = my_df[col].astype(int)
+            else:
+                # In case one of the dummy columns is missing, add it with zeros
+                my_df[col] = 0
+        
+        # Use .at to set a single cell with the dictionary containing predictions
+        prediction = {"knn": knn.predict(my_df), "mlp": mlp.predict(my_df)}
+        results_df.at[fare, pclass] = prediction
+
+print(results_df)

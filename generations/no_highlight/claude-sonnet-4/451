@@ -1,0 +1,5 @@
+import pandas as pd
+
+def create_column(df):
+    df['Frecuencia'] = df['EventId'].apply(lambda x: 117 if x == 'E16' else None)
+    return df

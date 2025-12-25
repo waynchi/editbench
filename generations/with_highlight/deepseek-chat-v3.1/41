@@ -1,0 +1,46 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Crear una sesión Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Ejemplo de datos (reemplazar con tus datos reales)
+data = [
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+
+# Crear un DataFrame a partir de los datos
+df = spark.createDataFrame(data)
+
+# Primero analizar la estructura de los datos
+print("Esquema del DataFrame:")
+df.printSchema()
+
+print("\nPrimeras filas del DataFrame:")
+df.show(5)
+
+print("\nConteo de filas:", df.count())
+
+print("\nEstadísticas descriptivas:")
+df.describe().show()
+
+# Configurar la conexión a ADL2 usando la identidad de Microsoft ID
+# No es necesario proporcionar credenciales explícitamente en un notebook de Synapse
+# Spark utilizará la identidad administrada del notebook para autenticarse.
+
+# Especificar la ruta al contenedor y la carpeta en ADL2
+container_name = "<your_container_name>"  # Reemplazar con el nombre de tu contenedor
+folder_path = "<your_folder_path>"  # Reemplazar con la ruta a la carpeta dentro del contenedor
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Escribir el DataFrame en formato parquet en ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Opcional: leer el archivo parquet para verificar
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Detener la sesión Spark
+spark.stop()

@@ -1,0 +1,141 @@
+import asyncio
+import logging
+import sys
+
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.filters import Command
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+
+# The user instruction was to rewrite the code without using the deprecated `executor`.
+# This implementation uses aiogram 3.x, which replaces `executor` with an asyncio-based main loop.
+# Key changes:
+# 1. Removed `executor`.
+# 2. Introduced `Router` for handling updates.
+# 3. Updated handler decorators from `@dp.message_handler` to `@router.message`, etc.
+# 4. Updated filters (e.g., `commands=['start']` to `Command("start")`, `text="stop"` to `F.data == "stop"`).
+# 5. Created an `async def main()` function to initialize the bot and dispatcher and start polling.
+# 6. The entry point `if __name__ == '__main__':` now uses `asyncio.run(main())`.
+# 7. Background task is now started from within the `main` function.
+# 8. Used `FSInputFile` for sending local files, which is the recommended practice in aiogram 3.
+
+# --- Configuration ---
+TOKEN = "TOKEN"  # Replace "TOKEN" with your bot's token
+TARGET_CHAT_ID = 111111111  # The specific chat ID to send messages to
+PERIODIC_DELAY_SECONDS = 5
+
+# --- Global State ---
+# This variable controls the loop in the periodic task.
+# In a more complex bot, consider using aiogram's FSM (Finite State Machine) for state management.
+is_periodic_task_running = True
+
+# --- Router setup ---
+# All handlers are attached to this router.
+router = Router()
+
+
+# --- Handlers ---
+
+@router.message(Command("start"))
+async def start_command_handler(message: Message, bot: Bot):
+    """
+    Handler for the /start command. Sends a question with inline buttons
+    to the target chat ID.
+    """
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Да", callback_data="stop_periodic_task"),
+            InlineKeyboardButton(text="Нет", callback_data="continue_periodic_task")
+        ]
+    ])
+    # Note: The original logic sends this message to a hardcoded chat ID, not to the user who typed /start.
+    # This behavior is preserved.
+    await bot.send_message(chat_id=TARGET_CHAT_ID, text="Ты робот?", reply_markup=markup)
+
+
+@router.callback_query(F.data == "stop_periodic_task")
+async def stop_callback_handler(call: CallbackQuery):
+    """
+    Handles the "Да" button press. In the original code, the logic to stop the
+    loop (b = False) was commented out. For clarity, this version does nothing
+    but sends a message. The global variable is not changed, preserving original commented-out logic.
+    """
+    global is_periodic_task_running
+    # is_periodic_task_running = False # This would stop the periodic messages.
+    await call.message.answer(text="<obscene message>!")
+    await call.answer()  # Acknowledge the callback to remove the "loading" state on the button.
+
+
+@router.callback_query(F.data == "continue_periodic_task")
+async def continue_callback_handler(call: CallbackQuery):
+    """
+    Handles the "Нет" button press.
+    """
+    await call.message.answer(text="Лох^лох, лох")
+    await call.answer()
+
+
+@router.message(F.text)
+async def handle_all_text_messages(message: Message, bot: Bot):
+    """
+    Handles any text message by sending a specific video to the target chat ID.
+    """
+    # Important: The file path is hardcoded. Ensure this file exists at the specified location.
+    try:
+        video_file = FSInputFile(r"D:\Python files\!MoexApiBot\censored.gif")
+        await bot.send_video(chat_id=TARGET_CHAT_ID, video=video_file, caption="Го <censor> ёр селф")
+    except Exception as e:
+        logging.error(f"Failed to send video 'censored.gif': {e}")
+        await bot.send_message(chat_id=TARGET_CHAT_ID, text="Error: Could not send video file.")
+
+
+# --- Background Task ---
+
+async def send_periodic_messages(bot: Bot):
+    """
+    A background task that sends messages and media periodically to the target chat ID.
+    """
+    while is_periodic_task_running:
+        try:
+            await bot.send_message(chat_id=TARGET_CHAT_ID, text="Лох лох")
+            # Important: The file path is hardcoded. Ensure this file exists.
+            video_file = FSInputFile(r"D:\Python files\!MoexApiBot\Shocked13.mp4")
+            await bot.send_video(chat_id=TARGET_CHAT_ID, video=video_file, caption="Ты проиграл")
+        except Exception as e:
+            logging.error(f"Failed during periodic sending: {e}")
+        
+        await asyncio.sleep(PERIODIC_DELAY_SECONDS)
+
+
+# --- Main Application Logic ---
+
+async def main() -> None:
+    """
+    Initializes the bot, dispatcher, starts the background task, and begins polling for updates.
+    """
+    # Initialize Bot and Dispatcher
+    bot = Bot(token=TOKEN)
+    dp = Dispatcher()
+    
+    # Include the router, which contains all the handlers
+    dp.include_router(router)
+    
+    # Create and start the background task
+    # The bot instance is passed to the task as an argument.
+    asyncio.create_task(send_periodic_messages(bot))
+    
+    print('Бот запущен!')
+    
+    # Start polling. `skip_updates=True` is used to ignore updates
+    # that were received while the bot was offline.
+    await dp.start_polling(bot, skip_updates=True)
+
+
+if __name__ == '__main__':
+    # Set up basic logging to see informational messages and errors in the console.
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    
+    try:
+        # Run the main asynchronous function
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бот остановлен вручную.')

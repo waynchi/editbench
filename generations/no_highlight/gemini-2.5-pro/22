@@ -1,0 +1,107 @@
+#
+# @lc app=leetcode id=2379 lang=python3
+#
+# [2379] Minimum Recolors to Get K Consecutive Black Blocks
+#
+# https://leetcode.com/problems/minimum-recolors-to-get-k-consecutive-black-blocks/description/
+#
+# algorithms
+# Easy (59.47%)
+# Likes:    751
+# Dislikes: 21
+# Total Accepted:    61.3K
+# Total Submissions: 103K
+# Testcase Example:  '"WBBWWBBWBW"\n7'
+#
+# You are given a 0-indexed string blocks of length n, where blocks[i] is
+# either 'W' or 'B', representing the color of the i^th block. The characters
+# 'W' and 'B' denote the colors white and black, respectively.
+# 
+# You are also given an integer k, which is the desired number of consecutive
+# black blocks.
+# 
+# In one operation, you can recolor a white block such that it becomes a black
+# block.
+# 
+# Return the minimum number of operations needed such that there is at least
+# one occurrence of k consecutive black blocks.
+# 
+# 
+# Example 1:
+# 
+# 
+# Input: blocks = "WBBWWBBWBW", k = 7
+# Output: 3
+# Explanation:
+# One way to achieve 7 consecutive black blocks is to recolor the 0th, 3rd, and
+# 4th blocks
+# so that blocks = "BBBBBBBWBW". 
+# It can be shown that there is no way to achieve 7 consecutive black blocks in
+# less than 3 operations.
+# Therefore, we return 3.
+# 
+# 
+# Example 2:
+# 
+# 
+# Input: blocks = "WBWBBBW", k = 2
+# Output: 0
+# Explanation:
+# No changes need to be made, since 2 consecutive black blocks already exist.
+# Therefore, we return 0.
+# 
+# 
+# 
+# Constraints:
+# 
+# 
+# n == blocks.length
+# 1 <= n <= 100
+# blocks[i] is either 'W' or 'B'.
+# 1 <= k <= n
+# 
+# 
+#
+
+# @lc code=start
+class Solution:
+    def minimumRecolors(self, blocks: str, k: int) -> int:
+        # The number of operations to get k consecutive black blocks is equal
+        # to the number of white blocks ('W') in a window of size k.
+        # We want to find the minimum number of operations, which means we
+        # need to find the window of size k with the minimum number of 'W's.
+        # This can be solved efficiently using a sliding window approach.
+
+        n = len(blocks)
+        
+        # Step 1: Initialize the window and count the 'W's in the first window.
+        # This is our initial minimum value for recolors.
+        current_whites = blocks[:k].count('W')
+        min_recolors = current_whites
+
+        # Step 2: Slide the window across the rest of the string.
+        # The loop starts from index k, which is the first character to enter
+        # the sliding window as it moves to the right.
+        for i in range(k, n):
+            # The character leaving the window is at index `i - k`.
+            # If it was a 'W', our count of whites in the window decreases.
+            if blocks[i - k] == 'W':
+                current_whites -= 1
+            
+            # The character entering the window is at index `i`.
+            # If it is a 'W', our count of whites in the window increases.
+            if blocks[i] == 'W':
+                current_whites += 1
+            
+            # Step 3: Update the minimum.
+            # Compare the number of whites in the current window with the minimum
+            # found so far and update if necessary.
+            min_recolors = min(min_recolors, current_whites)
+            
+            # Optional optimization: if min_recolors is 0, we can't do better.
+            if min_recolors == 0:
+                return 0
+                
+        return min_recolors
+        
+# @lc code=end

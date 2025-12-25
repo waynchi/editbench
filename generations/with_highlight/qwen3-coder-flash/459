@@ -1,0 +1,30 @@
+import numpy as np
+
+INPUT_FILE_PATH = './input.txt'
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    print(lines)
+    cols = [l.split("   ") for l in lines]
+    cols = np.array(cols).T.astype(int)
+    list_1 = list(cols[0])
+    list_2 = list(cols[1])
+
+    # Improved approach: sort both lists and pair elements directly
+    sorted_list_1 = sorted(list_1)
+    sorted_list_2 = sorted(list_2)
+    
+    all_dists = []
+    for a, b in zip(sorted_list_1, sorted_list_2):
+        all_dists.append(abs(a - b))
+    
+    print(sum(all_dists))
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        lines = f.read().split("\n")
+    return lines
+
+if __name__ == "__main__":
+    main()

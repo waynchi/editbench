@@ -1,0 +1,101 @@
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+import random
+import string
+
+n_respuestas_minimas = 5
+diccionario = {}
+
+def procesar (texto: str):
+    return "count me " in texto
+def is_own_author (autor: str):
+    return autor == 'subidu'
+def is_banned (autor: str):
+    list_banned = []
+    return autor in list_banned
+def generar_permlink_unico () -> str:
+    return "".join(random.choices(string.digits, k=10))
+def procesar_replies (replies: Comment):
+    pass
+def preparar_comentario (parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str:str]:
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+
+q = Query()
+d = Discussions()
+posts_generator = d.get_discussions("created", q, limit=6000)
+X = 0
+
+# Иерархический словарь для хранения данных
+hierarchical_dict = {}
+
+for post in posts_generator:
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_replies = post['children']
+    cnt = 0
+    X += 1
+    
+    # Создаем запись для поста в иерархическом словаре
+    post_key = f"{post_author}/{post_permlink}"
+    hierarchical_dict[post_key] = {
+        'author': post_author,
+        'permlink': post_permlink,
+        'replies': {},
+        'count': 0
+    }
+    
+    if post_replies > n_respuestas_minimas:
+        comment = Comment(authorperm=f"{post_author}/{post_permlink}")
+        post_replies_list :list = comment.get_replies()
+        
+        cnt = 0
+        for replies in post_replies_list:
+            author = replies['author']
+            text = replies['body']
+            
+            # Сохраняем информацию о реплаях в иерархическом словаре
+            reply_key = f"{author}/{replies['permlink']}"
+            hierarchical_dict[post_key]['replies'][reply_key] = {
+                'author': author,
+                'body': text,
+                'is_count_me': procesar(text)
+            }
+            
+            if is_own_author(author):
+                # Переоценить комментарий
+                break
+            if is_banned(author):
+                break
+            if procesar(text):
+                cnt+= 1
+                
+    hierarchical_dict[post_key]['count'] = cnt
+    
+    if cnt > 3:
+        print("Iterador: ",X)
+        print(replies['author'],'/',replies['permlink']) 
+
+# Дополнительная функция для отображения иерархического словаря
+def print_hierarchical_dict(data, indent=0):
+    for key, value in data.items():
+        print("  " * indent + f"Post: {key}")
+        print("  " * indent + f"  Author: {value['author']}")
+        print("  " * indent + f"  Count: {value['count']}")
+        if value['replies']:
+            print("  " * indent + "  Replies:")
+            for reply_key, reply_value in value['replies'].items():
+                print("  " * (indent + 1) + f"    Reply: {reply_key}")
+                print("  " * (indent + 1) + f"      Author: {reply_value['author']}")
+                print("  " * (indent + 1) + f"      Body: {reply_value['body'][:50]}...")
+                print("  " * (indent + 1) + f"      Is Count Me: {reply_value['is_count_me']}")
+
+# Для демонстрации использования иерархического словаря:
+# print_hierarchical_dict(hierarchical_dict)

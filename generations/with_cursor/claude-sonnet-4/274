@@ -1,0 +1,104 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+import json
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Получить данные из API
+api_url = "<your_api_url>"  # Заменить на URL вашего API
+headers = {
+    "Content-Type": "application/json",
+    # Добавить другие необходимые заголовки (например, авторизация)
+    # "Authorization": "Bearer <your_token>"
+}
+
+try:
+    # Выполнить запрос к API
+    response = requests.get(api_url, headers=headers)
+    response.raise_for_status()  # Проверить на ошибки HTTP
+    
+    # Получить данные в формате JSON
+    api_data = response.json()
+    
+    # Анализ структуры данных
+    print("=== АНАЛИЗ ДАННЫХ ИЗ API ===")
+    print(f"Тип данных: {type(api_data)}")
+    print(f"Количество записей: {len(api_data) if isinstance(api_data, list) else 'Не список'}")
+    
+    # Показать первые несколько записей для анализа структуры
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print("\nПример первой записи:")
+        print(json.dumps(api_data[0], indent=2, ensure_ascii=False))
+        
+        print("\nВсе ключи в первой записи:")
+        if isinstance(api_data[0], dict):
+            for key in api_data[0].keys():
+                print(f"- {key}: {type(api_data[0][key])}")
+    elif isinstance(api_data, dict):
+        print("\nДанные представляют собой словарь:")
+        print(json.dumps(api_data, indent=2, ensure_ascii=False))
+        print("\nКлючи верхнего уровня:")
+        for key in api_data.keys():
+            print(f"- {key}: {type(api_data[key])}")
+    
+    # Создать DataFrame из данных API
+    if isinstance(api_data, list):
+        df = spark.createDataFrame(api_data)
+    elif isinstance(api_data, dict):
+        # Если данные в виде словаря, попробовать найти список записей
+        # Обычно данные находятся под ключами типа 'data', 'results', 'items' и т.д.
+        possible_keys = ['data', 'results', 'items', 'records', 'response']
+        data_found = False
+        
+        for key in possible_keys:
+            if key in api_data and isinstance(api_data[key], list):
+                print(f"\nНайдены данные под ключом '{key}'")
+                df = spark.createDataFrame(api_data[key])
+                data_found = True
+                break
+        
+        if not data_found:
+            print("\nНе удалось найти список записей в данных API")
+            print("Создание DataFrame из всего объекта...")
+            df = spark.createDataFrame([api_data])
+    
+    # Показать схему и примеры данных
+    print("\n=== СХЕМА DATAFRAME ===")
+    df.printSchema()
+    
+    print("\n=== ПРИМЕРЫ ДАННЫХ ===")
+    df.show(5, truncate=False)
+    
+    print(f"\nОбщее количество записей в DataFrame: {df.count()}")
+    
+except requests.exceptions.RequestException as e:
+    print(f"Ошибка при запросе к API: {e}")
+    # Использовать тестовые данные для демонстрации
+    print("Использование тестовых данных...")
+    data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+    df = spark.createDataFrame(data)
+
+# Настроить подключение к ADL2 с использованием идентификатора Microsoft ID
+# В блокноте Synapse не нужно явно указывать учетные данные
+# Spark будет использовать управляемую идентичность блокнота для аутентификации.
+
+# Указать путь к контейнеру и папке в ADL2
+container_name = "<your_container_name>"  # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"  # Заменить на путь к папке внутри контейнера
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате parquet в ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Опционально: прочитать файл parquet для проверки
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Остановить сессию Spark
+spark.stop()

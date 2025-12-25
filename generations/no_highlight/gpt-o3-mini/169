@@ -1,0 +1,50 @@
+import os
+import shutil
+import numpy as np
+
+# 设置数据路径，修改为你的实际数据目录
+DATA_PATH = "/path/to/your/data"  # 请修改为实际目录
+
+# 用于训练的照片文件夹（初始包含所有类别的照片）
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# 读取目录名称，这些名称代表日食的不同类型
+ECLIPSE_LIST = {i: name for i, name in enumerate(os.listdir(TRAIN_DIR))}
+
+# 用于验证的照片文件夹（将从 train 中分离一部分图片）
+VAL_DIR = os.path.join(DATA_PATH, "val")
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# 验证集中图像占比
+VAL_FRAC = 0.3
+
+# 设置随机种子以确保结果可重复
+np.random.seed(42)
+
+# 遍历每种类型的日食，将它们的部分图片移动到验证集中
+for eclipse in ECLIPSE_LIST.values():
+    # 定义每个类别的训练和验证目录路径
+    eclipse_train_dir = os.path.join(TRAIN_DIR, eclipse)
+    eclipse_val_dir = os.path.join(VAL_DIR, eclipse)
+    os.makedirs(eclipse_val_dir, exist_ok=True)
+    
+    # 读取图像文件名，并排序以确保确定性
+    images_filename = sorted(os.listdir(eclipse_train_dir))
+    num_images = len(images_filename)
+    
+    # 计算需要抽取多少图像作为验证集
+    num_val = int(num_images * VAL_FRAC)
+    if num_val == 0 and num_images > 0:
+        num_val = 1  # 如果结果为0但类别中仍有图片，则至少保留1张作为验证集
+    
+    # 随机选取部分索引用于验证集
+    val_indices = np.random.choice(num_images, size=num_val, replace=False)
+    val_images = [images_filename[i] for i in val_indices]
+    
+    print(f"{eclipse} | train images = {num_images - num_val} | val images = {num_val}")
+    
+    # 将选定的图像复制到验证目录，并从训练目录中删除
+    for image_filename in val_images:
+        source = os.path.join(eclipse_train_dir, image_filename)
+        destination = os.path.join(eclipse_val_dir, image_filename)
+        shutil.copy(source, destination)
+        os.remove(source)

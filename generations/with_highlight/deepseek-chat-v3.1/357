@@ -1,0 +1,64 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-5, max_iter=None):
+    """
+    Rozwiązuje układ równań liniowych Ax = b metodą sprzężonych gradientów.
+    
+    Parametry:
+    A: macierz współczynników (n x n)
+    b: wektor prawych stron (n)
+    x0: przybliżenie początkowe (domyślnie wektor zerowy)
+    tol: tolerancja błędu
+    max_iter: maksymalna liczba iteracji (domyślnie n)
+    
+    Zwraca:
+    x: przybliżone rozwiązanie
+    converged: czy metoda zbiegła
+    num_iter: liczba wykonanych iteracji
+    """
+    n = len(b)
+    
+    if x0 is None:
+        x = np.zeros_like(b)
+    else:
+        x = x0.copy()
+    
+    if max_iter is None:
+        max_iter = n
+    
+    r = b - A @ x
+    p = r.copy()
+    rs_old = r @ r
+    
+    for i in range(max_iter):
+        Ap = A @ p
+        alpha = rs_old / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        rs_new = r @ r
+        
+        if np.sqrt(rs_new) < tol:
+            return x, True, i + 1
+        
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+    
+    return x, False, max_iter
+
+# Przykład użycia
+if __name__ == "__main__":
+    # Tworzenie symetrycznej, dodatnio określonej macierzy
+    n = 100
+    A = np.random.randn(n, n)
+    A = A.T @ A + np.eye(n) * 0.1  # Dodanie małej wartości do diagonali dla stabilności
+    
+    # Tworzenie dokładnego rozwiązania i wektora b
+    x_exact = np.ones(n)
+    b = A @ x_exact
+    
+    # Rozwiązywanie metodą sprzężonych gradientów
+    x, converged, num_iter = conjugate_gradient(A, b)
+    
+    print(f"Zbiegło się: {converged}")
+    print(f"Liczba iteracji: {num_iter}")
+    print(f"Błąd względny: {np.linalg.norm(x - x_exact) / np.linalg.norm(x_exact):.2e}")

@@ -1,0 +1,66 @@
+import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+
+INPUT_FILE_PATH = './input.txt'
+# INPUT_FILE_PATH = './example_in.txt'  # Commented out for clarity
+
+def main():
+    """Main function to calculate the sum of distances between paired minimum values."""
+    try:
+        list_1, list_2 = parse_input_file()
+        
+        # Sort both lists once instead of repeatedly finding minimums
+        list_1.sort()
+        list_2.sort()
+        
+        # Calculate distances using vectorized operations
+        distances = np.abs(np.array(list_1) - np.array(list_2))
+        total_distance = np.sum(distances)
+        
+        print(f"Total distance: {total_distance}")
+        return total_distance
+        
+    except FileNotFoundError:
+        print(f"Error: File '{INPUT_FILE_PATH}' not found.")
+        return None
+    except Exception as e:
+        print(f"Error processing file: {e}")
+        return None
+
+def parse_input_file() -> Tuple[List[int], List[int]]:
+    """
+    Parse input file and return two lists of integers.
+    
+    Returns:
+        Tuple of two lists containing the parsed integers
+        
+    Raises:
+        FileNotFoundError: If the input file doesn't exist
+        ValueError: If the file format is invalid
+    """
+    file_path = Path(INPUT_FILE_PATH)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"Input file '{INPUT_FILE_PATH}' not found")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f if line.strip()]  # Remove empty lines
+    
+    if not lines:
+        raise ValueError("Input file is empty or contains no valid data")
+    
+    try:
+        # Parse the data more efficiently
+        data = np.array([line.split() for line in lines], dtype=int)
+        
+        if data.shape[1] != 2:
+            raise ValueError("Each line must contain exactly two numbers")
+            
+        return data[:, 0].tolist(), data[:, 1].tolist()
+        
+    except ValueError as e:
+        raise ValueError(f"Invalid file format: {e}")
+
+if __name__ == "__main__":
+    main()

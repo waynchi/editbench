@@ -1,0 +1,70 @@
+import os
+import shutil
+import random
+
+# This script splits the image dataset from a single 'train' directory
+# into 'train' and 'val' sets. It moves a fraction of images from each
+# class subfolder into a corresponding subfolder in the 'val' directory.
+
+# --- Configuration ---
+# Assume DATA_PATH is a predefined variable pointing to the root data folder.
+# e.g., DATA_PATH = 'path/to/your/data'
+
+# Folder with all photos, which will be split into training and validation
+TRAIN_DIR = os.path.join(DATA_PATH, "train")
+# Folder to store the newly created validation set
+VAL_DIR = os.path.join(DATA_PATH, "val")
+# Folder with photos for testing (kept for context from original code)
+TEST_DIR = os.path.join(DATA_PATH, "test")
+
+# Fraction of images to move to the validation set
+VAL_FRAC = 0.3
+# Seed for the random number generator to ensure reproducible splits
+RANDOM_STATE = 42
+
+# --- Data Splitting Logic ---
+
+# Set the seed for reproducibility before any random operations
+random.seed(RANDOM_STATE)
+
+# Ensure the main validation directory exists; create it if it doesn't
+os.makedirs(VAL_DIR, exist_ok=True)
+
+# Get the list of class names from the subdirectories in the training folder
+# This is more robust as it ignores any non-directory files in TRAIN_DIR
+class_names = [d for d in os.listdir(TRAIN_DIR) if os.path.isdir(os.path.join(TRAIN_DIR, d))]
+
+print(f"Splitting dataset from '{TRAIN_DIR}' into training and validation sets...")
+print("-" * 70)
+
+# Iterate over each class to perform the split
+for class_name in class_names:
+    source_class_dir = os.path.join(TRAIN_DIR, class_name)
+    val_class_dir = os.path.join(VAL_DIR, class_name)
+
+    # Create a corresponding class directory in the validation folder
+    os.makedirs(val_class_dir, exist_ok=True)
+
+    # Get a sorted list of all image filenames for the current class
+    image_filenames = sorted(os.listdir(source_class_dir))
+
+    # Calculate the number of images to move to the validation set
+    num_images = len(image_filenames)
+    num_val = int(num_images * VAL_FRAC)
+
+    # Randomly select images for the validation set without replacement
+    val_images_to_move = random.sample(image_filenames, num_val)
+
+    # Print the split counts for the current class
+    print(f'{class_name:<25} | Train: {num_images - num_val:<5} | Val: {num_val:<5}')
+
+    # Move the selected files from the training directory to the validation directory
+    # shutil.move is more efficient and atomic than copying and then removing the source file
+    for image_file in val_images_to_move:
+        source_path = os.path.join(source_class_dir, image_file)
+        dest_path = os.path.join(val_class_dir, image_file)
+        shutil.move(source_path, dest_path)
+
+print("-" * 70)
+print("Dataset splitting complete.")
+print(f"Validation set created at: '{VAL_DIR}'")

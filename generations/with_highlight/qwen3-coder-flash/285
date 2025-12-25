@@ -1,0 +1,8 @@
+# Сохранить текущий путь как cwd
+# Создать путь к векторной базе данных
+cwd = os.getcwd()
+db_path = cwd + '/milvus_db.db'
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128
+from pymilvus import MilvusClient
+client = MilvusClient(uri=cwd)

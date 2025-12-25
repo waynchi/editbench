@@ -1,0 +1,68 @@
+import os
+import hashlib
+import base64
+
+# The project name is used to create a dedicated folder for application data.
+project_name = "CheckerKMV"
+
+
+def createLicense(secretKey: str) -> None:
+    """
+    Creates a secure license file based on a secret key.
+
+    This function addresses several issues in the original code:
+    1.  Security: Instead of saving the secret key in plain text, it saves a
+        cryptographic hash (SHA-256) of the key. This prevents the original
+        key from being easily exposed.
+    2.  Type Error: The original code would raise a TypeError by trying to
+        concatenate bytes (b"") with a string (secretKey). This is fixed by
+        properly encoding the string to bytes before processing and writing.
+    3.  File Path: The code now uses 'LOCALAPPDATA' which is generally more
+        appropriate for non-roaming application data. The comment has been
+        updated to reflect this.
+    4.  Readability: The hashed key is encoded in Base64 to ensure it's
+        stored as a safe, readable text string within the binary file.
+
+    Args:
+        secretKey (str): The secret key string to generate the license from.
+    """
+    try:
+        # Path to the project's folder in %LOCALAPPDATA% (e.g., C:/Users/user/AppData/Local)
+        # This is often a better location for app data than the roaming 'APPDATA'.
+        appdata_path = os.path.join(os.environ["LOCALAPPDATA"], project_name)
+
+        # Create the directory if it doesn't exist.
+        # The 'exist_ok=True' parameter prevents an error if the directory already exists.
+        os.makedirs(appdata_path, exist_ok=True)
+
+        # 1. Encode the string secret key into bytes, as hashing functions require byte input.
+        encoded_key = secretKey.encode("utf-8")
+
+        # 2. Create a hash of the key using a strong algorithm like SHA-256.
+        hashed_key = hashlib.sha256(encoded_key).digest()
+
+        # 3. Encode the raw hash bytes into a Base64 string for clean, safe storage.
+        #    Base64 encoding returns bytes, which is what we want to write.
+        license_content = base64.b64encode(hashed_key)
+
+        # Define the full path to the license file.
+        license_file_path = os.path.join(appdata_path, "license.dat")
+
+        # 4. Write the resulting bytes to the license file.
+        #    'wb' mode is used for writing bytes.
+        with open(license_file_path, "wb") as f:
+            f.write(license_content)
+        
+        print(f"License file created successfully at: {license_file_path}")
+
+    except KeyError:
+        print("Error: Could not find the 'LOCALAPPDATA' environment variable. This script may not be compatible with your OS.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+# Example of how to use the function:
+if __name__ == "__main__":
+    # This is an example secret key. In a real application, this would
+    # likely be a unique key provided to a user.
+    user_secret_key = "MY_SUPER_SECRET_KEY_12345"
+    createLicense(user_secret_key)

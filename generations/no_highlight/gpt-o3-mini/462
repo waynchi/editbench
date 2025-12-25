@@ -1,0 +1,61 @@
+import random
+import os
+
+def load_dictionary():
+    """
+    Intenta cargar un diccionario de palabras en inglés desde el archivo estándar.
+    Si no se encuentra, usa una lista de respaldo.
+    """
+    dict_file = "/usr/share/dict/words"
+    if os.path.exists(dict_file):
+        try:
+            with open(dict_file, "r") as f:
+                # Leer líneas, eliminar saltos de línea y filtrar palabras que solo contienen letras
+                words = [line.strip() for line in f if line.strip().isalpha()]
+            return words
+        except Exception as e:
+            print(f"Error al leer el archivo de diccionario: {e}")
+    # Diccionario de respaldo
+    print("No se pudo cargar el diccionario estándar. Se usará un diccionario de respaldo.")
+    return [
+        "apple", "banana", "cherry", "date", "elderberry",
+        "fig", "grape", "honeydew", "kiwi", "lemon",
+        "mango", "nectarine", "orange", "papaya", "quince",
+        "raspberry", "strawberry", "tangerine", "ugli", "vanilla",
+        "watermelon", "xigua", "yam", "zucchini"
+    ]
+
+def main():
+    # Cargar el diccionario en inglés
+    dictionary = load_dictionary()
+
+    # Solicitar al usuario el número de caracteres
+    try:
+        n = int(input("Introduce el número de caracteres que debe tener la palabra: "))
+        if n <= 0:
+            print("Por favor, introduce un número entero positivo.")
+            return
+    except ValueError:
+        print("Entrada no válida. Por favor, introduce un número entero.")
+        return
+
+    # Filtrar palabras que tengan exactamente n caracteres
+    filtered_words = [word for word in dictionary if len(word) == n]
+
+    if not filtered_words:
+        print(f"No se encontraron palabras con {n} caracteres en el diccionario.")
+        return
+
+    # Seleccionar 10 palabras. Si hay menos de 10, se imprimirán todas.
+    if len(filtered_words) < 10:
+        print("Se encontraron menos de 10 palabras, imprimiéndolas:")
+        selected_words = filtered_words
+    else:
+        selected_words = random.sample(filtered_words, 10)
+
+    print("\nPalabras encontradas:")
+    for palabra in selected_words:
+        print(palabra)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,57 @@
+import requests
+import json
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Получить данные из API
+api_url = "https://api.example.com/data"  # Замените URL на реальный адрес API
+try:
+    response = requests.get(api_url)
+    response.raise_for_status()
+    # Предполагается, что API возвращает JSON в формате списка словарей
+    api_data = response.json()
+except Exception as e:
+    print("Ошибка при запросе данных из API:", e)
+    api_data = []  # Пустой список, если запрос не удался
+
+# Анализ данных: выводим несколько записей и схему данных
+print("Пример полученных данных:")
+print(json.dumps(api_data[:3], indent=2, ensure_ascii=False))
+
+# Если данные пусты, можно использовать временные тестовые данные
+if not api_data:
+    print("API не вернул данные, используем тестовые данные.")
+    api_data = [
+        {"id": 1, "nombre": "Juan", "edad": 30},
+        {"id": 2, "nombre": "Ana", "edad": 25},
+        {"id": 3, "nombre": "Pedro", "edad": 40}
+    ]
+
+# Создать DataFrame из полученных данных
+df = spark.createDataFrame(api_data)
+
+# Дополнительный анализ: показать схему и несколько строк DataFrame
+df.printSchema()
+df.show()
+
+# Настроить подключение к ADL2 с использованием идентификатора Microsoft ID
+# В блокноте Synapse не нужно явно указывать учетные данные,
+# Spark будет использовать управляемую идентичность блокнота для аутентификации.
+container_name = "<your_container_name>"  # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"  # Заменить на путь к папке внутри контейнера
+storage_account_name = "<your_storage_account_name>"  # Заменить на имя вашего аккаунта хранилища
+
+adl2_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате parquet в ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Опционально: прочитать файл parquet для проверки
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Остановить сессию Spark
+spark.stop()

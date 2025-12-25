@@ -1,0 +1,93 @@
+#
+# @lc app=leetcode id=2379 lang=python3
+#
+# [2379] Minimalna liczba przemalowań, aby uzyskać K kolejnych czarnych bloków
+#
+# https://leetcode.com/problems/minimum-recolors-to-get-k-consecutive-black-blocks/description/
+#
+# algorytmy
+# Łatwe (59,47%)
+# Lubi: 751
+# Nie lubi: 21
+# Łącznie zaakceptowane: 61.3K
+# Całkowita liczba zgłoszeń: 103K
+# Przykład przypadku testowego: '"WBBWWBBWBW"\n7
+#
+# Dany jest ciąg bloków o indeksie 0 o długości n, gdzie blocks[i] to
+# albo 'W', albo 'B', reprezentując kolor i-tego bloku. Znaki
+# W' i 'B' oznaczają odpowiednio kolory biały i czarny.
+# 
+# Masz również daną liczbę całkowitą k, która jest pożądaną liczbą kolejnych
+# czarnych bloków.
+# 
+# W jednej operacji możesz przemalować biały blok, tak aby stał się czarny
+# blok.
+# 
+# Zwróć minimalną liczbę operacji potrzebnych, aby było co najmniej
+# jedno wystąpienie k kolejnych czarnych bloków.
+# 
+# 
+# Przykład 1:
+# 
+# 
+# Dane wejściowe: bloki = "WBBWWBBWBW", k = 7
+# Wyjście: 3
+# Wyjaśnienie:
+# Jednym ze sposobów na uzyskanie 7 kolejnych czarnych bloków jest przemalowanie 0-go, 3-go i
+# 4-ty blok
+# tak, aby bloki = "BBBBBBBWBW".
+# Można wykazać, że nie ma sposobu na uzyskanie 7 kolejnych czarnych bloków w
+# mniej niż 3 operacje.
+# Zatem zwracamy 3.
+# 
+# 
+# Przykład 2:
+# 
+# 
+# Dane wejściowe: bloki = "WBWBBBW", k = 2
+# Wyjście: 0
+# Wyjaśnienie:
+# Nie trzeba wprowadzać żadnych zmian, ponieważ już istnieją 2 kolejne czarne bloki.
+# Zatem zwracamy 0.
+# 
+# 
+# 
+# Ograniczenia:
+# 
+# 
+# n == długość bloków
+# 1 <= n <= 100
+# blocks[i] jest albo 'W', albo 'B'.
+# 1 <= k <= n
+# 
+# 
+#
+
+# @lc code=start
+class Solution:
+    def minimumRecolors(self, blocks: str, k: int) -> int:
+        # The number of operations is the number of white blocks ('W')
+        # we need to change to black ('B'). We want to find a window
+        # of size k with the minimum number of 'W's.
+
+        # This is a classic sliding window problem.
+        
+        # 1. Calculate the number of 'W's in the initial window of size k.
+        # This is our initial minimum.
+        whites_in_window = blocks[:k].count('W')
+        min_recolors = whites_in_window
+        
+        # 2. Slide the window one block at a time to the right.
+        for i in range(k, len(blocks)):
+            # Update the count of 'W's for the new window.
+            # a. If the new block entering the window is 'W', increment count.
+            # b. If the block leaving the window was 'W', decrement count.
+            # The boolean (blocks[i] == 'W') evaluates to 1 if true, 0 if false.
+            whites_in_window += (blocks[i] == 'W') - (blocks[i-k] == 'W')
+            
+            # 3. Update the overall minimum found so far.
+            min_recolors = min(min_recolors, whites_in_window)
+            
+        return min_recolors
+        
+# @lc code=end

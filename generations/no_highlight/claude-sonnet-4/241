@@ -1,0 +1,68 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def show_datetime():
+    current_datetime = datetime.now()
+    formatted_datetime = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Текущие дата и время</title>
+        <meta charset="utf-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                text-align: center;
+                margin-top: 100px;
+                background-color: #f0f0f0;
+            }}
+            .datetime-container {{
+                background-color: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                display: inline-block;
+            }}
+            h1 {{
+                color: #333;
+                margin-bottom: 20px;
+            }}
+            .datetime {{
+                font-size: 24px;
+                color: #007bff;
+                font-weight: bold;
+            }}
+            .refresh-btn {{
+                margin-top: 20px;
+                padding: 10px 20px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 16px;
+            }}
+            .refresh-btn:hover {{
+                background-color: #0056b3;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="datetime-container">
+            <h1>Текущие дата и время</h1>
+            <div class="datetime">{formatted_datetime}</div>
+            <button class="refresh-btn" onclick="location.reload()">Обновить</button>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

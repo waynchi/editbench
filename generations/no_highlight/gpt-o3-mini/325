@@ -1,0 +1,48 @@
+import numpy as np
+
+# Use the path for your actual input file.
+INPUT_FILE_PATH = './example_in.txt'
+
+def main():
+    lines = parse_input_file()
+    # Convert each non-empty line to a list of characters so that we get a 2D array.
+    grid = np.array([list(line) for line in lines if line])
+    print("Grid:")
+    print(grid)
+    
+    str_to_match = "XMAS"
+    count = 0
+
+    # Horizontal check (left to right)
+    for row in grid:
+        row_str = ''.join(row)
+        count += row_str.count(str_to_match)
+
+    # Vertical check (top to bottom)
+    for col in range(grid.shape[1]):
+        col_str = ''.join(grid[:, col])
+        count += col_str.count(str_to_match)
+
+    # Diagonal check (top left to bottom right)
+    for i in range(-(grid.shape[0] - 1), grid.shape[1]):
+        diag = np.diagonal(grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    # Diagonal check (top right to bottom left)
+    flipped_grid = np.fliplr(grid)
+    for i in range(-(flipped_grid.shape[0] - 1), flipped_grid.shape[1]):
+        diag = np.diagonal(flipped_grid, offset=i)
+        diag_str = ''.join(diag)
+        count += diag_str.count(str_to_match)
+
+    print(f"Found {count} occurrences of '{str_to_match}'")
+
+def parse_input_file():
+    with open(INPUT_FILE_PATH, 'r') as f:
+        # Using splitlines() to avoid empty trailing lines.
+        lines = f.read().splitlines()
+    return lines
+
+if __name__ == "__main__":
+    main()

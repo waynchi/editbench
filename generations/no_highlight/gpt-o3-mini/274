@@ -1,0 +1,44 @@
+import requests
+from pyspark.sql import SparkSession
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Получить данные из API
+# Замените <your_API_endpoint> на фактический URL вашего API.
+api_url = "<your_API_endpoint>"
+response = requests.get(api_url)
+
+if response.status_code == 200:
+    api_data = response.json()
+else:
+    raise Exception(f"Ошибка при получении данных из API. Код статуса: {response.status_code}")
+
+# Создать DataFrame из данных, полученных от API
+df = spark.createDataFrame(api_data)
+
+# Анализ данных: вывести схему и первые несколько записей, чтобы понять структуру данных
+print("Схема данных из API:")
+df.printSchema()
+print("Первые 5 записей:")
+df.show(5)
+
+# Настроить подключение к ADL2 с использованием управляемой идентичности блокнота
+# Не нужно явно указывать учетные данные, Spark использует управляемую идентичность для аутентификации.
+
+# Указать путь к контейнеру и папке в ADL2
+container_name = "<your_container_name>"     # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"             # Заменить на путь к папке внутри контейнера
+storage_account = "<your_storage_account_name>"  # Заменить на имя вашего аккаунта хранения
+
+adl2_path = f"abfss://{container_name}@{storage_account}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате Parquet в ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Опционально: прочитать файл Parquet для проверки
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Остановить сессию Spark
+spark.stop()

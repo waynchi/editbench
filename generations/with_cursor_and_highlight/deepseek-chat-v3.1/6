@@ -1,0 +1,32 @@
+# env: pyAI
+
+import os
+from openai import OpenAI
+import json
+
+def save_conversation(filename="conversation_history.json"):
+    with open(filename, "w") as f:
+        json.dump(conversation_history, f, ensure_ascii=False, indent=4)
+
+
+def load_conversation(filename="conversation_history.json"):
+    try:
+        with open(filename, "r") as f:
+            conversation_history = json.load(f)
+        print(f"Conversation history from {filename} loaded successfully.")
+        return conversation_history
+    except FileNotFoundError:
+        print(f"No saved conversation history found for {filename}.")
+        return None
+
+
+# token = os.environ["GITHUB_TOKEN"]
+endpoint = "https://models.inference.ai.azure.com"
+model_name = "gpt-4o"
+
+client = OpenAI(
+    base_url=endpoint,
+    api_key="XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+)
+
+# Ask the user if they

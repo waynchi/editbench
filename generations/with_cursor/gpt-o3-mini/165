@@ -1,0 +1,147 @@
+import math
+
+class Value:
+    """存储单个标量值及其梯度"""
+
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self.grad = 0
+        # 用于自动微分图构建的内部变量
+        self._backward = lambda: None
+        self._prev = set(_children)
+        self._op = _op  # 生成此节点的操作，用于 graphviz / 调试 / 等等。
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+
+        return out
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __pow__(self, other):
+        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+        out = Value(self.data ** other, (self,), f'**{other}')
+
+        def _backward():
+            self.grad += (other * self.data ** (other - 1)) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def log(self):
+        out = Value(math.log(self.data), (self,), f'log({self.data})')
+        def _backward():
+            self.grad += (1 / self.data) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def relu(self):
+        assert isinstance(self.data, (int, float)), "only supporting int/float values for ReLU"
+        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
+        out._backward = _backward
+
+        return out
+
+    def backward(self):
+        # 对图中所有子节点进行拓扑排序
+        topo = []
+        visited = set()
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        # 逐个变量应用链式法则以获得其梯度
+        self.grad = 1
+        for v in reversed(topo):
+            v._backward()
+
+    def __neg__(self):  # -自我
+        return self * -1
+
+    def __gt__(self, other):
+        return self.data > other.data
+
+    def __radd__(self, other):  # 其他 + 自身
+        return self + other
+
+    def __sub__(self, other):  # self - other
+        return self + (-other)
+
+    def __rsub__(self, other):  # 其他 - self
+        return other + (-self)
+
+    def __rmul__(self, other):  # 其他 * self
+        return self * other
+
+    def __truediv__(self, other):  # self / other
+        return self * other**-1
+
+    def __rtruediv__(self, other):  # 其他 / self
+        return other * self**-1
+
+    def __repr__(self):
+        return f"Value(data={self.data}, grad={self.grad})"
+
+# 新增 softmax 函数，支持对 softmax 函数的梯度计算
+def softmax(values):
+    """
+    计算 softmax 函数并构建计算图，以便后向传播时正确计算梯度。
+    
+    参数:
+        values: 一个 Value 对象的列表。
+        
+    返回:
+        一个包含 softmax 输出的 Value 对象列表。
+    """
+    # 为了数值稳定性，先减去列表中的最大值
+    shift = max(v.data for v in values)
+    exp_values = [math.exp(v.data - shift) for v in values]
+    sum_exp = sum(exp_values)
+    # 每个输出节点的 _prev 均指向原始的输入 nodes
+    out = [Value(exp_val / sum_exp, values, "softmax") for exp_val in exp_values]
+
+    def _backward():
+        # 为了防止多次计算，只执行一次
+        if getattr(_backward, 'called', False):
+            return
+        _backward.called = True
+        softmax_probs = [o.data for o in out]
+        # 对于每个原始输入值 v，累积所有 softmax 输出对 v 的贡献
+        for j, v in enumerate(values):
+            grad_sum = 0
+            for i, o in enumerate(out):
+                # softmax 的雅可比矩阵: ds_i/dv_j = s_i * (δ_ij - s_j)
+                if i == j:
+                    grad_sum += o.grad * o.data * (1 - softmax_probs[j])
+                else:
+                    grad_sum += o.grad * (- o.data * softmax_probs[j])
+            v.grad += grad_sum
+
+    # 将统一的 _backward 函数分配给所有 softmax 输出节点
+    for o in out:
+        o._backward = _backward
+
+    return out

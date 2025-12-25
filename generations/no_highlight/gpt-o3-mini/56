@@ -1,0 +1,118 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def medcouple(data):
+    data = np.sort(data)
+    median = np.median(data)
+
+    # Split the data into left and right parts relative to the median
+    left = data[data <= median]
+    right = data[data >= median]
+    
+    # Count how many times the median appears
+    k = np.count_nonzero(data == median)
+
+    # Create meshgrid for left and right values
+    xi, xj = np.meshgrid(left, right, indexing='ij')
+
+    if k > 1:
+        # Create meshgrid for indices for the special kernel computation
+        left_indices = np.arange(len(left))
+        right_indices = np.arange(len(right))
+        i, j = np.meshgrid(left_indices, right_indices, indexing='ij')
+        
+        # Standard kernel function vectorized: where xi != xj, compute formula, else 0.
+        standard_h = np.where(xi != xj, ((xj - median) - (median - xi)) / (xj - xi), 0)
+
+        # Identify positions where both xi and xj equal the median
+        condition = (xi == median) & (xj == median)
+        # For these positions, compute the special kernel:
+        special_h = np.where((i + j - 1) < k, -1,
+                      np.where((i + j - 1) == k, 0, 1))
+        
+        # Replace values in standard_h with special_h where the condition holds.
+        h_matrix = np.where(condition, special_h, standard_h)
+    else:
+        # Direct computation when median is unique
+        h_matrix = np.where(xi != xj, ((xj - median) - (median - xi)) / (xj - xi), 0)
+
+    # Flatten the matrix and compute its median.
+    return np.median(h_matrix.flatten())
+
+def adjusted_boxplot_bounds(data):
+    """
+    Compute the adjusted boxplot boundaries using skewness-adjusted fences.
+    """
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    _medcouple = medcouple(data)
+
+    # Use different exponential adjustments depending on the sign of medcouple.
+    if _medcouple > 0:
+        lower_fence = q1 - 1.5 * np.exp(-4 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(3 * _medcouple) * iqr
+    else:
+        lower_fence = q1 - 1.5 * np.exp(-3 * _medcouple) * iqr
+        upper_fence = q3 + 1.5 * np.exp(4 * _medcouple) * iqr
+
+    return lower_fence, upper_fence
+
+def normalize_column(data):
+    """
+    Normalize the data using the adjusted boxplot boundaries.
+    """
+    lower_fence, upper_fence = adjusted_boxplot_bounds(data)
+    # Print lower_fence for diagnostic purposes
+    print("Lower fence:", lower_fence)
+    return (data - lower_fence) / (upper_fence - lower_fence)
+
+# Generate sample data
+np.random.seed(42)
+data_normal = np.random.normal(loc=50, scale=10, size=10000)
+data_skewed = np.random.exponential(scale=20, size=10000)
+# Introduce skew and outliers into skewed data
+data_skewed = np.concatenate([data_skewed[5:], [200, 250, 300, -100, -50]])
+data_with_outliers = np.concatenate([data_normal, [150, 160, 170]])
+
+# Create a DataFrame for the datasets
+df = pd.DataFrame({
+    "Normal": data_normal,
+    "Skewed": data_skewed,
+    # Uncomment the next line if you wish to include data with outliers
+    # "With_Outliers": data_with_outliers[3:],
+})
+
+# Normalize each column using the custom normalization function
+normalized_df = df.apply(normalize_column)
+
+# Plot histograms before normalization
+plt.figure(figsize=(16, 4), dpi=250)
+bins = np.linspace(-5, 200, 206)
+bin_width = bins[1] - bins[0]  # width of one bin
+
+for col in df.columns:
+    hist, _ = np.histogram(df[col], bins=bins)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    # Offset histogram bars for better visual separation
+    offset = bin_width / 4
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', alpha=0.2, label=f'{col}')
+plt.legend()
+plt.title("Histogram Before Normalization")
+plt.xlim(-10, 200)
+plt.show()
+
+# Plot histograms after normalization
+plt.figure(figsize=(16, 4), dpi=250)
+bins = np.linspace(-2, 2, 101)
+bin_width = bins[1] - bins[0]  # width of one bin
+
+for col in normalized_df.columns:
+    hist, _ = np.histogram(normalized_df[col], bins=bins)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    offset = bin_width / 2
+    plt.bar(bin_centers - offset, hist, width=bin_width, align='center', label=f'{col}', alpha=0.2)
+plt.legend()
+plt.title("Histogram After Normalization")
+plt.show()

@@ -1,0 +1,39 @@
+def binary_search(arr, target):
+    """
+    Performs binary search on a sorted array to find the target value.
+    
+    Args:
+        arr: A sorted list of elements
+        target: The value to search for
+    
+    Returns:
+        int: The index of the target if found, -1 otherwise
+    """
+    low = 0
+    high = len(arr) - 1
+    
+    while low <= high:
+        mid = (low + high) // 2
+        guess = arr[mid]
+        
+        if guess == target:
+            return mid
+        if guess > target:
+            high = mid - 1
+        else:
+            low = mid + 1
+    
+    return -1
+
+# Example usage
+if __name__ == "__main__":
+    # Test with sorted array
+    sorted_array = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+    target_value = 23
+    
+    result = binary_search(sorted_array, target_value)
+    
+    if result != -1:
+        print(f"Target {target_value} found at index {result}")
+    else:
+        print(f"Target {target_value} not found in the array")

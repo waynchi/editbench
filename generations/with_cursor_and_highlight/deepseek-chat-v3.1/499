@@ -1,0 +1,86 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import numpy as np
+import matplotlib.pyplot as plt
+
+def cluster_data(features_transformed, cluster_config, n_clusters=2, clustering_method='kmeans'):
+    """Realiza la agrupación de datos para conjuntos de columnas específicos.
+
+Args:
+    features_transformed (pandas.DataFrame): DataFrame transformado con parámetros.
+    cluster_config (dict or str): Diccionario con configuración de clustering {nombre_columna: [columnas]} 
+                                 o string con nombre de columna para clustering global.
+    n_clusters (int or dict): Número de clústeres (puede ser un diccionario con valores por grupo).
+    clustering_method (str): Método de agrupación ('kmeans').
+
+Returns:
+    pandas.DataFrame: DataFrame con las columnas de etiquetas de clústeres añadidas."""
+    if features_transformed is None:
+        print("Сначала выполните преобразование данных (этап 5).")
+        return None
+
+    features_for_clustering = features_transformed.copy()
+    result_df = features_transformed.copy()
+
+    # Si cluster_config es un string, mantener el comportamiento original
+    if isinstance(cluster_config, str):
+        cluster_config = {cluster_config: features_for_clustering.columns.tolist()}
+    
+    # Si n_clusters es un entero, usar el mismo valor para todos los grupos
+    if isinstance(n_clusters, int):
+        n_clusters_dict = {key: n_clusters for key in cluster_config.keys()}
+    else:
+        n_clusters_dict = n_clusters
+
+    for cluster_name, columns in cluster_config.items():
+        if clustering_method == 'kmeans':
+            # Seleccionar solo las columnas especificadas para este grupo
+            cluster_data_subset = features_for_clustering[columns]
+            
+            model = KMeans(n_clusters=n_clusters_dict[cluster_name], random_state=42, n_init=10)
+            cluster_labels = model.fit_predict(cluster_data_subset)
+            
+            # Evaluación de la calidad de la agrupación
+            if len(np.unique(cluster_labels)) > 1:
+                silhouette_avg = silhouette_score(cluster_data_subset, cluster_labels)
+                print(f"Коэффициент силуэта для {n_clusters_dict[cluster_name]} кластеров ({cluster_name}): {silhouette_avg:.4f}")
+            else:
+                print(f"Невозможно рассчитать коэффициент силуэта для {n_clusters_dict[cluster_name]} кластера ({cluster_name}) - все точки в одном кластере.")
+
+            # Añadir las etiquetas al DataFrame resultante
+            result_df[cluster_name] = cluster_labels
+            print(f"Кластеризация '{cluster_name}' выполнена. Метки добавлены в столбец '{cluster_name}'.")
+
+        else:
+            print("Неподдерживаемый метод кластеризации.")
+            return None
+
+    return result_df
+
+# Ejecución de la clusterización (después de la etapa 5 y antes de la etapa 6)
+if 'features_transformed' in locals() and features_transformed is not None:
+    # Configuración de clustering por grupos de columnas
+    cluster_config = {
+        'cluster_group1': ['columna1', 'columna2'],  # Cluster para estas dos columnas
+        'cluster_group2': ['columna3']               # Cluster separado para esta columna
+    }
+    n_clusters = {
+        'cluster_group1': 3,  # 3 clusters para el primer grupo
+        'cluster_group2': 2   # 2 clusters para el segundo grupo
+    }
+    features_transformed = cluster_data(features_transformed, cluster_config, n_clusters)
+    
+    # Visualización de los clústeres (ejemplo para el primer grupo si tiene 2 características)
+    if 'columna1' in features_transformed.columns and 'columna2' in features_transformed.columns:
+        plt.figure(figsize=(8, 6))
+        plt.scatter(features_transformed['columna1'], features_transformed['columna2'], 
+                   c=features_transformed['cluster_group1'], cmap='viridis')
+        plt.xlabel('columna1')
+        plt.ylabel('columna2')
+        plt.title('Результаты кластеризации (Grupo 1)')
+        plt.colorbar(label='Номер кластера')
+        plt.show()
+    else:
+        print("Недостаточно числовых признаков для визуализации кластеров на плоскости.")
+else:
+    print("Сначала выполните этап 5 (Преобразование данных).")

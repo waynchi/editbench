@@ -1,0 +1,31 @@
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+import json
+
+# Initialize the ChatOllama model
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# Load SHAP values from JSON file
+with open("Vuori_Final_Approval_2024_09_24.json", "r") as file:
+    data = json.load(file)
+    shap_values = data.get("shap_values")
+
+# Load system prompt from file
+with open("system.prompt", "r") as file:
+    system_prompt = file.read().strip()
+
+# Prepare the message template with placeholders
+template = ChatPromptTemplate([
+    ("system", system_prompt),
+    ("human", "{user_input}"),
+])
+
+# Inject the SHAP values into the prompt using the 'user_input' placeholder.
+# Note: We use json.dumps to convert the data structure into a JSON-formatted string.
+formatted_prompt = template.invoke(user_input=json.dumps(shap_values))
+
+# Generate a response from the model using the formatted prompt
+response = chat_model.invoke(formatted_prompt)
+
+# Print the response
+print(response)

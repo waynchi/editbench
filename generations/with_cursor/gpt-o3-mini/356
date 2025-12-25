@@ -1,0 +1,39 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts.chat import ChatPromptTemplate
+
+# Inicjalizacja modelu ChatOllama
+chat_model = ChatOllama(model="llama3.2", base_url="http://localhost:11434")
+
+# Wczytaj wartości SHAP z pliku JSON
+try:
+    with open("Vuori_Final_Approval_2024_09_24.json", "r", encoding="utf-8") as json_file:
+        data = json.load(json_file)
+    shap_values = data.get("shap_values")
+    if shap_values is None:
+        raise ValueError("Brak klucza 'shap_values' w pliku JSON.")
+except Exception as e:
+    raise RuntimeError(f"Błąd podczas wczytywania pliku JSON: {e}")
+
+# Wczytaj systemowy prompt z pliku
+try:
+    with open("system.prompt", "r", encoding="utf-8") as prompt_file:
+        sys_prompt = prompt_file.read().strip()
+except Exception as e:
+    raise RuntimeError(f"Błąd podczas wczytywania pliku z promptem: {e}")
+
+# Przygotuj szablon wiadomości
+template = ChatPromptTemplate(messages=[
+    ("system", sys_prompt),
+    ("human", "{user_input}")
+])
+
+# Sformatuj prompt przekazując dane SHAP jako input użytkownika
+formatted_prompt = template.format(user_input=json.dumps(shap_values))
+
+# Wywołaj model na sformatowanym promptcie
+try:
+    response = chat_model.invoke(formatted_prompt)
+    print(response)
+except Exception as e:
+    raise RuntimeError(f"Błąd podczas wywoływania modelu: {e}")

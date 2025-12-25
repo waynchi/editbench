@@ -1,0 +1,152 @@
+import random
+import string
+from beem.discussions import Discussions, Query
+from beem.comment import Comment
+
+# --- Parámetros y Variables Globales ---
+n_respuestas_minimas = 5
+# El diccionario jerárquico que se va a poblar
+diccionario = {}
+
+# --- Funciones de Utilidad (Originales y Modificadas) ---
+
+def procesar(texto: str) -> bool:
+    """Verifica si el texto de un comentario contiene la frase de participación."""
+    return "count me " in texto.lower()
+
+def is_own_author(autor: str) -> bool:
+    """Verifica si el autor es el autor propio del bot (corregido)."""
+    # BUG FIX: La variable global 'author' no existe, se debe usar el parámetro 'autor'.
+    return autor == 'subidu'
+
+def is_banned(autor: str) -> bool:
+    """Verifica si un autor está en la lista de baneados."""
+    list_banned = []  # Ejemplo: ['bad-actor1', 'spammer_x']
+    return autor in list_banned
+
+def generar_permlink_unico() -> str:
+    """Genera un permlink aleatorio para un nuevo comentario."""
+    return "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+
+def procesar_replies(replies: list):
+    """Función de marcador de posición del código original."""
+    pass
+
+def preparar_comentario(parent_author: str, parent_permlink: str, permlink: str, title: str = '', author: str = 'subidu' , body: str = 'Count me in ^^ @subidu') -> dict[str, str]:
+    """Prepara la estructura de datos para publicar un nuevo comentario."""
+    return {
+        "parent_author": parent_author,
+        "parent_permlink": parent_permlink,
+        "author": author,
+        "permlink": permlink,
+        "title": title,
+        "body": body,
+    }
+
+# --- NUEVA FUNCIÓN para crear el diccionario jerárquico ---
+
+def agregar_a_diccionario_jerarquico(diccionario_principal: dict, post_original: dict, replies_validas: list):
+    """
+    Añade un post y sus replies válidas a un diccionario jerárquico.
+
+    La estructura resultante es:
+    {
+        "author/permlink": {
+            "post_data": { ...datos del post... },
+            "valid_replies": [ { ...datos de la reply 1... }, { ...etc... } ]
+        }
+    }
+    """
+    post_key = f"{post_original['author']}/{post_original['permlink']}"
+    
+    # Extraer solo la información necesaria de cada reply para mantener el diccionario limpio
+    replies_info = []
+    for reply in replies_validas:
+        replies_info.append({
+            'author': reply['author'],
+            'permlink': reply['permlink'],
+            'body': reply['body'],
+            'created': str(reply['created']) # Convertir a string para serialización
+        })
+
+    diccionario_principal[post_key] = {
+        'post_data': {
+            'author': post_original['author'],
+            'permlink': post_original['permlink'],
+            'title': post_original['title'],
+            'children': post_original['children']
+        },
+        'valid_replies': replies_info
+    }
+    print(f"INFO: Post '{post_key}' añadido al diccionario con {len(replies_info)} respuestas válidas.")
+
+# --- Lógica Principal Refactorizada ---
+
+# Se puede añadir un tag para acotar la búsqueda y hacerla más eficiente
+q = Query(limit=100) # Límite reducido para un ejemplo más rápido
+d = Discussions()
+# Se recomienda usar get_discussions_by_created para iterar cronológicamente
+posts_generator = d.get_discussions("created", q)
+X = 0
+
+print("Iniciando búsqueda y procesamiento de posts...")
+
+for post in posts_generator:
+    X += 1
+    post_author = post['author']
+    post_permlink = post['permlink']
+    post_num_replies = post['children']
+    
+    # Filtro primario: ignorar posts con un número de respuestas por debajo del mínimo
+    if post_num_replies <= n_respuestas_minimas:
+        continue
+
+    print(f"\n--- ({X}) Procesando post: @{post_author}/{post_permlink} ({post_num_replies} replies) ---")
+        
+    try:
+        # Obtener los comentarios del post
+        comment_obj = Comment(authorperm=f"@{post_author}/{post_permlink}")
+        lista_de_replies = comment_obj.get_replies()
+        
+        replies_validas = []
+        ya_hemos_respondido = False
+
+        for reply in lista_de_replies:
+            reply_author = reply['author']
+            
+            # Condición 1: Si ya hemos respondido en este post, lo ignoramos por completo
+            if is_own_author(reply_author):
+                ya_hemos_respondido = True
+                print(f"DEBUG: Respuesta propia encontrada. Se omite el post.")
+                break # Salir del bucle de replies
+            
+            # Condición 2: Ignorar replies de autores baneados
+            if is_banned(reply_author):
+                continue # Pasar a la siguiente reply
+            
+            # Condición 3: Procesar el texto de la reply para ver si es válida
+            if procesar(reply['body']):
+                replies_validas.append(reply)
+        
+        # Tras revisar todas las replies, evaluar si el post califica para ser añadido al diccionario
+        if not ya_hemos_respondido and len(replies_validas) > 3:
+            print(f"ÉXITO: El post califica. Encontradas {len(replies_validas)} respuestas válidas.")
+            # Usamos la nueva función para poblar el diccionario jerárquico
+            agregar_a_diccionario_jerarquico(diccionario, post, replies_validas)
+        else:
+            if ya_hemos_respondido:
+                pass # Ya se imprimió el mensaje de debug
+            else:
+                print(f"INFO: El post no califica. Solo se encontraron {len(replies_validas)} respuestas válidas.")
+
+    except Exception as e:
+        print(f"ERROR: No se pudieron obtener las replies para @{post_author}/{post_permlink}. Error: {e}")
+
+print("\n--- Búsqueda Finalizada ---")
+print(f"Se ha generado un diccionario con {len(diccionario)} posts que cumplen los criterios.")
+
+# Opcional: Imprimir el diccionario resultante en un formato legible (JSON)
+if diccionario:
+    import json
+    print("\nContenido del diccionario jerárquico generado:")
+    print(json.dumps(diccionario, indent=2))

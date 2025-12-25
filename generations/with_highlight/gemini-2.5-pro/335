@@ -1,0 +1,17 @@
+def is_prime(n):
+    """
+    Sprawdza, czy podana liczba jest liczbą pierwszą.
+    Liczba pierwsza to liczba naturalna większa od 1, która ma dokładnie dwa dzielniki: 1 i samą siebie.
+    """
+    # Liczby mniejsze lub równe 1 nie są liczbami pierwszymi.
+    if n <= 1:
+        return False
+    # Sprawdzamy potencjalne dzielniki od 2 do pierwiastka kwadratowego z n.
+    # Jeśli n ma dzielnik większy od swojego pierwiastka kwadratowego,
+    # musi również mieć dzielnik mniejszy od niego.
+    i = 2
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 1
+    return True

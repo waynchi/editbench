@@ -1,0 +1,37 @@
+import os
+import hashlib
+import base64
+
+project_name = "CheckerKMV"
+
+def createLicense(secretKey: str) -> None:
+    """
+    Crea un archivo de licencia en el directorio de la aplicación.
+    
+    La licencia almacena una versión encriptada de la clave secreta:
+      1. Se genera un hash SHA-256 de la clave.
+      2. Se codifica el hash en base64 para su almacenamiento.
+    """
+    # Ruta a la carpeta del proyecto en %APPDATA%\CheckerKMV
+    appdata_path = os.path.join(os.environ["APPDATA"], project_name)
+
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path)
+    
+    # Generar el hash SHA-256 de la clave secreta
+    hash_object = hashlib.sha256(secretKey.encode("utf-8"))
+    hashed_key = hash_object.digest()
+    
+    # Codificar el hash en base64 para una representación legible
+    encoded_key = base64.b64encode(hashed_key)
+    
+    license_file_path = os.path.join(appdata_path, "license.dat")
+    
+    with open(license_file_path, "wb") as f:
+        f.write(encoded_key)
+
+# Ejemplo de uso:
+if __name__ == "__main__":
+    # Reemplaza 'mi_clave_super_secreta' por la clave que desees usar.
+    createLicense("mi_clave_super_secreta")
+    print("La licencia ha sido creada exitosamente.")

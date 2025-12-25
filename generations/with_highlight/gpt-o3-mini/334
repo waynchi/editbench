@@ -1,0 +1,46 @@
+# wygeneruj moduł półsumatora w verilog za pomocą pythona
+
+# kod verilog
+verilog_code = """
+module half_adder(a, b, c, sum, carry);
+    input a, b;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# nazwa modułu verilog
+module_name = "half_adder"
+
+# wejścia i wyjścia portów modułu verilog
+input_ports = ["a", "b"]
+output_ports = ["c", "sum", "carry"]
+
+# parametry modułu verilog
+parameters = ["WIDTH"]
+
+# wartość parametrów modułu verilog
+parameter_values = ["8"]
+
+# ciało modułu verilog
+module_body = """
+    input a, b, d, e;
+    output c, sum, carry;
+    assign c = a ^ b;
+    assign sum = a & b;
+    assign carry = a & b;
+endmodule
+"""
+
+# instancjowanie modułu verilog
+module_instantiation = """
+half_adder half_adder_inst(
+    .a(a),
+    .b(b),
+    .c(c),
+    .sum(sum),
+    .carry(carry)
+);
+"""

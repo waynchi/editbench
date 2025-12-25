@@ -1,0 +1,48 @@
+from dataclasses import dataclass
+
+@dataclass
+class Card:
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str
+
+    def __repr__(self):
+        return (
+            f"Card(celular={self.celular!r}, operadora={self.operadora!r}, valor={self.valor!r}, "
+            f"email={self.email!r}, nome={self.nome!r}, cpf={self.cpf!r}, card={self.card!r}, "
+            f"mes={self.mes!r}, ano={self.ano!r}, cvv={self.cvv!r}, token={self.token!r}, "
+            f"bin={self.bin!r}, dadosbin={self.dadosbin!r}, senha={self.senha!r})"
+        )
+
+    @classmethod
+    def iniciar(cls):
+        """
+        Cria uma instância de Card com valores iniciais vazios.
+        """
+        return cls(
+            celular="",
+            operadora="",
+            valor="",
+            email="",
+            nome="",
+            cpf="",
+            card="",
+            mes="",
+            ano="",
+            cvv="",
+            token="",
+            bin="",
+            dadosbin="",
+            senha=""
+        )

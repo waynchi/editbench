@@ -1,0 +1,84 @@
+function createTurnState(allyStates, foeStates) {
+  // Номер текущего раунда/хода
+  let turnNumber = 1;
+  // Начинаем с хода игрока
+  let currentTurn = "player";
+
+  // Сбрасывает состояние действий для всех юнитов (новый раунд)
+  function resetRound() {
+    allyStates.forEach(unit => unit.hasActed = false);
+    foeStates.forEach(unit => unit.hasActed = false);
+  }
+
+  // Функция проверки, есть ли хотя бы один юнит в группе, который еще может действовать
+  function canAct(units) {
+    return units.some(unit => !unit.hasActed);
+  }
+
+  // Определяет текущий ход, исходя из того, у какой группы еще есть юниты для действий
+  // Если у текущей группы юнитов закончились действия, но у противоположной группы еще есть варианты, переключаем ход.
+  // Если ни в одной группе не осталось юнитов, сбрасываем состояние (новый раунд) и начинаем с игрока.
+  function getCurrentTurn() {
+    if (currentTurn === "player" && canAct(allyStates)) {
+      return "player";
+    }
+    if (currentTurn === "cpu" && canAct(foeStates)) {
+      return "cpu";
+    }
+    // Если у текущей группы действий закончились, а у противоположной — есть, переключаем ход
+    if (currentTurn === "player" && canAct(foeStates)) {
+      currentTurn = "cpu";
+      return "cpu";
+    }
+    if (currentTurn === "cpu" && canAct(allyStates)) {
+      currentTurn = "player";
+      return "player";
+    }
+    // Если ни в одной группе нет доступных действий, начинаем новый раунд:
+    resetRound();
+    turnNumber++;
+    currentTurn = "player";
+    return "player";
+  }
+
+  // Возвращает номер текущего хода
+  function getTurnNumber() {
+    return turnNumber;
+  }
+
+  // Вызывается в момент завершения какого-либо действия или по окончанию очереди
+  // Определяет, какая сторона еще может действовать, переключает ход
+  // Если сейчас ход процессора — автоматически выполняет логику ИИ
+  function nextTurn() {
+    const turn = getCurrentTurn();
+    if (turn === "cpu") {
+      // При переходе на ход ИИ вызываем его логику
+      cpuTurn();
+    }
+    // Если ход игрока, дальнейшие действия должны выполняться внешней логикой (например, при выборе единицы)
+  }
+
+  // Простейшая логика действий для процессора (подставьте сюда свою логику ИИ)
+  function cpuTurn() {
+    foeStates.forEach(cpuUnit => {
+      if (!cpuUnit.hasActed) {
+        // Здесь должна быть ваша логика действий ИИ, например, выбор цели, перемещение и т.д.
+        // Для демонстрации просто пометим, что юнит действовал
+        cpuUnit.hasActed = true;
+      }
+    });
+
+    // После того, как все CPU-юниты совершили действие, переключаем ход на игрока.
+    // Здесь можно сбросить состояние действий для игрока, если это соответствует логике игры.
+    // В данном случае, если у игрока уже были не задействованные юниты, они останутся доступными.
+    currentTurn = "player";
+  }
+
+  return {
+    getCurrentTurn,
+    getTurnNumber,
+    nextTurn
+  };
+}
+
+export { createTurnState };

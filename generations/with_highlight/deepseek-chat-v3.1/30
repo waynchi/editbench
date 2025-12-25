@@ -1,0 +1,66 @@
+def can_be_sum_of_four_nonzero_squares(n):
+    """
+    Verifica se um número pode ser expresso como a soma de quatro quadrados não nulos.
+    
+    Args:
+        n (int): O número a ser verificado
+        
+    Returns:
+        bool: True se pode ser expresso, False caso contrário
+    """
+    if n < 4:
+        return False  # Não é possível com quadrados não nulos
+    
+    # Teorema de Lagrange: todo número natural pode ser escrito como soma de 4 quadrados (podendo incluir zero)
+    # Mas queremos especificamente quatro quadrados NÃO NULOS
+    
+    # Para números pequenos, verificamos diretamente
+    if n in [1, 2, 3, 5, 6, 9, 10, 11, 14, 17, 18, 19, 21, 22, 26, 29, 30, 33, 34, 35, 37, 38, 41, 42, 43, 45, 46]:
+        return False
+    
+    # Verifica exceções: alguns números maiores que não podem ser expressos
+    # com quatro quadrados não nulos (os números da forma 4^a(8b+7) não podem ser expressos
+    # como soma de três quadrados, mas podem com quatro quadrados, embora alguns deles
+    # não possam ser expressos com quatro quadrados não nulos)
+    
+    # Remove fatores de 4
+    while n % 4 == 0:
+        n = n // 4
+    
+    # Se o número é da forma 8b+7 após remover fatores de 4, pode ser problemático
+    if n % 8 == 7:
+        # Verifica se há alguma representação com quatro quadrados não nulos
+        # Testa todas as possibilidades possíveis
+        limit = int(n**0.5) + 1
+        for a in range(1, limit):
+            remaining1 = n - a*a
+            if remaining1 <= 0:
+                continue
+            
+            for b in range(1, int(remaining1**0.5) + 1):
+                remaining2 = remaining1 - b*b
+                if remaining2 <= 0:
+                    continue
+                
+                for c in range(1, int(remaining2**0.5) + 1):
+                    remaining3 = remaining2 - c*c
+                    if remaining3 <= 0:
+                        continue
+                    
+                    d_sq = remaining3
+                    d = int(d_sq**0.5)
+                    if d*d == d_sq and d > 0:
+                        return True
+        
+        return False
+    
+    return True
+
+# Teste para verificar a função
+if __name__ == "__main__":
+    # Testa alguns números conhecidos
+    test_numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    
+    for num in test_numbers:
+        result = can_be_sum_of_four_nonzero_squares(num)
+        print(f"{num}: {'Sim' if result else 'Não'}")

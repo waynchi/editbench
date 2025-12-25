@@ -1,0 +1,36 @@
+import os
+import time
+import undetected_chromedriver as uc
+
+def main():
+    # Определяем опции для Chrome
+    options = uc.ChromeOptions()
+    
+    # Если у вас есть нестандартный путь к установленному браузеру Chrome,
+    # его можно указать через аргумент binary_location. Важно: этот параметр должен указывать
+    # на исполняемый файл браузера (например, chrome.exe), а не на chromedriver.
+    #
+    # Пример (раскомментируйте и исправьте путь, если требуется):
+    # options.binary_location = r"C:\Path\To\Your\Chrome\Application\chrome.exe"
+    
+    # Дополнительные аргументы (при необходимости)
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    
+    # Если вы ранее пытались использовать chromedriver как chrome бинарник,
+    # это могло вызвать ошибку "session not created". undetected_chromedriver
+    # автоматически подбирает совместимый chromedriver, поэтому указывать путь
+    # к нему не требуется.
+    
+    try:
+        with uc.Chrome(options=options) as driver:
+            print("Запуск браузера и переход на сайт...")
+            driver.get("https://lmarena.ai/")
+            # Ждем 10 секунд для визуальной проверки
+            time.sleep(10)
+            print("Завершение работы браузера...")
+    except Exception as e:
+        print("Произошла ошибка:", e)
+
+if __name__ == "__main__":
+    main()

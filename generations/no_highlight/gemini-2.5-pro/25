@@ -1,0 +1,91 @@
+import json
+from langchain_ollama import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.pydantic_v1 import ValidationError
+
+# --- Configuration ---
+MODEL_NAME = "llama3.2"
+BASE_URL = "http://localhost:11434"
+JSON_FILE_PATH = "Vuori_Final_Approval_2024_09_24.json"
+SYSTEM_PROMPT_PATH = "system.prompt"
+
+
+def load_data():
+    """Loads SHAP values and system prompt from their respective files."""
+    try:
+        with open(JSON_FILE_PATH, "r") as file:
+            # Safely get the 'shap_values' key, returning None if not found
+            data = json.load(file)
+            shap_values = data.get("shap_values")
+            if shap_values is None:
+                print(f"Error: Key 'shap_values' not found in {JSON_FILE_PATH}")
+                return None, None
+
+        with open(SYSTEM_PROMPT_PATH, "r") as file:
+            system_prompt = file.read().strip()
+
+        return shap_values, system_prompt
+
+    except FileNotFoundError as e:
+        print(f"Error: File not found - {e.filename}")
+        return None, None
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from {JSON_FILE_PATH}")
+        return None, None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None, None
+
+
+def main():
+    """
+    Main function to initialize the model, build the chain,
+    and generate a response.
+    """
+    # Load SHAP values and system prompt
+    shap_values, system_prompt = load_data()
+    if shap_values is None or system_prompt is None:
+        # Exit if data loading failed
+        return
+
+    try:
+        # Initialize the ChatOllama model
+        chat_model = ChatOllama(model=MODEL_NAME, base_url=BASE_URL)
+    except ValidationError as e:
+        print(f"Error initializing ChatOllama model: {e}")
+        print("Please ensure the 'langchain-ollama' package is installed correctly.")
+        return
+
+    # Define the prompt template
+    # This prepares the structure for the conversation
+    prompt_template = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{user_input}"),
+    ])
+
+    # Create a LangChain Expression Language (LCEL) chain
+    # This pipes the output of the prompt template into the model
+    chain = prompt_template | chat_model
+
+    # Prepare the input data for the template
+    # The SHAP values are converted to a JSON string
+    input_data = {"user_input": json.dumps(shap_values, indent=2)}
+
+    # Invoke the chain with the input data
+    # The 'invoke' method sends the data through the entire chain
+    print("Generating response from the model...")
+    try:
+        response = chain.invoke(input_data)
+
+        # Print the content of the model's response
+        print("\n--- Model Response ---")
+        print(response.content)
+        print("----------------------")
+
+    except Exception as e:
+        print(f"An error occurred while invoking the chain: {e}")
+        print("Please ensure the Ollama server is running and accessible at {BASE_URL}.")
+
+
+if __name__ == "__main__":
+    main()

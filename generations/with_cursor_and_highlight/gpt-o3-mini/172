@@ -1,0 +1,53 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import requests
+
+# 创建一个Spark会话
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# 示例数据（用你的真实数据替换）
+data = [
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+
+# 从数据创建一个DataFrame
+# 假设数据来自于API，替换为实际API调用
+api_url = "http://example.com/api/data"  # 替换为实际的API地址
+try:
+    response = requests.get(api_url)
+    response.raise_for_status()
+    api_data = response.json()
+    # 分析数据：打印数据类型和部分数据样例
+    print("API返回的数据类型:", type(api_data))
+    # 假设数据为列表类型，如果数据结构不同，请根据实际情况调整
+    if isinstance(api_data, list) and len(api_data) > 0:
+        print("API数据样例:", api_data[:3])
+    else:
+        print("API返回的数据格式不符合预期，使用示例数据作为后备")
+        api_data = data
+except Exception as e:
+    print("无法从API获取数据，使用示例数据作为后备。错误信息：", e)
+    api_data = data
+
+df = spark.createDataFrame(api_data)
+
+# 配置与ADL2的连接使用Microsoft ID身份
+# 在Synapse的笔记本中不需要显式提供凭据
+# Spark将使用notebook的托管身份进行身份验证。
+
+# 指定ADL2中容器和文件夹的路径
+container_name = "<your_container_name>"  # 用你的容器名称替换
+folder_path = "<your_folder_path>"  # 替换为容器内文件夹的路径
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# 将DataFrame以parquet格式写入ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# 可选：读取parquet文件进行验证
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# 停止 Spark 会话
+spark.stop()

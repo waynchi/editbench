@@ -1,0 +1,52 @@
+from dataclasses import dataclass
+
+
+@dataclass
+class Card:
+    id: int  # Добавленное поле идентификатора
+    celular: str
+    operadora: str
+    valor: str
+    email: str
+    nome: str
+    cpf: str
+    card: str
+    mes: str
+    ano: str
+    cvv: str
+    token: str
+    bin: str
+    dadosbin: str
+    senha: str
+
+    def __repr__(self):
+        return (
+            f"Card(id={self.id}, celular='{self.celular}', operadora='{self.operadora}', "
+            f"valor='{self.valor}', email='{self.email}', nome='{self.nome}', "
+            f"cpf='{self.cpf}', card='{self.card}', mes='{self.mes}', ano='{self.ano}', "
+            f"cvv='{self.cvv}', token='{self.token}', bin='{self.bin}', "
+            f"dadosbin='{self.dadosbin}', senha='{self.senha}')"
+        )
+
+
+if __name__ == "__main__":
+    # Пример инициализации объекта Card
+    card_instance = Card(
+        id=1,
+        celular="1234567890",
+        operadora="OperadoraExemplo",
+        valor="100",
+        email="exemplo@dominio.com",
+        nome="João Silva",
+        cpf="00000000000",
+        card="1234 5678 9012 3456",
+        mes="12",
+        ano="2025",
+        cvv="123",
+        token="seu_token",
+        bin="123456",
+        dadosbin="dados_do_bin",
+        senha="sua_senha"
+    )
+    
+    print(card_instance)

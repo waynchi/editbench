@@ -1,0 +1,114 @@
+plik = open("dane_obrazki.txt")
+maxbitybledne = 0
+bityBledne = list()
+
+def czyPoprawny(obrazek):  # obrazek – список строк, можно использовать обращение obrazek[i][j]
+    for wiersz in obrazek[:-1]:  # не учитываем последнюю строку, там находятся биты четности столбцов
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            return False
+    for i in range(20):  # столбцы: 0..19
+        kolumna = ""
+        for j in range(21):  # строки: 0..20 (последняя строка – биты четности столбцов)
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            return False
+    return True
+
+def czyNaprawialny(obrazek):
+    bityKolBleden = 0
+    bityWierBledne = 0
+    for wiersz in obrazek[:-1]:  # строки без последней (битов столбцов)
+        if wiersz[:-1].count('1') % 2 != int(wiersz[-1]):
+            bityWierBledne += 1
+    for i in range(20):  # столбцы 0..19
+        kolumna = ""
+        for j in range(21):  # строки 0..20
+            kolumna += obrazek[j][i]
+        if kolumna[:-1].count('1') % 2 != int(kolumna[-1]):
+            bityKolBleden += 1
+    global maxbitybledne
+    if maxbitybledne < (bityKolBleden + bityWierBledne):
+        maxbitybledne = bityKolBleden + bityWierBledne
+    bityBledne.append(bityKolBleden + bityWierBledne)
+
+    if bityWierBledne > 1:
+        return False
+    if bityKolBleden > 1:
+        return False
+
+    return True
+
+def napraw(obrazek):
+    """
+    Функция принимает изображение в виде списка из 21 строки.
+    Первые 20 строк – данные изображения с в конце битом четности строки,
+    21-я строка – биты четности для столбцов (каждый из 20 столбцов).
+    Если в изображении обнаружена ошибка, она может быть исправлена, если имеется не более
+    одной ошибки в строке и не более одной ошибки в столбце.
+    
+    Алгоритм исправления:
+      - Определяем, какая из первых 20 строк имеет неверный бит четности.
+      - Определяем, какой из первых 20 столбцов имеет неверный бит четности (с учетом битов из 21 строки).
+      - Если обнаружены и строка, и столбец с ошибкой, значит ошибочный бит находится на пересечении.
+      - Если обнаружена только ошибка в строке, значит ошибочный бит – это бит четности строки (последний символ строки).
+      - Если обнаружена только ошибка в столбце, значит ошибочный бит – это бит четности столбца (соответствующий символ в 21-й строке).
+    
+    Функция возвращает список, содержащий исходное (ошибочное) изображение и исправленное изображение.
+    """
+    # Сохраняем оригинальное изображение (список строк)
+    original = obrazek[:]
+
+    # Преобразуем изображение в список списков для удобного изменения символов
+    repar = [list(rzad) for rzad in obrazek]
+
+    err_row = None
+    err_col = None
+
+    # Проверка строк (только первые 20 строк содержат данные с битом четности в конце)
+    for r in range(20):
+        # Данные строки: первые 20 символов, последний символ – бит четности
+        if (repar[r][:20].count('1') % 2) != int(repar[r][20]):
+            err_row = r
+            break
+
+    # Проверка столбцов (первые 20 столбцов, бит четности для каждого из них находится в 21-й строке)
+    for c in range(20):
+        kolumna = [repar[r][c] for r in range(21)]
+        if (kolumna[:20].count('1') % 2) != int(kolumna[20]):
+            err_col = c
+            break
+
+    # Исправление ошибки:
+    if err_row is not None and err_col is not None:
+        # Ошибка в одном пикселе данных: меняем бит на противоположный
+        repar[err_row][err_col] = '0' if repar[err_row][err_col] == '1' else '1'
+    elif err_row is not None:
+        # Ошибка только в строке: ошибка в бите четности строки (последний символ строки)
+        repar[err_row][20] = '0' if repar[err_row][20] == '1' else '1'
+    elif err_col is not None:
+        # Ошибка только в столбце: ошибка в бите четности столбца (в 21-й строке)
+        repar[20][err_col] = '0' if repar[20][err_col] == '1' else '1'
+
+    # Преобразуем исправленное изображение обратно в список строк
+    fixed = [''.join(rzad) for rzad in repar]
+    return [original, fixed]
+
+poprawne = 0
+naprawialne = 0
+obrazek = list()
+for linia in plik:
+    wiersz = linia.strip()  # удаляем пробельные символы (например, символы перевода строки)
+    obrazek.append(wiersz)
+    if len(obrazek) == 21:  # 21 строка – изображение (20 строк данных + 1 строка битов столбцов)
+        if czyPoprawny(obrazek):
+            poprawne += 1
+        elif czyNaprawialny(obrazek):
+            naprawialne += 1
+            naprawiony = napraw(obrazek)
+            # Здесь можно обработать или сохранить результат исправления, naprawiony[0] – исходное, naprawiony[1] – исправленное изображение
+
+    if len(obrazek) == 22:  # если получено 22 строки, начинаем следующее изображение
+        obrazek = list()
+
+print(poprawne, naprawialne, 200 - poprawne - naprawialne)
+print(maxbitybledne, max(bityBledne))

@@ -1,0 +1,78 @@
+import random
+import logging
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
+import time
+
+class SearchModule:
+    def __init__(self, driver, config):
+        self.driver = driver
+        self.config = config
+        self.search_engine = config.get('Search', 'search_engine')
+        self.queries = [q.strip() for q in config.get('Search', 'queries').split(',')]
+        self.random_query = config.getboolean('Search', 'random_query')
+
+    def perform_search(self):
+        try:
+            query = random.choice(self.queries) if self.random_query else self.queries[0]
+            logging.info(f"Performing search with query: {query}")
+
+            if self.search_engine.lower() == 'google':
+                self.driver.get("https://www.google.com")
+                search_box = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.NAME, "q"))
+                )
+            elif self.search_engine.lower() == 'yandex':
+                self.driver.get("https://ya.ru")
+                search_box = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'input[placeholder="Найдётся всё"]'))
+                )
+            elif self.search_engine.lower() == 'bing':
+                self.driver.get("https://www.bing.com")
+                search_box = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.NAME, "q"))
+                )
+            else:
+                logging.error("Unsupported search engine.")
+                return
+
+            search_box.send_keys(query + Keys.RETURN)
+            time.sleep(random.uniform(2, 4))  # Ожидание загрузки результатов
+        except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+            logging.error(f"Error during search: {e}")
+            return
+
+    def navigate_random_link(self):
+        try:
+            logging.info("Navigating to a random search result link.")
+            if self.search_engine.lower() == 'google':
+                links = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.yuRUbf > a'))
+                )
+            elif self.search_engine.lower() == 'yandex':
+                links = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a.link'))
+                )
+            elif self.search_engine.lower() == 'bing':
+                links = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'li.b_algo h2 a'))
+                )
+            else:
+                logging.error("Unsupported search engine.")
+                return
+
+            if not links:
+                logging.warning("No links found on the search results page.")
+                return
+
+            random_link = random.choice(links)
+            href = random_link.get_attribute('href')
+            logging.info(f"Navigating to: {href}")
+            self.driver.get(href)
+            time.sleep(random.uniform(3, 6))  # Ожидание загрузки страницы
+        except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+            logging.error(f"Error navigating to random link: {e}")
+            return

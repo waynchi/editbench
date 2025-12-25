@@ -1,0 +1,63 @@
+import random
+
+def load_dictionary():
+    """Load a sample dictionary of words"""
+    # In a real implementation, this would load from a file or API
+    # For this example, using a small sample dictionary
+    return [
+        "apple", "banana", "cherry", "date", "elderberry", "fig", "grape", 
+        "honeydew", "kiwi", "lemon", "mango", "nectarine", "orange", "papaya",
+        "quince", "raspberry", "strawberry", "tangerine", "watermelon", "blueberry",
+        "avocado", "coconut", "dragonfruit", "grapefruit", "jackfruit", "lime",
+        "mulberry", "olive", "peach", "plum", "pomegranate", "starfruit",
+        "tomato", "cucumber", "carrot", "broccoli", "spinach", "lettuce",
+        "potato", "onion", "garlic", "pepper", "salt", "pepper"
+    ]
+
+def find_words_by_length(words, length):
+    """Find all words with the specified number of characters"""
+    return [word for word in words if len(word) == length]
+
+def main():
+    # Load dictionary
+    dictionary = load_dictionary()
+    
+    print("English Dictionary Word Finder")
+    print("=" * 30)
+    
+    while True:
+        try:
+            # Get user input
+            user_input = input("\nEnter the number of characters (or 'quit' to exit): ")
+            
+            # Check if user wants to quit
+            if user_input.lower() == 'quit':
+                print("Goodbye!")
+                break
+            
+            # Convert input to integer
+            num_chars = int(user_input)
+            
+            # Find words with the specified number of characters
+            matching_words = find_words_by_length(dictionary, num_chars)
+            
+            # Display results
+            if matching_words:
+                print(f"\nFound {len(matching_words)} words with {num_chars} characters:")
+                
+                # Select and display 10 random words (or all if less than 10)
+                display_words = random.sample(matching_words, min(10, len(matching_words)))
+                
+                for i, word in enumerate(display_words, 1):
+                    print(f"{i:2d}. {word}")
+            else:
+                print(f"No words found with exactly {num_chars} characters.")
+                
+        except ValueError:
+            print("Please enter a valid number or 'quit' to exit.")
+        except KeyboardInterrupt:
+            print("\n\nGoodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

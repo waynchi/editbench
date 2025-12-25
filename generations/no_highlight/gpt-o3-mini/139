@@ -1,0 +1,47 @@
+def is_sum_of_four_nonzero_squares(n):
+    """
+    尝试找到四个非零整数 a, b, c, d 使得 a^2 + b^2 + c^2 + d^2 == n。
+    如果找到，则返回一个元组 (a, b, c, d)，否则返回 None。
+    """
+    # 因为四个非零数的平方的最小和为 1^2+1^2+1^2+1^2 = 4，所以 n 必须至少为 4
+    if n < 4:
+        return None
+    # 计算可能的最大值，注意 a,b,c,d 至少为 1，因此上界取 int(sqrt(n)) + 1
+    upper_bound = int(n ** 0.5) + 1
+    for a in range(1, upper_bound):
+        for b in range(1, upper_bound):
+            for c in range(1, upper_bound):
+                for d in range(1, upper_bound):
+                    if a**2 + b**2 + c**2 + d**2 == n:
+                        return a, b, c, d
+    return None
+
+def find_four_nonzero_squares_sums(limit):
+    """
+    返回所有 1 到 limit 之间可以表示为四个非零平方和的数字。
+    """
+    results = []
+    for n in range(1, limit + 1):
+        # 尝试找出一个非零的四平方和表示
+        result = is_sum_of_four_nonzero_squares(n)
+        if result:
+            results.append(n)
+    return results
+
+if __name__ == "__main__":
+    try:
+        # 用户输入上限
+        limit = int(input("Digite o limite superior: "))
+    except ValueError:
+        print("输入无效，请输入一个整数。")
+        exit(1)
+
+    sums_found = find_four_nonzero_squares_sums(limit)
+    if sums_found:
+        print("Números que podem ser expressos como a soma de quatro quadrados não nulos:")
+        for num in sums_found:
+            result = is_sum_of_four_nonzero_squares(num)
+            a, b, c, d = result
+            print(f"{num} = {a}^2 + {b}^2 + {c}^2 + {d}^2")
+    else:
+        print("Não foram encontrados números que satisfaçam a condição.")

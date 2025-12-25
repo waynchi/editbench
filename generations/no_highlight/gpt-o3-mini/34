@@ -1,0 +1,158 @@
+import math
+
+class Value:
+    """ stores a single scalar value and its gradient """
+
+    def __init__(self, data, _children=(), _op=''):
+        self.data = data
+        self.grad = 0
+        # internal variables used for autograd graph construction
+        self._backward = lambda: None
+        self._prev = set(_children)
+        self._op = _op  # the op that produced this node, for graphviz / debugging / etc
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), '+')
+
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+
+        return out
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), '*')
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def __pow__(self, other):
+        # only supporting int/float powers for now
+        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
+        out = Value(self.data**other, (self,), f'**{other}')
+
+        def _backward():
+            self.grad += (other * self.data**(other - 1)) * out.grad
+        out._backward = _backward
+
+        return out
+
+    # Adding an exponential function for convenience
+    def exp(self):
+        x = self.data
+        out = Value(math.exp(x), (self,), "exp")
+
+        def _backward():
+            self.grad += out.data * out.grad
+        out._backward = _backward
+
+        return out
+
+    def log(self):
+        out = Value(math.log(self.data), (self,), f'log({self.data})')
+        def _backward():
+            self.grad += (1 / self.data) * out.grad
+        out._backward = _backward       
+        return out
+
+    def relu(self):
+        assert isinstance(self.data, (int, float)), "only supporting int/float values for ReLU"
+        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
+
+        def _backward():
+            self.grad += (out.data > 0) * out.grad
+        out._backward = _backward
+
+        return out
+
+    @staticmethod
+    def softmax(xs):
+        """
+        Compute the softmax over a list of Value nodes.
+        Forward pass:
+            s_i = exp(x_i - m) / sum_j exp(x_j - m)
+        where m = max_j(x_j) for numerical stability.
+        Backward pass (for each output i):
+            For each input j, the derivative contribution is:
+                dL/dx_j += out_i.grad * s_i * (δ_ij - s_j)
+        Returns a list of Value nodes representing the softmax probabilities.
+        """
+        # For numerical stability, subtract max value.
+        m = max(x.data for x in xs)
+        # Compute exponentials and softmax probabilities (as floats).
+        exps = [math.exp(x.data - m) for x in xs]
+        sum_exps = sum(exps)
+        softmax_vals = [e / sum_exps for e in exps]
+
+        # Create new Value nodes for each softmax output.
+        outs = [Value(s, tuple(xs), "softmax") for s in softmax_vals]
+
+        # Attach a custom backward function to each softmax output.
+        # The softmax derivative connects all outputs with all inputs.
+        for i, out in enumerate(outs):
+            # We capture the current index i and softmax_vals list in the closure.
+            def _backward_factory(i):
+                def _backward():
+                    # For each input x_j, accumulate gradient from out_i based on softmax Jacobian:
+                    # d(out_i)/d(x_j) = s_i * (δ_ij - s_j)
+                    for j, x in enumerate(xs):
+                        if i == j:
+                            x.grad += out.grad * softmax_vals[i] * (1 - softmax_vals[j])
+                        else:
+                            x.grad += out.grad * softmax_vals[i] * (-softmax_vals[j])
+                return _backward
+            out._backward = _backward_factory(i)
+
+        return outs
+
+    def backward(self):
+        # topologically sort all nodes in the graph
+        topo = []
+        visited = set()
+
+        def build_topo(v):
+            if v not in visited:
+                visited.add(v)
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        # Set the gradient of the root node to 1.
+        self.grad = 1
+        for v in reversed(topo):
+            v._backward()
+
+    def __neg__(self):  # -self
+        return self * -1
+
+    def __gt__(self, other):
+        return self.data > other.data
+
+    def __radd__(self, other):  # other + self
+        return self + other
+
+    def __sub__(self, other):  # self - other
+        return self + (-other)
+
+    def __rsub__(self, other):  # other - self
+        return other + (-self)
+
+    def __rmul__(self, other):  # other * self
+        return self * other
+
+    def __truediv__(self, other):  # self / other
+        return self * other**-1
+
+    def __rtruediv__(self, other):  # other / self
+        return other * self**-1
+
+    def __repr__(self):
+        return f"Value(data={self.data}, grad={self.grad})"

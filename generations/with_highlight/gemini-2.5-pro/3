@@ -1,0 +1,22 @@
+def is_prime(n):
+    """
+    Checks if a number is a prime number.
+    A prime number is a natural number greater than 1 that has no positive divisors other than 1 and itself.
+    """
+    # Prime numbers are greater than 1
+    if n <= 1:
+        return False
+    # 2 is the only even prime number
+    if n == 2:
+        return True
+    # All other even numbers are not prime
+    if n % 2 == 0:
+        return False
+    # Check for odd divisors from 3 up to the square root of n.
+    # We can step by 2 because we have already handled even numbers.
+    i = 3
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 2
+    return True

@@ -1,0 +1,76 @@
+import random
+
+# English dictionary - sample words of various lengths
+ENGLISH_WORDS = {
+    1: ['a', 'I'],
+    2: ['an', 'at', 'be', 'do', 'go', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'on', 'or', 'so', 'to', 'up', 'we'],
+    3: ['and', 'are', 'but', 'can', 'cat', 'day', 'dog', 'eat', 'end', 'far', 'get', 'had', 'has', 'her', 'him', 'his', 'how', 'man', 'new', 'not', 'now', 'old', 'one', 'our', 'out', 'put', 'run', 'say', 'see', 'she', 'the', 'too', 'try', 'two', 'use', 'was', 'way', 'who', 'why', 'win', 'yes', 'you'],
+    4: ['able', 'back', 'ball', 'been', 'best', 'book', 'call', 'came', 'come', 'cool', 'down', 'each', 'even', 'face', 'find', 'fire', 'fish', 'food', 'form', 'from', 'game', 'give', 'good', 'hand', 'have', 'help', 'here', 'home', 'hope', 'just', 'keep', 'kind', 'know', 'last', 'left', 'life', 'like', 'line', 'live', 'long', 'look', 'love', 'make', 'many', 'more', 'move', 'much', 'name', 'need', 'next', 'nice', 'only', 'open', 'over', 'part', 'play', 'read', 'real', 'right', 'said', 'same', 'show', 'side', 'some', 'take', 'tell', 'than', 'that', 'them', 'they', 'this', 'time', 'turn', 'very', 'want', 'water', 'well', 'went', 'were', 'what', 'when', 'will', 'with', 'word', 'work', 'year', 'your'],
+    5: ['about', 'after', 'again', 'along', 'among', 'apple', 'begin', 'being', 'below', 'black', 'bring', 'build', 'carry', 'chair', 'clean', 'clear', 'close', 'could', 'count', 'cover', 'doing', 'early', 'earth', 'every', 'field', 'first', 'found', 'front', 'great', 'green', 'group', 'happy', 'heard', 'heart', 'house', 'large', 'learn', 'light', 'might', 'money', 'music', 'never', 'night', 'often', 'order', 'other', 'paper', 'place', 'plant', 'point', 'power', 'quick', 'quiet', 'right', 'round', 'shall', 'short', 'since', 'small', 'sound', 'space', 'spell', 'start', 'state', 'still', 'story', 'study', 'table', 'thank', 'their', 'there', 'these', 'thing', 'think', 'three', 'today', 'under', 'until', 'voice', 'watch', 'where', 'which', 'while', 'white', 'whole', 'world', 'would', 'write', 'young'],
+    6: ['across', 'almost', 'always', 'animal', 'answer', 'around', 'became', 'become', 'before', 'better', 'change', 'church', 'circle', 'coming', 'common', 'course', 'create', 'decide', 'during', 'enough', 'family', 'father', 'figure', 'follow', 'friend', 'ground', 'happen', 'health', 'inside', 'island', 'letter', 'listen', 'little', 'living', 'making', 'matter', 'minute', 'moment', 'mother', 'moving', 'nature', 'number', 'object', 'office', 'parent', 'people', 'person', 'please', 'pretty', 'public', 'reason', 'record', 'result', 'return', 'school', 'second', 'should', 'simple', 'sister', 'social', 'square', 'street', 'strong', 'summer', 'system', 'though', 'toward', 'travel', 'trying', 'turned', 'twenty', 'united', 'wanted', 'winter', 'within', 'wonder', 'worked'],
+    7: ['ability', 'address', 'against', 'already', 'another', 'because', 'between', 'brother', 'brought', 'certain', 'company', 'control', 'country', 'develop', 'evening', 'example', 'feeling', 'general', 'getting', 'government', 'however', 'hundred', 'include', 'instead', 'kitchen', 'machine', 'morning', 'nothing', 'picture', 'problem', 'program', 'project', 'provide', 'quality', 'quickly', 'reading', 'reality', 'receive', 'science', 'section', 'service', 'several', 'society', 'special', 'station', 'student', 'support', 'surface', 'teacher', 'through', 'tonight', 'trouble', 'usually', 'village', 'weather', 'whether', 'without', 'working', 'writing'],
+    8: ['although', 'business', 'children', 'complete', 'computer', 'continue', 'decision', 'describe', 'discover', 'distance', 'document', 'education', 'everyone', 'exercise', 'function', 'hospital', 'increase', 'industry', 'language', 'magazine', 'material', 'medicine', 'mountain', 'national', 'negative', 'original', 'personal', 'physical', 'position', 'possible', 'practice', 'pressure', 'question', 'remember', 'research', 'resource', 'response', 'security', 'shoulder', 'somebody', 'standard', 'strength', 'struggle', 'suddenly', 'together', 'tomorrow', 'training', 'universe', 'vacation', 'violence', 'whatever', 'yourself'],
+    9: ['adventure', 'agreement', 'beautiful', 'beginning', 'character', 'community', 'condition', 'different', 'direction', 'education', 'equipment', 'everybody', 'excellent', 'expensive', 'following', 'furniture', 'happening', 'important', 'including', 'knowledge', 'landscape', 'marketing', 'necessary', 'operation', 'organized', 'paragraph', 'political', 'president', 'principle', 'procedure', 'programme', 'recognize', 'recommend', 'reduction', 'reference', 'represent', 'situation', 'sometimes', 'statement', 'structure', 'technique', 'telephone', 'television', 'therefore', 'treatment', 'understand', 'variation', 'wonderful', 'yesterday'],
+    10: ['absolutely', 'background', 'basketball', 'collection', 'commercial', 'commission', 'comparison', 'conference', 'connection', 'democratic', 'department', 'difference', 'difficulty', 'discussion', 'everything', 'experience', 'generation', 'government', 'individual', 'industrial', 'instrument', 'investment', 'management', 'particular', 'population', 'production', 'profession', 'protection', 'psychology', 'reflection', 'revolution', 'technology', 'television', 'themselves', 'throughout', 'tournament', 'traditional', 'university', 'washington', 'widespread']
+}
+
+def search_words_by_length(length):
+    """
+    Searches for words with specified length and returns up to 10 random words.
+    
+    Args:
+        length (int): Number of characters in the word
+        
+    Returns:
+        list: List of words with the specified length (max 10 words)
+    """
+    if length in ENGLISH_WORDS:
+        words = ENGLISH_WORDS[length]
+        if len(words) <= 10:
+            return words
+        else:
+            return random.sample(words, 10)
+    else:
+        return []
+
+def main():
+    """
+    Main program function that handles user interaction.
+    """
+    print("=== ENGLISH DICTIONARY WORD SEARCH ===")
+    print("This program searches for English words with a specific number of characters.")
+    print("You can request words with N characters and get up to 10 results.")
+    print("Type 'quit' to exit the program.\n")
+    
+    while True:
+        try:
+            user_input = input("Enter the number of characters (or 'quit' to exit): ").strip()
+            
+            if user_input.lower() == 'quit':
+                print("Thank you for using the dictionary search program!")
+                break
+            
+            length = int(user_input)
+            
+            if length <= 0:
+                print("Please enter a positive number.\n")
+                continue
+            
+            words = search_words_by_length(length)
+            
+            if words:
+                print(f"\nFound {len(words)} word(s) with {length} character(s):")
+                for i, word in enumerate(words, 1):
+                    print(f"{i:2d}. {word}")
+                print()
+            else:
+                print(f"Sorry, no words found with {length} character(s) in the dictionary.\n")
+                
+        except ValueError:
+            print("Invalid input. Please enter a valid number or 'quit' to exit.\n")
+        except KeyboardInterrupt:
+            print("\n\nProgram interrupted. Goodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,149 @@
+"""
+Main entry point for the Audio Recorder and Transcriber application.
+"""
+
+import os
+import sys
+import logging
+import tkinter as tk
+import tkinterdnd2
+import traceback
+
+def setup_logging():
+    """
+    Set up logging configuration for the application.
+    """
+    try:
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        logging.basicConfig(
+            level=logging.INFO,
+            format=log_format,
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('app.log', encoding='utf-8')
+            ]
+        )
+        logging.info("Logging configured successfully")
+    except Exception as e:
+        print(f"Failed to setup logging: {e}")
+        sys.exit(1)
+
+def get_resource_path():
+    """
+    Get the resource path that works for both development and PyInstaller.
+
+    Returns:
+        str: Path to resources directory
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # Запуск в виде скомпилированного исполняемого файла
+            return os.path.join(os.path.dirname(sys.executable), 'resources')
+        else:
+            # Запуск как скрипт
+            return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+    except Exception as e:
+        logging.error(f"Error getting resource path: {e}")
+        raise
+
+def check_resources():
+    """
+    Check if required resource files exist.
+
+    Returns:
+        bool: True if all required resources are present
+    """
+    try:
+        required_files = ['sound.mp3', 'done.mp3', 'cancel.wav', 'help_text.txt']
+        resource_dir = get_resource_path()
+        
+        # Проверить, существует ли каждый необходимый файл
+        missing_files = []
+        for file in required_files:
+            file_path = os.path.join(resource_dir, file)
+            if not os.path.exists(file_path):
+                missing_files.append(file)
+        
+        # Если отсутствуют какие-либо необходимые файлы, вернуть False
+        if missing_files:
+            logging.error(f"Missing resource files: {', '.join(missing_files)}")
+            return False
+        return True
+    except Exception as e:
+        logging.error(f"Error checking resources: {e}")
+        return False
+
+def show_error_dialog(error_message):
+    """
+    Show an error dialog with the given message.
+    
+    Args:
+        error_message (str): The error message to display
+    """
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        
+        from tkinter import messagebox
+        messagebox.showerror("Application Error", error_message)
+        root.destroy()
+    except Exception as e:
+        print(f"Failed to show error dialog: {e}")
+        print(f"Original error: {error_message}")
+
+def main():
+    """
+    Main function to start the application.
+    """
+    try:
+        # Настроить логирование
+        setup_logging()
+        logging.info("Starting Audio Recorder and Transcriber application")
+
+        # Проверка ресурсов
+        if not check_resources():
+            error_msg = "Required resource files are missing. Application cannot start."
+            logging.error(error_msg)
+            show_error_dialog(error_msg)
+            sys.exit(1)
+
+        # Инициализировать главное окно с поддержкой перетаскивания
+        root = tkinterdnd2.TkinterDnD.Tk()
+        
+        # Импортировать здесь, чтобы избежать циклических импортов
+        try:
+            from gui.main_window import AudioTranscriberApp
+        except ImportError as e:
+            error_msg = f"Failed to import application module: {e}"
+            logging.error(error_msg)
+            show_error_dialog(error_msg)
+            sys.exit(1)
+        
+        # Создать экземпляр приложения
+        try:
+            app = AudioTranscriberApp(root)
+        except Exception as e:
+            error_msg = f"Failed to initialize application: {e}"
+            logging.error(error_msg)
+            logging.error(traceback.format_exc())
+            show_error_dialog(error_msg)
+            sys.exit(1)
+        
+        # Запустить основной цикл обработки событий
+        try:
+            root.mainloop()
+        except Exception as e:
+            error_msg = f"Unexpected error during application execution: {e}"
+            logging.error(error_msg)
+            logging.error(traceback.format_exc())
+            show_error_dialog(error_msg)
+            sys.exit(1)
+        
+    except Exception as e:
+        error_msg = f"Critical application error: {e}\n{traceback.format_exc()}"
+        logging.critical(error_msg)
+        show_error_dialog("A critical error occurred. Please check the log file for details.")
+        raise
+
+if __name__ == "__main__":
+    main()

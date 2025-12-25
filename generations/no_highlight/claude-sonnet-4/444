@@ -1,0 +1,94 @@
+from flask import Flask
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/')
+def mostrar_fecha_hora():
+    # Obtener la fecha y hora actual
+    fecha_hora_actual = datetime.now()
+    
+    # Formatear la fecha y hora
+    fecha_formateada = fecha_hora_actual.strftime("%d/%m/%Y")
+    hora_formateada = fecha_hora_actual.strftime("%H:%M:%S")
+    
+    # Crear el HTML de respuesta
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Fecha y Hora Actual</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                text-align: center;
+                margin-top: 100px;
+                background-color: #f0f0f0;
+            }}
+            .container {{
+                background-color: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                display: inline-block;
+            }}
+            h1 {{
+                color: #333;
+                margin-bottom: 20px;
+            }}
+            .fecha {{
+                font-size: 24px;
+                color: #2c3e50;
+                margin: 10px 0;
+            }}
+            .hora {{
+                font-size: 28px;
+                color: #e74c3c;
+                font-weight: bold;
+                margin: 10px 0;
+            }}
+            .refresh-btn {{
+                background-color: #3498db;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 16px;
+                margin-top: 20px;
+            }}
+            .refresh-btn:hover {{
+                background-color: #2980b9;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Fecha y Hora Actual</h1>
+            <div class="fecha">📅 Fecha: {fecha_formateada}</div>
+            <div class="hora">🕐 Hora: {hora_formateada}</div>
+            <button class="refresh-btn" onclick="location.reload()">Actualizar</button>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
+
+@app.route('/api/datetime')
+def api_fecha_hora():
+    """Endpoint API que devuelve la fecha y hora en formato JSON"""
+    fecha_hora_actual = datetime.now()
+    
+    return {
+        'fecha': fecha_hora_actual.strftime("%d/%m/%Y"),
+        'hora': fecha_hora_actual.strftime("%H:%M:%S"),
+        'timestamp': fecha_hora_actual.isoformat(),
+        'dia_semana': fecha_hora_actual.strftime("%A"),
+        'mes': fecha_hora_actual.strftime("%B")
+    }
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

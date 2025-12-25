@@ -1,0 +1,9 @@
+# Registrar la ruta actual como cwd
+# Crear ruta de base de datos de vectores
+import os
+cwd = os.getcwd()
+# Utilizando pymilvus para crear una conexión a la base de datos
+from pymilvus import connections
+connections.connect("default", host="localhost", port="19530")
+TABLE_NAME = 'test_table'
+DIM_VALUE = 128

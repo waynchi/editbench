@@ -1,0 +1,63 @@
+import numpy as np
+
+def conjugate_gradient(A, b, x0=None, tol=1e-6, max_iter=1000):
+    """
+    Rozwiązuje układ równań liniowych Ax = b metodą sprzężonych gradientów.
+    
+    Parametry:
+    A : array_like
+        Macierz współczynników (musi być dodatnio określona i symetryczna)
+    b : array_like
+        Wektor prawej strony
+    x0 : array_like, opcjonalny
+        Przybliżenie początkowe (domyślnie wektor zerowy)
+    tol : float, opcjonalny
+        Tolerancja zbieżności (domyślnie 1e-6)
+    max_iter : int, opcjonalny
+        Maksymalna liczba iteracji (domyślnie 1000)
+    
+    Zwraca:
+    x : ndarray
+        Rozwiązanie układu równań
+    iterations : int
+        Liczba wykonanych iteracji
+    """
+    n = len(b)
+    
+    # Inicjalizacja
+    if x0 is None:
+        x = np.zeros(n)
+    else:
+        x = np.array(x0, dtype=float)
+    
+    # Oblicz residuum początkowe
+    r = b - A @ x
+    p = r.copy()
+    
+    rsold = np.dot(r, r)
+    
+    for i in range(max_iter):
+        # Sprawdź warunek stopu
+        if np.sqrt(rsold) < tol:
+            return x, i
+        
+        # Oblicz długość kroku
+        Ap = A @ p
+        alpha = rsold / np.dot(p, Ap)
+        
+        # Aktualizuj rozwiązanie
+        x = x + alpha * p
+        
+        # Aktualizuj residuum
+        r = r - alpha * Ap
+        
+        # Oblicz nowy współczynnik
+        rsnew = np.dot(r, r)
+        beta = rsnew / rsold
+        
+        # Aktualizuj kierunek poszukiwań
+        p = r + beta * p
+        
+        rsold = rsnew
+    
+    return x, max_iter

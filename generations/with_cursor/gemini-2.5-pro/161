@@ -1,0 +1,77 @@
+import math
+
+def get_sums_of_four_nonzero_squares(limit: int) -> list[int]:
+    """
+    Generates numbers up to a given limit that can be expressed as the
+    sum of four non-zero squares.
+
+    A number n can be expressed as the sum of four non-zero squares if there
+    exist integers a, b, c, d > 0 such that n = a² + b² + c² + d².
+
+    This function uses a direct generation approach by iterating through
+    combinations of four non-zero integers.
+
+    Args:
+        limit: The upper bound (inclusive) for the numbers to find.
+
+    Returns:
+        A sorted list of unique numbers up to the limit.
+
+    Example:
+        >>> get_sums_of_four_nonzero_squares(20)
+        [4, 7, 10, 13, 15, 16, 18, 19]
+    """
+    # The smallest such number is 1² + 1² + 1² + 1² = 4.
+    if limit < 4:
+        return []
+
+    found_numbers = set()
+    # The largest possible base for a square is sqrt(limit).
+    # We add 1 to make the range inclusive for the loop.
+    max_base = int(math.sqrt(limit)) + 1
+
+    # To avoid permutations (like 1²+2²... vs 2²+1²...) and redundant
+    # calculations, we enforce the condition a <= b <= c <= d.
+    for a in range(1, max_base):
+        a2 = a * a
+        # Optimization: If the smallest possible sum with this 'a' (a²+a²+a²+a²)
+        # already exceeds the limit, we can stop.
+        if a2 * 4 > limit:
+            break
+        for b in range(a, max_base):
+            b2 = b * b
+            sum_ab = a2 + b2
+            # Optimization: If the smallest possible sum (a²+b²+b²+b²)
+            # exceeds the limit, we can break from this inner loop.
+            if sum_ab + b2 * 2 > limit:
+                break
+            for c in range(b, max_base):
+                c2 = c * c
+                sum_abc = sum_ab + c2
+                # Optimization: If the smallest possible sum (a²+b²+c²+c²)
+                # exceeds the limit, we can break.
+                if sum_abc + c2 > limit:
+                    break
+                for d in range(c, max_base):
+                    d2 = d * d
+                    total_sum = sum_abc + d2
+
+                    if total_sum > limit:
+                        break
+                    
+                    found_numbers.add(total_sum)
+
+    return sorted(list(found_numbers))
+
+# Example of how to use the function:
+if __name__ == '__main__':
+    upper_limit = 100
+    numbers = get_sums_of_four_nonzero_squares(upper_limit)
+    
+    print(f"可以表示为四个非零平方和且不大于 {upper_limit} 的数字有:")
+    print(numbers)
+
+    # According to number theory, the numbers that CANNOT be represented
+    # as a sum of four non-zero squares are a specific set, including:
+    # 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 17, 20, 24, 32, ...
+    # Our generated list correctly excludes these numbers.

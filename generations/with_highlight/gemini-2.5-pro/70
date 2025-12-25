@@ -1,0 +1,35 @@
+from main13 import knn, mlp
+import pandas as pd
+
+# Initialize the DataFrame to store results *before* the loops
+# Set dtype=object to allow storing dictionaries in cells
+np_df = pd.DataFrame(index=range(10, 200, 10), columns=[1, 2, 3], dtype=object)
+
+for pclass in [1, 2, 3]:
+    for fare in range(10, 200, 10):
+            # Create a single-row DataFrame for prediction.
+            # This corrects the error by ensuring only one prediction is made per cell.
+            # We use a representative case (e.g., Embarked='S') and manually create
+            # the one-hot encoded columns to ensure the model gets all expected features.
+            my_df = pd.DataFrame({
+                "Pclass": [pclass],
+                "Name": [24],
+                "Sex": [0],
+                "Age": [19],
+                "SibSp": [0],
+                "Parch": [0],
+                "Fare": [fare],
+                "Embarked_S": [1],
+                "Embarked_C": [0],
+                "Embarked_Q": [0]
+            })
+
+            # Predictions are now made on a single row, so the result is a single value.
+            # We extract it from the resulting array (e.g., from [0] to 0).
+            knn_pred = knn.predict(my_df)[0]
+            mlp_pred = mlp.predict(my_df)[0]
+            
+            # Assign the dictionary of single predictions to the appropriate cell.
+            np_df.loc[fare, pclass] = {"knn": knn_pred, "mlp": mlp_pred}
+
+print(np_df)

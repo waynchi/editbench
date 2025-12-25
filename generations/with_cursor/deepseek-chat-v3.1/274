@@ -1,0 +1,73 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import json
+
+# Создать сессию Spark
+spark = SparkSession.builder.appName("EscrituraParquetADL2").getOrCreate()
+
+# Функция для анализа данных из API
+def analizar_datos_api(api_response):
+    """
+    Анализирует данные, полученные из API, и преобразует их в DataFrame.
+    Эта функция должна быть адаптирована под конкретный формат API.
+    """
+    try:
+        # Пример: предполагаем, что API возвращает JSON
+        if isinstance(api_response, str):
+            data = json.loads(api_response)
+        else:
+            data = api_response
+            
+        # Анализ структуры данных
+        print("Структура данных из API:")
+        print(f"Тип данных: {type(data)}")
+        
+        if isinstance(data, list):
+            print(f"Количество элементов: {len(data)}")
+            if len(data) > 0:
+                print(f"Первый элемент: {data[0]}")
+                print(f"Ключи первого элемента: {list(data[0].keys())}")
+        elif isinstance(data, dict):
+            print(f"Ключи: {list(data.keys())}")
+            
+        # Создание DataFrame
+        df = spark.createDataFrame(data)
+        print("DataFrame создан успешно")
+        print(f"Схема DataFrame: {df.schema}")
+        df.show()
+        
+        return df
+        
+    except Exception as e:
+        print(f"Ошибка при анализе данных: {str(e)}")
+        raise
+
+# Пример данных из API (замените на реальные данные из вашего API)
+# Это может быть JSON строка, словарь или список словарей
+api_data_example = [
+    {"id": 1, "nombre": "Juan", "edad": 30},
+    {"id": 2, "nombre": "Ana", "edad": 25},
+    {"id": 3, "nombre": "Pedro", "edad": 40}
+]
+
+# Проанализировать данные и создать DataFrame
+df = analizar_datos_api(api_data_example)
+
+# Настроить подключение к ADL2 с использованием идентификатора Microsoft ID
+# В блокноте Synapse не нужно явно указывать учетные данные
+# Spark будет использовать управляемую идентичность блокнота для аутентификации.
+
+# Указать путь к контейнеру и папке в ADL2
+container_name = "<your_container_name>"  # Заменить на имя вашего контейнера
+folder_path = "<your_folder_path>"  # Заменить на путь к папке внутри контейнера
+adl2_path = f"abfss://{container_name}@{<your_storage_account_name>}.dfs.core.windows.net/{folder_path}"
+
+# Записать DataFrame в формате parquet в ADL2
+df.write.parquet(adl2_path, mode="overwrite")
+
+# Опционально: прочитать файл parquet для проверки
+df_leido = spark.read.parquet(adl2_path)
+df_leido.show()
+
+# Остановить сессию Spark
+spark.stop()

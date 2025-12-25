@@ -1,0 +1,50 @@
+def can_be_sum_of_four_squares(n):
+    """
+    Check if a number can be expressed as the sum of four non-zero squares.
+    According to Jacobi's four-square theorem, every positive integer can be
+    represented as the sum of four integer squares (including zero).
+    This function checks for non-zero squares only.
+    """
+    if n <= 0:
+        return False
+    
+    # Check all possible combinations of four non-zero squares
+    # We only need to check up to sqrt(n) for each square
+    max_val = int(n**0.5) + 1
+    
+    for a in range(1, max_val):
+        a_sq = a * a
+        if a_sq >= n:
+            break
+        for b in range(1, max_val):
+            b_sq = b * b
+            if a_sq + b_sq >= n:
+                break
+            for c in range(1, max_val):
+                c_sq = c * c
+                if a_sq + b_sq + c_sq >= n:
+                    break
+                d_sq = n - a_sq - b_sq - c_sq
+                d = int(d_sq**0.5)
+                if d > 0 and d * d == d_sq:
+                    return True, (a, b, c, d)
+    
+    return False, None
+
+def find_four_square_representation(n):
+    """Find the actual representation of n as sum of four non-zero squares."""
+    result, squares = can_be_sum_of_four_squares(n)
+    if result:
+        a, b, c, d = squares
+        print(f"{n} = {a}² + {b}² + {c}² + {d}² = {a*a} + {b*b} + {c*c} + {d*d}")
+        return squares
+    else:
+        print(f"{n} cannot be expressed as the sum of four non-zero squares")
+        return None
+
+# Test the function with some examples
+if __name__ == "__main__":
+    test_numbers = [30, 50, 100, 169, 200]
+    
+    for num in test_numbers:
+        find_four_square_representation(num)

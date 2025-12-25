@@ -1,0 +1,81 @@
+import random
+
+# English dictionary - sample words of various lengths
+english_words = [
+    # 3 letters
+    "cat", "dog", "run", "sun", "car", "bat", "hat", "map", "pen", "cup", "box", "fox", "red", "big", "old",
+    # 4 letters
+    "book", "tree", "fish", "bird", "door", "hand", "love", "time", "work", "play", "food", "home", "blue", "good", "fast",
+    # 5 letters
+    "house", "water", "green", "happy", "world", "music", "light", "peace", "smile", "heart", "dream", "ocean", "plant", "quiet", "brave",
+    # 6 letters
+    "friend", "family", "garden", "flower", "summer", "winter", "spring", "autumn", "bright", "strong", "gentle", "simple", "nature", "beauty", "wonder",
+    # 7 letters
+    "rainbow", "freedom", "journey", "morning", "evening", "kitchen", "bedroom", "library", "picture", "machine", "science", "history", "culture", "amazing", "perfect",
+    # 8 letters
+    "computer", "elephant", "mountain", "sunshine", "birthday", "sandwich", "umbrella", "keyboard", "notebook", "magazine", "hospital", "vacation", "football", "baseball", "swimming",
+    # 9 letters
+    "beautiful", "wonderful", "adventure", "chocolate", "telephone", "butterfly", "newspaper", "classroom", "breakfast", "afternoon", "education", "important", "different", "community", "celebrate",
+    # 10 letters
+    "basketball", "playground", "strawberry", "watermelon", "motorcycle", "helicopter", "restaurant", "university", "technology", "photograph", "television", "refrigerator", "comfortable", "interesting", "magnificent"
+]
+
+def search_words_by_length(word_length):
+    """
+    Searches for words with specified length and returns up to 10 words.
+    """
+    matching_words = [word for word in english_words if len(word) == word_length]
+    
+    if not matching_words:
+        return []
+    
+    # If we have more than 10 words, randomly select 10
+    if len(matching_words) > 10:
+        return random.sample(matching_words, 10)
+    else:
+        return matching_words
+
+def main():
+    print("=== ENGLISH DICTIONARY WORD SEARCH ===")
+    print("This program searches for English words with a specific number of characters.")
+    print("You can request words with N characters, and the program will display up to 10 words.")
+    print()
+    
+    while True:
+        try:
+            print("-" * 50)
+            user_input = input("Enter the number of characters you want to search for (or 'quit' to exit): ")
+            
+            if user_input.lower() in ['quit', 'exit', 'q']:
+                print("Thank you for using the dictionary search program!")
+                break
+            
+            word_length = int(user_input)
+            
+            if word_length <= 0:
+                print("Please enter a positive number.")
+                continue
+            
+            print(f"\nSearching for words with {word_length} characters...")
+            
+            found_words = search_words_by_length(word_length)
+            
+            if found_words:
+                print(f"\nFound {len(found_words)} word(s) with {word_length} characters:")
+                print("-" * 30)
+                for i, word in enumerate(found_words, 1):
+                    print(f"{i:2d}. {word}")
+            else:
+                print(f"\nSorry, no words found with {word_length} characters in the dictionary.")
+                print("Try a different number of characters.")
+            
+            print()
+            
+        except ValueError:
+            print("Invalid input! Please enter a valid number or 'quit' to exit.")
+        except KeyboardInterrupt:
+            print("\n\nProgram interrupted. Goodbye!")
+            break
+
+if __name__ == "__main__":
+    main()

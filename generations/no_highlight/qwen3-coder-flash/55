@@ -1,0 +1,288 @@
+import os
+import shutil
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Union
+import logging
+
+from transformers import AutoModelForCausalLM
+from peft import PeftModel
+
+from dotenv import load_dotenv
+import pickle
+import torch
+import json
+
+# Load environment variables once at module level
+load_dotenv()
+
+# Cache these paths for performance
+DATA_SAVE_PATH = os.getenv("DATA_SAVE_PATH")
+MODEL_PATH = os.getenv("MODEL_PATH")
+
+# Use Path objects for better path handling
+DATA_SAVE_PATH_OBJ = Path(DATA_SAVE_PATH) if DATA_SAVE_PATH else None
+MODEL_PATH_OBJ = Path(MODEL_PATH) if MODEL_PATH else None
+
+
+def save_log_to_file(log_history: List[Dict], 
+                   file_path: str, 
+                   append_latest_only: bool = False) -> None:
+    """
+    Saves the log history to a JSON file.
+    If the file already exists, it appends to it.
+
+    Parameters:
+    - log_history: List of log entries (each entry is a dict).
+    - file_path: Path to the file where logs will be saved.
+    - append_latest_only: If True, only the latest log entry is appended.
+    """
+    file_path_obj = Path(file_path)
+    
+    # Read existing content more efficiently using Path methods
+    current_logs = []
+    if file_path_obj.exists():
+        try:
+            content = file_path_obj.read_text(encoding='utf-8').strip()
+            if content:
+                current_logs = json.loads(content)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logging.warning(f"Warning: {file_path} contains invalid JSON. Overwriting file: {e}")
+            current_logs = []
+        except Exception as e:
+            logging.error(f"An error occurred while reading {file_path}: {e}")
+            current_logs = []
+    else:
+        # Ensure parent directories exist
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    # Decide whether to append the entire log history or just the latest entry
+    if append_latest_only and log_history:
+        # Append only the most recent epoch log
+        current_logs.append(log_history[-1])
+    else:
+        # Append the entire log history
+        current_logs.extend(log_history)
+
+    # Save the updated log history more efficiently
+    try:
+        file_path_obj.write_text(json.dumps(current_logs, indent=4), encoding='utf-8')
+    except Exception as e:
+        logging.error(f"An error occurred while writing to {file_path}: {e}")
+
+
+def clear_directory(directory: str, delete_directory: bool = False) -> None:
+    """
+    Clears all files and subdirectories within a given directory.  
+    Optionally deletes the directory itself.
+    Creates the directory if it doesn't exist and delete_directory is False.
+
+    Args:
+        directory (str): The path to the directory to clear.
+        delete_directory (bool): If True, delete the directory after clearing its contents. Defaults to False.
+
+    Raises:
+        OSError: If any error occurs during file or directory removal.  Provides details about the failure.
+    """
+    dir_path = Path(directory)
+    
+    if not dir_path.exists():
+        if not delete_directory:
+            dir_path.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Directory '{directory}' created.")
+        else:
+            raise ValueError("Directory does not exist and delete_directory is True. Cannot proceed.")
+        return
+
+    # Use os.walk for efficiency when deleting nested structures
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for name in files:
+            file_path = Path(root) / name
+            try:
+                file_path.unlink()
+                logging.debug(f"Removed file: {file_path}")
+            except OSError as e:
+                logging.error(f"Failed to delete '{file_path}'. Reason: {e}")
+                raise
+        
+        for name in dirs:
+            dir_path = Path(root) / name
+            try:
+                dir_path.rmdir()
+                logging.debug(f"Removed directory: {dir_path}")
+            except OSError as e:
+                logging.error(f"Failed to delete '{dir_path}'. Reason: {e}")
+                raise
+
+    if delete_directory:
+        try:
+            dir_path.rmdir()
+            logging.info(f"Removed directory: {directory}")
+        except OSError as e:
+            logging.error(f"Failed to delete '{directory}'. Reason: {e}")
+            raise
+
+
+def merge_lora_model(
+    model_name: str = "pythia-31M",
+    base_model_repo_name: str = "EleutherAI/",
+    model_load_path: Optional[str] = None,
+    model_save_path: Optional[str] = None,
+) -> None:
+    """
+    Merge LoRA adapters with base models and save the result.
+    
+    Performance improvements:
+    - Uses pathlib for better path handling
+    - Direct path operations without unnecessary string concatenations
+    - Avoids multiple redundant file existence checks
+    
+    Trade-offs:
+    - No specific error handling for cases where model loading fails
+    """
+    # Use cached paths if not provided
+    load_path = Path(model_load_path) if model_load_path else MODEL_PATH_OBJ
+    save_path = Path(model_save_path) if model_save_path else MODEL_PATH_OBJ
+    
+    if load_path is None or save_path is None:
+        raise ValueError("Model paths must be provided or set via environment variables")
+        
+    my_model_path = load_path / model_name
+    param_count = model_name.lower().split("m")[0].split("-")[1]
+    base_model = f"pythia-{param_count}M"
+
+    base_model_obj = AutoModelForCausalLM.from_pretrained(
+        str(load_path / base_model)  # Using pathlib for consistency
+    )
+    model = PeftModel.from_pretrained(base_model_obj, str(my_model_path))
+    merged_model = model.merge_and_unload()
+    
+    # Create output directory if it doesn't exist
+    save_dir = save_path / f"{model_name}_merged"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    
+    merged_model.save_pretrained(str(save_dir))
+
+
+def remove_repetition(question: str, answer: str) -> str:
+    """
+    Remove repetition by removing the question from the answer if present.
+    
+    Performance improvements:
+    - Simple string operations only
+    - No regex compilation needed
+    
+    Trade-offs:
+    - Only works with exact substring matches
+    - Could be more sophisticated for complex repetitions
+    """
+    if question in answer:
+        return answer.replace(question, "", 1).strip()  # Replace only first occurrence
+    return answer
+
+
+def load_model(
+    model_type: str,
+    model_path: Optional[str] = None,
+    blocks_str: Optional[str] = None,
+    vanilla_model_name: Optional[str] = None,
+    host_model_name: Optional[str] = None,
+) -> Union[AutoModelForCausalLM, Any]:
+    """
+    Loads different types of models based on the model_type parameter.
+    
+    Performance improvements:
+    - Uses consistent path handling with Path objects
+    - Reduces string concatenation through built-in path operations
+    - Caching of common paths (can be extended)
+    
+    Trade-offs:
+    - Limited by how much caching we want to implement
+    - Error messages now use logging rather than prints (better for production)
+    """
+    # Validate input parameters
+    if model_type not in ["Tuned Model", "Vanilla Model", "Transformed Model", 
+                          "Final Model", "Host Model"]:
+        raise ValueError(f"Unknown model type: {model_type}")
+    
+    # Use cached paths if not provided
+    path_base = Path(model_path) if model_path else MODEL_PATH_OBJ
+    if path_base is None and model_type in ["Tuned Model", "Transformed Model", "Final Model"]:
+        raise ValueError("model_path must be provided for this model type")
+
+    if model_type == "Tuned Model":
+        if not vanilla_model_name or not blocks_str:
+            raise ValueError("vanilla_model_name and blocks_str required for Tuned Model")
+            
+        model_name = vanilla_model_name.split("/")[-1]
+        tuned_model_name = f"{model_name}_trained_layers_{blocks_str}_merged"
+        model_path_full = path_base / tuned_model_name
+        
+        if not model_path_full.exists():
+            raise FileNotFoundError(f"Model path does not exist: {model_path_full}")
+            
+        return AutoModelForCausalLM.from_pretrained(str(model_path_full))
+
+    elif model_type == "Vanilla Model":
+        if not vanilla_model_name:
+            raise ValueError("vanilla_model_name required for Vanilla Model")
+        return AutoModelForCausalLM.from_pretrained(vanilla_model_name)
+
+    elif model_type == "Transformed Model":
+        if not host_model_name or not blocks_str:
+            raise ValueError("host_model_name and blocks_str required for Transformed Model")
+            
+        name = host_model_name.split("/")[-1]
+        save_path = path_base / f"{name}_preGRAFTED_{blocks_str}.pkl"
+        
+        if not save_path.exists():
+            raise FileNotFoundError(f"Transformed model file does not exist: {save_path}")
+            
+        with open(save_path, "rb") as f:
+            transformed_model = pickle.load(f)
+        return transformed_model
+
+    elif model_type == "Final Model":
+        if not host_model_name or not blocks_str:
+            raise ValueError("host_model_name and blocks_str required for Final Model")
+            
+        name = host_model_name.split("/")[-1]
+        model_save_name = f"{name}_GRAFTED_{blocks_str}.pkl"
+        save_path = path_base / model_save_name
+        
+        if not save_path.exists():
+            raise FileNotFoundError(f"Final model file does not exist: {save_path}")
+            
+        with open(save_path, "rb") as f:
+            final_model = pickle.load(f)
+        return final_model
+        
+    elif model_type == "Host Model":
+        if not host_model_name:
+            raise ValueError("host_model_name required for Host Model")
+        return AutoModelForCausalLM.from_pretrained(host_model_name)
+
+
+def load_batch_losses(file_path: str) -> Optional[List[float]]:
+    """
+    Loads batch loss data from a checkpoint file.
+
+    Performance improvements:
+    - Better error propagation with more specific exceptions
+    - Logging instead of print statements
+    - Consistent error handling patterns
+    
+    Trade-offs:
+    - More verbose error logging increases verbosity in normal operations
+    - No additional caching capabilities added
+    """
+    try:
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        batch_losses = checkpoint.get("batch_losses", None)
+        if batch_losses is not None:
+            logging.info(f"Batch losses loaded from {file_path}")
+        else:
+            logging.warning(f"No 'batch_losses' key found in checkpoint at {file_path}")
+        return batch_losses
+    except (FileNotFoundError, IOError, RuntimeError, KeyError) as e:
+        logging.error(f"Error loading checkpoint from {file_path}: {e}")
+        return None
