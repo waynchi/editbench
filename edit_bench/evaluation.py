@@ -145,6 +145,8 @@ def create_question_folders(gen_path, split, js_only=False):
 
         curr_dir = TEST_DIR / f"question_{str(question["problem_id"])}"
         curr_dir.mkdir(parents=True, exist_ok=True)
+        with open(curr_dir / "instruction.txt", "w") as f:
+            f.write(question["instruction"])
 
         qid_content = gen_path / str(question["problem_id"])
         if not qid_content.exists():
